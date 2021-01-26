@@ -1,0 +1,40 @@
+*
+* link ABASIC for MDOS
+* page 7 is used in this file because Lou uses AORG for dummy vars instead
+* of DORG (AORG's give linker error when the page isn't used by the APP)
+PAGES  0,1,4,,,,,7
+CLEAR
+BLOCK  >0400,>6000
+*
+ADD    EXEC
+ADD    CMD
+ADD    PADN
+ADD    SYMBOL
+STATUS
+PAGES  0,2,3,,,,,7
+CLEAR
+BLOCK  >2000,>6000
+*
+ADD    NUD1
+ADD    NUD2
+STATUS
+PAGES  0,,5,,,,,7
+CLEAR
+BLOCK  >4000,>6000
+*
+ADD    CALL1
+STATUS
+PAGES  0,,6,,,,,7
+CLEAR
+BLOCK  >4000,>6000
+*
+ADD    CALL2
+STATUS
+CLEAR
+BLOCK  >0400,>E000
+STATUS
+SAVE   ABASIC1
+*
+EXIT
+*
+

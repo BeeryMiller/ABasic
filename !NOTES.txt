@@ -1,0 +1,3 @@
+To change version number, go to 164\CMDINT56N and look for label
+MSGMAI.
+ 

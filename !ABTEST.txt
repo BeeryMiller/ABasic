@@ -1,0 +1,50 @@
+*
+* link ABASIC for MDOS
+* page 7 is used in this file because Lou uses AORG for dummy vars instead
+* of DORG (AORG's give linker error when the page isn't used by the APP)
+*
+PAGES  0,1,4,,,,,7
+CLEAR
+BLOCK  >0400,>6000
+*
+ADD    EXEC
+ADD    CMD
+ADD    PADN
+ADD    SYMBOL
+*
+PAGES  0,2,3,,,,,7
+CLEAR
+BLOCK  >2000,>6000
+*
+ADD    NUD1
+ADD    NUD2
+*
+PAGES  0,,5,,,,,7
+CLEAR
+BLOCK  >4000,>6000
+*
+ADD    CALL1
+*
+PAGES  0,,6,,,,,7
+CLEAR
+BLOCK  >4000,>6000
+*
+ADD    CALL2
+*
+* RSBUG overlay ...
+*
+PAGES  0,1,,,,,,7
+CLEAR
+BLOCK  RSPACH,>4000
+*
+ADD    RSFIX                  patch >0400, and "D" command.
+ADD    \SYS\RSBUG2            in >e000 page
+*
+EVAL   RSPACH
+*
+CLEAR
+BLOCK  >0400,>F000
+SAVE   ABTEST1
+*
+EXIT
+*
