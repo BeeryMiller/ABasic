@@ -1,0 +1,103 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.156.KEY
+*
+*    NAME:  KEY
+*
+*  SYNTAX:  CALL KEY(UNIT ,KEY(RTNVR) ,STAT(RTNVR))
+*
+*-------------------------------------------------------------------------
+KEY    BL   @KJCOM            PARSE COMMON
+
+       CLR  @CLLEN            C-LIST LENGTH
+
+       CLR  R1
+       XOP  @FIVE,0           DO IT
+       JEQ  KEY20             JUMP IF KEY PRESSED
+
+*    NO KEY WAS PRESSED FOR THE FIRST TIME WE BELEVE (EXCEPT MAYBE JOYSTICK)
+
+       CB   R1,@CBHFF         IS THE KEYBOARD TOTALLY RELEASED?
+       JEQ  KEY21             YES, SO SAY SO
+       CB   R1,@RKEY          NO, SO SEE IF NEW KEY, OR OLD BEING HELD DOWN
+       JNE  KEY22             IS A NEW KEY
+
+* TO BE HERE, SAME OLD KEY IS BEING HELD DOWN
+
+KEY25  SETO R1
+KEY24  BL   @BLDINT
+       BL   @ASSGN
+       MOVB @RKEY,R1          KEY IS MINUS ONE
+       SRL  R1,8
+KEY23  BL   @BLDINT
+       BL   @ASSGN
+       B    @CONT
+
+KEY21  MOVB R1,@RKEY
+       CLR  R1
+       BL   @BLDINT
+       BL   @ASSGN
+       SETO R1
+       JMP  KEY23
+
+*    A KEY WAS PRESSED. CHECK IF IT
+*    IS THE SAME KEY
+
+KEY20  CB   @RKEY,R1          CHECK IF KEY IS THE SAME AS LAST
+       JEQ  KEY25             JUMP IF YES
+
+*    ASSIGN THE RETURN VALUE
+*    NEW KEY PRESSED
+
+KEY22  MOVB R1,@RKEY          SAVE THE KEY
+       LI   R1,1              STATUS EQUALS NEW KEY
+       JMP  KEY24
+
+       PAGE
+*
+*
+* |-----|----|
+* |RTN  |STA |
+* |VARY |VARY|
+* |-----|----|
+*        |
+*        R9
+
+KJCOM  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       BL   @PARFST           PARSE KEY UNIT
+       JEQ  RPTES7            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @SNUM+FAC,@KEYNUM
+
+       BL   @CKCOMA           CHECK FOR COMMA
+       BL   @PSYM             PARSE RETURN VARIABLE
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  RPTES7            ERROR
+       BL   @PSHFAC           SAVE IT
+
+       BL   @CKCOMA           CHECK FOR COMMA
+       BL   @PSYM             PARSE STATU VARIABLE
+       CB   @SID+FAC,@CSIDST  IS IT A STRING
+       JEQ  RPTES7            ERROR
+       BL   @PSHFAC           SAVE IT
+       BL   @CKRPAR           ENSURE RIGHT PAREN
+       MOV  @KEYNUM,R0        GET THE KEYBOARD CODE AND SAVE FOR LATER USE
+       MOV  R0,@KEYBD
+       MOV  *R10+,R11         GET RETURN
+       RT
+
+
+KJERR  LI   R0,ERRSN          SN
+       BL   @ERROR
+
+RPTES7 LI   R0,ERRSNM         STRING NUMBER MISMATCH
+       BL   @ERROR
+
+RPTE09 LI   R0,ERRMUV
+       BL   @ERROR
+
+RTPE30 LI   R0,ERRBV          BAD VALUE
+       BL   @ERROR
+
+

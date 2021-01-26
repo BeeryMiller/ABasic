@@ -1,0 +1,119 @@
+*-------------------------------------------------------------------------------
+*
+*  FILE:    \168\NUD2/SRC
+*
+*  NAME:    NUDS PART TWO
+*
+* VERSION:  3\0 - 10/31/86    BASE LINE
+*
+*-------------------------------------------------------------------------------
+*TOPL15 EQU  >0106
+*TOPL35 EQU  >0108
+*PG2RN4 EQU  >0104
+*PG2RN3 EQU  >010A
+*PG2LDR EQU  >010C
+
+FILE0  EQU  $                 168\RD158
+       UNL
+       COPY "168\RD158"
+       LIST
+FILE0B EQU  $                 160\DATAREFS
+       UNL
+       COPY "160\DATAREFS"
+       LIST
+FILE1  EQU  $                 160\EQUSYS
+       UNL
+       PAGE
+       COPY "160\EQUSYS"
+       LIST
+FILE2  EQU  $                 160\EQUTOKEN
+       UNL
+       PAGE
+       COPY "160\EQUTOKEN"
+       LIST
+FILE3  EQU  $                 160\EQUXOP
+       UNL
+       PAGE
+       COPY "160\EQUXOP"
+       LIST
+FILE4  EQU  $                 160\EQUERR
+       UNL
+       PAGE
+       COPY "160\EQUERR"
+       LIST
+FILE5  EQU  $                 160\EQUSTACK
+       UNL
+       PAGE
+       COPY "160\EQUSTACK"
+       LIST
+FILE6  EQU  $                 160\VARY1
+       UNL
+       PAGE
+       COPY "160\VARY1"
+       LIST
+FILE7  EQU  $                 160\VARY2
+       UNL
+       PAGE
+       COPY "160\VARY2"
+       LIST
+FILE8  EQU  $                 160\OV168
+       UNL
+       PAGE
+       COPY "160\OV158"
+       LIST
+FILE9  EQU  $                 160\VARY3
+       UNL
+       PAGE
+       COPY "160\VARY3"
+       LIST
+FILE10 EQU  $                 160\EQUPAB
+       UNL
+       PAGE
+       COPY "160\EQUPAB"
+       LIST
+
+       AORG >4000
+
+FILE15 EQU  $                 168\PGMLINK
+       UNL
+       PAGE
+       COPY "168\PGMLINK"
+       LIST
+FILE16 EQU  $                 168\TRACE
+       UNL
+       PAGE
+       COPY "168\TRACE"
+       LIST
+FILE17 EQU  $                 168\RTCMDS
+       UNL
+       PAGE
+       COPY "168\RTCMDS"
+       LIST
+*FILE18 EQU  $                 168\EFKINT
+*      UNL
+*      PAGE
+*      COPY "168\EFKINT"
+*      LIST
+FILE19 EQU  $                 168\FILE
+       UNL
+       PAGE
+       COPY "168\FILE"
+       LIST
+FILE20 EQU  $                 168\INPUT   INCLUDES FILEUTIL (IT WAS FOR INPUT)
+       UNL
+       PAGE
+       COPY "168\INPUT"
+       LIST
+FILE21 EQU  $                 168\RDRST
+       UNL
+       PAGE
+       COPY "168\RDRST"
+       LIST
+FILE22 EQU  $                 168\FASTPG
+       UNL
+       PAGE
+       COPY "168\FASTPG"
+       LIST
+P8END  EQU  $-2
+       END
+

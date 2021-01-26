@@ -1,0 +1,54 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.156.PGMLINK
+*
+*    NAME:  PROGRAM LINK
+*
+* VERSION:  3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+       DATA 0                        0
+       DATA CMEMS                    2
+       DATA FILES                    4
+       DATA SPGET                    6
+       DATA SAY                      8
+       DATA PEEKV                    10
+       DATA POKEV                    12
+       DATA PEEK                     14
+
+       DATA CLOAD                    16
+       DATA CLINK                    18
+       DATA CINIT                    20
+       DATA CERR                     22
+       DATA SOUND                    24
+       DATA VERSON                   26
+       DATA KEY                      28
+       DATA JOYST                    30
+
+       DATA DATE                     32
+       DATA TIME                     34
+       DATA LDCR                     36
+       DATA STCR                     38
+       DATA CIN                      40
+       DATA COUT                     42
+       DATA MYART                    44   ENTRY TO CALL MYART("   ")
+       DATA INSUP        46   VECTOR TO LOAD ASM SUPPORT ROUTINES
+       DATA ECOLOR                   48  CALL EDGE COLOR
+*      DATA SMSG1        48   VECTOR TO MESSAGE 1 SAVE ERROR
+*      DATA SMSG2        50   VECTOR TO MESSAGE 2 SAVE ERROR
+*      DATA SMSG3        52   VECTOR TO MESSAGE 3 SAVE ERROR
+*      DATA SMSG4        54   VECTOR TO MESSAGE 4 SAVE ERROR
+*      DATA INMSG1+>8000 56   VECTOR TO
+*      DATA INMSG2+>8000 58
+
+CBHB3  BYTE >B3
+CBHC2  BYTE >C2
+CBHB6  BYTE >B6
+CBHB7  BYTE >B7
+CBHFD  BYTE >FD
+CBHEC  BYTE >EC
+
+CBHE3  BYTE >E3
+CBH9B  BYTE >9B
+CBH91  BYTE >91
+

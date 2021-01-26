@@ -1,0 +1,743 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.156.ASM2000
+*
+*    WHAT:  ASSEMBLER SUPPORT
+*
+* VERSION:  3.0 - 01/16/88    BASE LINE
+*
+*-------------------------------------------------------------------------
+*  THE FOLLOWING ROUTINES ARE DEFINED IN THE ED/AS MANUAL OF TI
+*    FOR TIXB
+*     FIRST BLWP VECTORS
+*      >2008  NUMASG
+*      >200C  NUMREF
+*      >2010  STRASG
+*      >2014  STRREF
+*      >2018  XMLLNK
+*      >201C  KSCAN
+*      >2020  VSBW
+*      >2024  VMBW
+*      >2028  VSBR
+*      >202C  VMBR
+*      >2030  VWTR
+*      >2034  ERR
+*
+*
+* THE FOLLOWING MUST BE AT >2000 IN RAM FOR COMPATIBILITY
+*  WITH TI EXTENDED BASIC
+*
+*IFFA   EQU  >24F4             START FOR ASSM LOADING
+*UTILWS EQU  >2038
+
+ASOF   EQU  $->2000
+
+LIB01  DATA NAMLNK-ASOF       >2000
+       DATA IFFA              2 FIRST FREE ADDRESS
+       DATA DEFTBL            4 LAST FREE ADDRESS
+HAA55  DATA >AA55             6 INITIALIZED CONSTANT
+       DATA UTILWS,NUMAST-ASOF >2008
+       DATA UTILWS,NUMRET-ASOF
+       DATA UTILWS,STRAST-ASOF
+       DATA UTILWS,STRRET-ASOF
+       DATA UTILWS,XMLENT-ASOF
+       DATA UTILWS,KSENT-ASOF
+       DATA UTILWS,VSBWEN-ASOF
+       DATA UTILWS,VMBWEN-ASOF
+       DATA UTILWS,VSBREN-ASOF
+       DATA UTILWS,VMBREN-ASOF
+       DATA UTILWS,VWTREN-ASOF
+       DATA UTILWS,ERREN-ASOF  RETURN ERROR TO XB II
+
+*    UTILITY WORK SPACE IS HERE
+
+       DATA 0,0,0,0,0,0,0,0   >2038
+       DATA 0,0,0,0,0,0,0,0
+
+SAVRGS DATA 0,0,0,0,0,0,0,0   A PLACE TO STORE BASICS >F000 WORKSPACE AT
+       DATA 0,0,0,0,0,0,0,0   R3-R15 OF UREG1 R13-R15 OF UREG2
+
+USF000 DATA 0,0,0,0,0,0,0,0   A PLACE TO STORE USERS >F000 WORKSPACE WHEN
+       DATA 0,0,0,0,0,0,0,0   PERFORMING A CALL TO ASM SUPPORT
+       PAGE
+*
+*    NUMERIC ASSIGNMENT
+*
+NUMAST BL   @INITSP-ASOF      * INITIALIZE (R0 WILL CONTAIN ELE # ON RETURN)
+
+       CB   *R9,@CSIDVS       * IS STACK VALUE SPACE
+       JEQ  STR$19            * BAD VALUE
+
+       CB   *R9,@CSIDDM       * TEST IF DIM
+       JEQ  NUMA10            * JUMP IF YES
+
+       MOV  R0,R0             * NOT AN ARRAY TEST R0
+       JNE  STR$19            * IT MUST BE ZERO
+
+NUM$70 BL   @MTOFAC           * MOVE TO OUR FAC
+       DATA >8346             * FROM THE ASSEMBLERS FAC
+
+       LI   R0,SIDVS*256+SIDRAD  * INSTALL CORRECT ID
+       MOV  R0,@FAC
+       CLR  @FAC+2
+
+STR$23 BL   @ASSG             * ASSIGN IT
+       MOV  R0,R0
+       JEQ  NUMCOM            * NO ERROR, SO RETURN TO ASM
+       JMP  STR$07            * BAD ASSIGN, ERROR ALREADY IN R0
+
+
+NUMA10 BL   @CALARE-ASOF      DOES A POPFAC FIRST
+       MOV  @SAVEVS,R9
+       BL   @PSHFAC
+       JMP  NUM$70
+
+       PAGE
+*
+*    NUMERIC REFERENCE
+*
+NUMRET BL   @INITSP-ASOF      * INITIALIZE (R0 WILL CONTAIN ELE # ON RETURN)
+       CB   *R9,@CSIDVS       * IS IT ALREADY A VALUE
+       JNE  NUMR09            * NO, SO TEST IF SCALAR OR MATRIX
+       BL   @POPFAC           * IS A VALUE, SO PUT IN FAC
+       JMP  NUMR10
+
+NUMR09 CB   *R9,@CSIDDM       * TEST IF DIM
+       JEQ  NUMR20            * JUMP IF YES
+       MOV  R0,R0             * NOT AN ARRAY TEST R0 (MUST BE ZERO)
+       JNE  STR$19            * IS NOT ZERO, SO ERROR OUT
+       BLWP @GVSSTK           * GET ITS VALUE SPACE
+NUMR11 BL   @RSMAP-ASOF
+NUMR10 BL   @ITOF             * MAKE SURE IT IS A FLOATING POINT
+       LI   R1,FAC+SNUM
+       LI   R2,>834A
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+       MOV  *R1,*R2
+
+NUMCOM BL   @RSMAP-ASOF       * RETURN THE MEMORY MAP
+       LWPI UREG2
+       LI   R2,UREG1          * NOW RESTORE USERS >F000 REGISTER SET
+       LI   R1,USF000-ASOF
+       LI   R3,32
+       BL   @FASMVW
+       LWPI UTILWS            * LOAD THE UTILITY WORK SPACE
+       RTWP                   * AND RETURN TO CALLER
+
+*    ARRAY FOR NUM REFERENCE GET VALUE
+
+NUMR20 BL   @CALARE-ASOF      DOES A POPFAC FIRST
+       BLWP @GETVS
+       JMP  NUMR11
+
+       PAGE
+*
+*    STRING REFERENCE
+*
+STRRET BL   @INITSP-ASOF      * INITIALIZE (R0 WILL CONTAIN ELE # ON RETURN)
+
+       CB   @SID(R9),@CSIDST  * TEST IF WE HAVE A STRING
+       JNE  STR$09            * STRING NUMBER MISMATCH
+
+       CB   *R9,@CSIDDM       * TEST IF DIM
+       JNE  STR$52            * NO
+       BL   @CALARE-ASOF      * DOES A POPFAC FIRST
+       JMP  STR$08            * CONTINUE TO GET THE THING
+
+STR$09 LI   R0,ERRSNM
+       JMP  STR$07
+
+STR$52 MOV  R0,R0             * GET THE VALUE OF R0
+       JEQ  STR$28            ITS AN ERROR, NUST BE ELEMENT 0
+
+STR$19 LI   R0,ERRBV          LOAD ERROR CODE
+STR$07 MOV  @BEGINV,R9
+       BL   @ERROR
+
+*    COPY STRING TO STRBUF
+
+STR$28 BL   @POPFAC
+STR$08 LI   R2,SBUFP
+       CLR  *R2               MAKE SURE THAT STRBUF IS OF 0 LENGTH
+       MOV  @FAC+SLEN,R3      * GET STRING LENGTH
+       JEQ  STR$18            * IT IS ZERO, SO IGNORE IT
+       MOV  @FAC+STRP,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @FAC+STRA,R1      * GET 13 BIT DEST ADDRESS
+       AI   R1,>A000-1        * MAKE IT 16 (INCLUDE LSB OF LENGTH ALSO)
+
+       LI   R0,ERRSTL         * IN CASE STRING IS TOO LONG
+       MOVB R3,R3             * TEST IF STRING LENGTH IS TOO LONG
+       JNE  STR$07            * STRING TOO LONG
+       INC  R3                * INCLUDE LENGTH
+       BL   @FASMVB
+
+STR$18 BL   @RSMAP-ASOF       * RESTORE MAP
+       LI   R1,SBUFP         * SOURCE
+       MOV  @SAVER2-ASOF,R2   * LOAD DEST ADDRESS
+       MOV  @FAC+SLEN,R3      * BYTE COUNT
+       CB   @UREG1+7,*R2
+       JH   STR$19            * JUMP TO BAD VALUE
+       INC  R3                * INCLUDE LENGTH
+       BL   @FASMVB
+       JMP  NUMCOM            * BACK TO ASSM CALLER
+       PAGE
+*
+*    STRING ASSIGN
+*
+STRAST BL   @INITSP-ASOF      * INITIALIZE (R0 WILL CONTAIN ELE # ON RETURN)
+
+       CB   @SID(R9),@CSIDST  * TEST IF WE HAVE A STRING
+       JNE  STR$09            * JUMP IF NO
+
+       CB   *R9,@CSIDDM       * TEST IF DIM
+       JNE  STR$53            * NO
+
+*    ARRAY CASES TAKEN CARE OF HERE
+
+       BL   @CALARE-ASOF      * DOES A POPFAC FIRST
+       MOV  @SAVEVS,R9
+       BL   @PSHFAC
+       JMP  STR$20
+
+STR$53 MOV  R0,R0             * GET THE VALUE OF R0
+       JNE  STR$19            * BAD VALUE
+       CB   *R9,@CSIDVS       * TEST IF STRING IS TEMP
+       JEQ  STR$19            * JUMP IF YES
+
+STR$20 MOV  @SAVER2-ASOF,R1        * GET THE USERS ADDRESS
+       MOVB *R1+,R3           * GET LENGTH OF BUFFER
+       SRL  R3,8              * ALIGN FOR REGISTER
+       MOV  R3,@SLEN+FAC      * COPY IT
+       JEQ  STR$21            * NULL STRING
+       LI   R2,SBUFP         * LOAD DESTINATION ADDRESS
+       BL   @FASMVB           * MOVE IT
+
+*    ALLOCATE THE STRING SPACE
+
+STR$21 MOV  @SLEN+FAC,R1      FOR GET STRING
+       BL   @GETSTR           BUILD FAC ENTRY
+
+*    STRING ALREADY MAPPED IN IN >A000 SPACE
+
+       MOV  @FAC+STRA,R2      * GET 13 BIT DEST ADDRESS
+       AI   R2,>A000          * MAKE IT 16
+       LI   R1,SBUFP         * SOURCE ADDRESS
+       MOV  @FAC+SLEN,R3      * GET THE LENGTH
+       JEQ  STR$22            * JUMP IF ZERO
+       BL   @FASMVB           * MOVE IT
+
+*    NOW DO THE ASSIGNMENT
+
+STR$22 B    @STR$23-ASOF      NOW ASSIGN THE STRING (USE COMMON CODE)
+
+       PAGE
+*
+*    NAME:  INITSP
+*
+*    WHAT:  INITIALIZE SUPPORT
+*
+
+INITSP MOV  *R13,@SAVER0-ASOF  * SAVE CALLERS R0,R1,R2
+       MOV  @2(R13),@SAVER1-ASOF  *
+       MOV  @4(R13),@SAVER2-ASOF  *
+       LWPI UREG2
+       LI   R1,UREG1          * SAVE THE USERS >F000 WORKSPACE
+       LI   R2,USF000-ASOF
+       LI   R3,32
+       BL   @FASMVW
+       BL   @RSTUR1-ASOF      PUT BACK THE CONDITION OF UREG1 AND RETURN IN REG2
+       LWPI UREG1             * GET OUR WORK SPACE
+       MOV  @SAVER1-ASOF,R9
+       C    R9,@LNKCNT        * CHECK IF GREATER THAN MAX PARAMETERS
+       JH   STR$19                * THE # IS GREATER THAN THE PARM PASSED
+       MOV  @UTILWS+22,R11    * GET RETURN
+
+*    THE REQUESTED PARAMETER IS WITHIN THE RANGE
+*    SET THE STACK POINTER TO THE DESIRED PARAMTER
+
+       SLA  R9,4              * MULTIPLY BY 16
+       A    @BEGINV,R9        * GET THE START OF THE STACK
+       MOV  @SAVER0-ASOF,R0   * GOOD FOR LATER USE
+       RT                     * ALL DONE EVERYTHING SET UP
+       PAGE
+*
+*    WHAT:  CALCULATE ARRAY ENTRY
+*
+CALARE DECT R10
+       MOV  R11,*R10
+       BL   @POPFAC
+       MOV  @SAVER0-ASOF,R2        * GET THE ELEMENT NUMBER FROM USER
+       ABS  @BASE             * TEST BASE FLAG
+       JEQ  CAL114
+       DEC  R2
+CAL114 CLR  R1
+       CB   @SID+FAC,@CSIDRL
+       JH   CAL111            IS A STRING
+       JL   CAL112            IS AN INTEGER
+       BL   @CALAD-ASOF       IS A REAL
+CAL111 BL   @CALAD-ASOF
+CAL112 BL   @CALAD-ASOF
+
+       AI   R2,16             * PLUS OVERHEAD
+       JNC  CAL137
+       INC  R1
+CAL137 MOVB R2,R1             * NOW CONVERT TO 8/13 BIT
+       ANDI R2,>1FFF
+       SRC  R1,13
+       SZCB R1,R1
+       A    @STRA+FAC,R2
+       A    @STRP+FAC,R1
+       COC  @CW2000,R2
+       JNE  CAL147
+       ANDI R2,>1FFF
+       INC  R1
+CAL147 CLR  @STRP+FAC         * CLEAR OUT TEMP
+       CLR  @STRA+FAC         * CLEAR OUT TEMP
+       MOV  R2,@SYMA+FAC      * SAVE SYMBOL POINTER
+       MOV  R1,@SYMP+FAC      * SAME HERE
+       CB   @SID+FAC,@CSIDST  * DO WE HAVE A STRING
+       JNE  CAL156            * NO, SO RETURN
+       MOVB @DATBUF(R1),@MAP96
+       MOVB @DATBUF+1(R1),@MAP98
+       AI   R2,>6000          * MAKE IT 16
+       MOV  *R2+,R4           * GET STRING PAGE
+       MOV  R4,R3             * COPY IT
+       MOV  R4,@STRP+FAC      * WRITE IT
+       MOV  *R2+,R5           * GET 13 BIT ADDRESS
+       A    R5,R3             * SUM WITH PAGE
+       JEQ  CAL178            * TRULY ZERO
+
+*    MAP IN STRING PAGE
+
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+       MOV  R5,@STRA+FAC
+       MOV  @>A000-2(R5),@SLEN+FAC
+CAL326 BL   @RSMAP-ASOF
+CAL156 MOV  *R10+,R11
+       RT
+
+CAL178 CLR  @STRA+FAC         * CLEAR STRING ADDRESS
+       CLR  @SLEN+FAC         * CLEAR SLEN
+       JMP  CAL326
+
+CALAD  SLA  R1,1              MSW
+       SLA  R2,1              LSW
+       JNC  CALAD1            NO CARRY
+       INC  R1                TAKE CARE OF CARRY
+CALAD1 RT
+       PAGE
+
+RSTUR1 LI   R0,UREG1+6        MUST BE SURE THAT WE ARE IN  UREG2 WS
+       LI   R1,SAVRGS-ASOF
+       LI   R2,13
+RSTUR2 MOV  *R1+,*R0+
+       DEC  R2
+       JNE  RSTUR2
+*      LI   R0,UREG2+26
+       MOV  *R1+,R13
+       MOV  *R1+,R14
+       MOV  *R1,R15
+       RT
+
+RSMAP  MOV  @ASMPTR,R4          RESTORE ASSM MEMORY MAP
+       LI   R5,MAP94
+       INC  R4
+       MOVB *R4+,*R5+         >4000
+       MOVB *R4+,*R5+         >6000
+       MOVB *R4+,*R5+         >8000
+       MOVB *R4+,*R5+         >A000
+       MOVB *R4+,*R5+         >C000
+       RT
+
+       PAGE
+*
+*      KEYBOARD SCAN ROUTINE
+*
+***************************
+*
+*
+* keyboard    XOP @FIVE,0
+*
+*      IN:     R0Lsb =  scan mode   (like ti modes, 0-5)
+*
+*      OUT:    R0Lsb =  returned mode  (same as >8374 in 99/4a)
+*              R1Msb =  returned scan code (same as >8375)
+*              R2Msb =  joystick Y value     (same as >8376)
+*              R2Lsb =  joystick X value     (same as >8377)
+*           EQ bit in Status register set if there's a new key in R0
+*
+*              mode 7 = break key check  return EQ=1 if Break on
+*              mode 8 = raw scan code returned in R1h
+*                       raw code returned is >FF if there was no code in buffer
+*
+KSENT  LWPI UREG2             USE THE SECOND SET OF REGISTERS
+       MOVB @>8374,R0
+       SRL  R0,8              RIGHT JUDTIFY
+       MOVB R0,@>837C         * RESET GPL STATUS BYTE (R0 MASB IS ZERO)
+       XOP  @FIVE,0           * SCAN THE KEYBOARD
+       JNE  KSENT2            NO NEW KEY PRESSED
+       MOVB @H2000,@>837C     * KEY WAS PRESSED
+KSENT2 MOVB R1,@>8375
+       MOV  R2,@>8376         RETURN JOYSTICK VALUES
+       JMP  XMLRTN            RETURN TO CALLER
+
+
+SCAN   BLWP @KSCAN1-ASOF      SCAN THE KEYBOARD AND RETURN
+       RT
+       PAGE
+*
+*      LINK TO SYSTEM UTILITIES
+*
+***************************************
+*      THE FOLLOWING TABLE MUST BE SOMEWHERE FOR XB
+*      >00  COMPCT     NOT SUPPORTED
+*      >02  GETSTR     NOT SUPPORTED
+*      >04  MEMCHK     NOT SUPPORTED
+*      >06  CNS            SUPPORTED
+*      >0E  VPUSH      NOT SUPPORTED
+*      >10  VPOP       NOT SUPPORTED
+*      >18  ASSGNV     NOT SUPPORTED
+*      >20  CIF            SUPPORTED
+*      >26  SCROLL         SUPPORTED
+*      >34  VGWITE     NOT SUPPORTED
+*      >36  GVWITE     NOT SUPPORTED
+*      >0D80 FADD          SUPPROTED
+*      >0D7C FSUB          SUPPROTED
+*      >0E88 FMUL          SUPPROTED
+*      >0FF4 FDIV          SUPPROTED
+*      >11AE CSN           SUPPROTED
+*      >12B8 CFI           SUPPROTED
+*      >0D3A FCOMP         SUPPORTED
+*
+* math library ...  XOP @TEN,0
+*
+*
+*  opcode #0
+*  FCOMP    floating point compare
+*           input:            r0=0
+*                             r2=^float1
+*                             r3=^float2
+*
+*           return:           status reg = AG set iff (float2 > float1)
+*                                          EQ set iff (float2 = float1)
+*
+*  opcode #1
+*  FSUB     floating point subtract
+*           input:            r0=1
+*                             r1=^result
+*                             r2=^float1
+*                             r3=^float2
+*           return:           r0=error code
+*                             ^r1 = float2 - float1
+*
+*  opcode #2
+*  FADD     floating point add
+*           input:            r0=2
+*                             r1=^result
+*                             r2=^float1
+*                             r3=^float2
+*           return:           r0=error code
+*                             ^r1 = float2 + float1
+*
+*  opcode #3
+*  FMULT    floating point multiply
+*           input:            r0=3
+*                             r1=^result
+*                             r2=^float1
+*                             r3=^float2
+*           return:           r0=error code
+*                             ^r1 = float2 * float1
+*
+*  opcode #4
+*  FDIV     floating point divide
+*           input:            r0=4
+*                             r1=^result
+*                             r2=^float1
+*                             r3=^float2
+*           return:           r0=error code
+*                             ^r1 = float2 / float1
+*
+*
+*  opcode #14
+*  CFI      convert floating point to integer
+*           input:            r0=14
+*                             r2=^float1
+*           return:           r0=error code
+*                             r1 = integer
+*
+*  opcode #15
+*  CIF      convert integer to floating point
+*           input:            r0=15
+*                             r1=^result
+*                             r2=integer
+*           return:           r0=error code
+*                             ^r1 = float( integer )
+*
+*  opcode #17
+*  CSN      convert string to floating point
+*           input:            r0=17
+*                             r1=^result
+*                             r2=^string
+*                             r3=strlen
+*           return:           r0=error code
+*                             ^r1 = float( string )
+*
+*  opcode #18
+*  CNS      convert float to string
+*           input:            r0=18
+*                             r1=^string
+*                             r2=^float1
+*                             r3=opt1
+*                                 bit 0: 0=free form (ignore opt2, opt3)
+*                                        1=fixed (opt2, opt3 are field sizes)
+*                                 bit 1: 1 for explicit sign
+*                                 bit 2: 1 to show sign of positive number
+*                                        as a '+' instead of as a space.
+*                                        (bit 1 must also be on)
+*                                 bit 3: 1 for E-notation output
+*                                 bit 4: 1 for extended E-notation
+*                                        (bit 3 must also be 1)
+*                             r4=if fixed format, number of places to left
+*                                of decimal point, including explicit sign
+*                             r5=if fixed format, number of places to the
+*                                right of decimal point and including decimal
+*                                point
+*                             if fixed format, with exponent, r4,r5 exclude the
+*                             3 places for an exponent
+*
+*           return:           r0=error code
+*                             ^r1 = string
+*
+*
+*
+****************************************************************
+*
+XMLENT MOV  *R14+,@UREG2+20   PUT OPERATION IN R10
+       LWPI UREG2             USE WORK REG #2
+* THERE ARE 2 SPECIAL CASES, ONE IS SCROLL AND THE OTHER IS FCOMP
+       LI   R9,XMLTBL-ASOF-4  POINT TO TABLE
+       LI   R1,GPFAC          SET UP A DEFAULT REGISTER POINTER SET
+       LI   R2,GPFAC
+       LI   R3,GPARG
+XML000 AI   R9,4              POINT TO NEXT POSITION
+       MOV  *R9+,R5           IS IT ZERO?
+       JEQ  XMLRTN            ALL DONE, AND NO XML MATCH FOUND, JUST RET
+       C    R5,R10            MATCH?
+       JNE  XML000
+       MOV  *R9+,R5           GET BRANCH VECTOR
+       MOV  *R9,R0            GET XOP INDEX
+       B    *R5               GO TO THE ROUTINE
+
+
+ACSN   MOV  @>834A+12,R2
+       LI   R3,>20            USE A LARGE NUMBER, "00" WILL STOP THE CONVERSION
+       JMP  ACIF00            DO IT
+
+ACNS   MOVB @>834A+11,R3
+       SRL  R3,8
+       MOV  @>834A+12,R4
+       MOV  R4,R5
+       SZCB R5,R5
+       SRL  R4,8
+       XOP  @TEN,0
+       SLA  R2,8
+       MOVB R2,@>834A+12       LENGTH
+       MOVB @ABH4A-ASOF,@>834A+11   LOCATION (FAC)
+       JMP  ACIF00            FINISH UP
+
+ACIF   MOV  *R2,R2            GET THE INTEGER
+       JMP  ACIF00            CONTINUE
+
+ACFI   XOP  @TEN,0           CONVERT TO INT
+       MOV  R1,@>834A
+ABH4A  EQU  $-1
+       JMP  ACFI00            TEST IF ERROR
+
+AFDIV
+AFADD
+AFSUB
+AFMUL
+ACIF00 XOP  @TEN,0
+       MOVB @CBH00,@>8354     CHECK FOR ERROR, ZERO OUT ERROR
+ACFI00 MOV  R0,R0
+       JEQ  XMLRTN            NO ERROR
+       MOVB @CBH01,@>8354     ERROR RETURN
+       JMP  XMLRTN
+
+AFCOMP XOP  @TEN,0
+       STST R0                PUT STATUS IN CORRECT LOCATION
+       MOVB R0,@>837C
+       JMP  XML000            BACK TO CALLER
+
+ASCROL BL   @SROLL
+XMLRTN LWPI UTILWS
+       RTWP
+
+
+* XML LINK TABLE FORMAT IS XML VALUE, BRANCH VECTOR TO ROUTINE, XOP INDEX
+
+XMLTBL DATA 6,ACNS-ASOF,18         CNS
+       DATA >20,ACIF-ASOF,15       CIF
+       DATA >26,ASCROL-ASOF,0      SCROLL
+       DATA >D3A,AFCOMP-ASOF,0     FCOMP
+       DATA >D7C,AFSUB-ASOF,1      FSUB
+       DATA >D80,AFADD-ASOF,2      FADD
+       DATA >E88,AFMUL-ASOF,3      FMUL
+       DATA >FF4,AFDIV-ASOF,4      FDIV
+       DATA >11AE,ACSN-ASOF,17     CSN
+       DATA >12B8,ACFI-ASOF,14     CFI
+       DATA 0                 END OF TABLE
+       PAGE
+
+TOASM  LWPI UREG1             USE OUR REG1
+       BL   @RSMAP-ASOF       * LOAD THE ASM MEM MAP
+       MOV  @ENTADD-ASOF,R0        * GET ENTRY ADDRESS
+       BL   *R0               * CALL ASSEMBLY ROUTINE
+
+*    RETURN HERE
+
+ERR2   LWPI UREG2
+       BL   @RSTUR1-ASOF      * RELOAD REGISTERS
+       MOV  @ERRCOD,*R13      * ERROR CODE IN CALLERS R0
+       MOVB @ASRTPG,@MAP94    * MAP THE ASM RETURN PAGE BACK IN
+       RTWP                   * AND RETURN TO CALLER
+
+ERREN  MOV  *R13,@ERRCOD      * GET THE ERROR FROM CALLERS R0
+       JMP  ERR2
+       PAGE
+
+ENTADD DATA 0                 * ENTRY ADDRESS
+CHKSAV DATA 0                 * CHECK SUM POLYNOMIAL
+SAVER0 DATA 0
+SAVER1 DATA 0
+SAVER2 DATA 0
+
+*
+** VDP SINGLE BYTE WRITE
+*
+VSBWEN BL   @WVDPWA-ASOF      WRITE OUT ADDRESS
+
+       MOVB R1,@VDPWD         WRITE DATA
+
+       JMP  VDPRT             RETURN TO CALLER
+*
+** VDP MULTIPLE BYTE WRITE
+*
+VMBWEN BL   @WVDPWA-ASOF      WRITE OUT ADDRESS
+
+VWTMOR MOVB *R1+,@VDPWD       WRITE A BYTE
+
+       DEC  R2                DECREMENT BYTE COUNT
+       JNE  VWTMOR            MORE TO WRITE?
+       JMP  VDPRT             RETURN TO CALLING PROGRAM
+*
+**VDP SINGLE BYTE READ
+*
+VSBREN BL   @WVDPRA-ASOF      WRITE OUT ADDRESS
+       MOVB @VDPRD,@2(R13)    READ DATA
+       JMP  VDPRT             RETURN TO CALLING PROGRAM
+*
+**VDP MULTIPLE BYTE READ
+*
+VMBREN BL   @WVDPRA-ASOF      WRITE OUT ADDRESS
+
+VRDMOR MOVB @VDPRD,*R1+       READ A BYTE
+
+       DEC R2                 DECREMENT BYTE COUNT
+       JNE VRDMOR             MORE TO READ?
+       JMP VDPRT              RETURN TO CALLING PROGRAM
+*
+**VDP WRITE OUT REGISTER
+*
+VWTREN MOV  *R13,R1           GET REGISTER NUMBER AND VALUE
+       STST R3                STORE THE CURRENT STATUS REGISTER
+       LIMI 0                 STOP INTS
+
+       MOVB @1(R13),@VDPWA    WRITE OUT VALUE
+
+
+       ORI  R1,>8000          SET FOR REGISTER WRITE
+
+       MOVB R1,@VDPWA         WRITE OUT REGISTER NUMBER
+*      LST  R3                RESTORE THE STATUS REGISTER
+VDPRT  DATA >0083
+
+       RTWP                   RETURN TO CALLING PROGRAM
+*
+**SET UP TO WRITE TO VDP
+*
+WVDPWA LI   R1,>4000
+
+       JMP  WVDPAD
+*
+**SET UP TO READ VDP
+*
+WVDPRA CLR  R1
+*
+**WRITE VDP ADDRESS
+*
+WVDPAD STST R3                LOCK INTS
+       LIMI 0
+
+       MOVB @1(R13),@VDPWA    WRITE LSB OF ADDRESS
+       SOCB *R13,R1           ET MSB AND WHATEVER IN R1
+       MOVB R1,@VDPWA
+
+       MOV  @2(R13),R1        GET CPU RAM ADDRESS
+
+       MOV  @4(R13),R2        GET BYTE COUNT
+       RT                     RETURN TO CALLING ROUTINE
+LIB99  EQU  $
+       PAGE
+*
+* THE FOLLOWING TABLE GOES IN RAM RIGHT BEFORE >E000
+* AT THE HIGH END OF MEMORY
+*
+DEFTBL EQU  >E000->98    >E000-(DEFEND-LIBDEF)
+
+LIBDEF TEXT 'SCAN  '
+       DATA SCAN-ASOF
+       TEXT 'PAD   '
+       DATA >8300
+       TEXT 'GPLWS '
+       DATA >83E0
+       TEXT 'SOUND '
+       DATA >F120
+       TEXT 'VDPRD '
+       DATA >F100
+       TEXT 'VDPSTA'
+       DATA >F102
+       TEXT 'VDPWD '
+       DATA >F100
+       TEXT 'VDPWA '
+       DATA >F102
+       TEXT 'XMLLNK'
+       DATA XMLLNK
+       TEXT 'KSCAN '
+       DATA KSCAN1
+       TEXT 'VSBW  '
+       DATA VSBW
+       TEXT 'VMBW  '
+       DATA VMBW
+       TEXT 'VSBR  '
+       DATA VSBR
+       TEXT 'VMBR  '
+       DATA VMBR
+       TEXT 'VWTR  '
+       DATA VWTR
+       TEXT 'NUMASG'
+       DATA NUMASG
+       TEXT 'NUMREF'
+       DATA NUMREF
+       TEXT 'STRASG'
+       DATA STRASG
+       TEXT 'STRREF'
+       DATA STRRFF
+
+DEFEND EQU  $
+

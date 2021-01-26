@@ -1,0 +1,461 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.157.SYMSUP
+*
+*  NAME:    SYMBOL SUPPORT
+*
+*  VERSION: 3.0 - 10/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  DDEF
+*
+*    WHAT:  SCAN AN DEF
+*
+
+DDEF   MOVB @PFLAG,R0         CHECK IF RUNNING A PROGRAM
+       JLT  DDEF2             YES
+
+       BL   @ERRIMP
+
+DDEF1  LI   R0,ERRMUV         IMPROPERLY USED NAME
+DDEF0  B    @SYMRTN
+
+DDEF2  MOVB *R12+,R8          GET THE NEXT CHARACTER
+       BL   @ENTER            BUILD THE SYMBOL
+
+       BL   @SRCHSY           FIND THE SYMBOL
+       MOV  R0,R0             CHECK IF FOUND
+       JEQ  DDEF1             YES ITS AN ERROR
+
+       SOCB @UDFBIT,@HEADER   SET THE UDF BIT IN THE HEADER
+       BL   @ADDSYM
+
+       LI   R1,4
+       CLR  R2
+       BL   @ADDVSW
+
+*    GET THE 13 BIT ADDRESS OF THE SYMBOL
+
+       MOV  @CURSYM+2,R4      GET 13 BIT ADDRESS
+       AI   R4,>A000          MAKE IT 16
+
+*    SET UP R4 TO POINT TO THE START OF VALUE SPACE
+
+       MOV  *R4,R5            GET THE HEADER
+       ANDI R5,>000F          MASK OUT VSO
+       SLA  R5,1              TIMES BY 2
+       A    R5,R4             ADD
+
+       MOV  @CURSYM,@SVDEF1   SAVE THE PAGE
+       MOV  R4,@SVDEF1+2      13 BIT ADDRESS
+       MOV  @CURSYM,@SVDEF2
+       AI   R4,8
+       MOV  R4,@SVDEF2+2
+
+       CLR  @ARGC
+       CI   R8,LPAR$*256
+       JNE  DINIT
+
+       BL   @CNTPRM
+
+       BL   @ADDVSW
+
+*    NOW RE-SCAN THE PARAMETER LIST ADDING THE PARAMETERS
+*    OR ADDING THERE LINK
+
+DDEF3  MOVB *R12+,R8          GET THE NEXT CHARACTER
+       MOV  @NVFLAG,@HEADER   RESTORE THE HEADER
+       BL   @ENTER            BUILD THE SYMBOL
+       BL   @SRCHSY           SEARCH THE SYMBOL TABLE
+       LI   R1,LSTSYM         ASSUME SYMBOL ALREADY FOUND
+       MOV  R0,R0             CHECK TO SEE IF THERE
+       JEQ  DDEF7             YES DONT ADD IT
+       BL   @ADDSYM           NO ADD THE SYMBOL
+
+       BL   @ADDVS            ADD THE VALUE SPACE
+       LI   R1,CURSYM
+
+DDEF7  MOV  @SVDEF2,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @SVDEF2+2,R4
+
+       MOV  *R1+,*R4+         USE EITHER CURSYM OR LSTSYM
+       MOV  *R1,*R4+
+
+       MOV  R4,@SVDEF2+2
+
+       CI   R8,COMMA$*256
+       JEQ  DDEF3
+
+       CI   R8,RPAR$*256
+       JNE  DDEF6
+
+       MOVB *R12+,R8
+
+DINIT  CI   R8,EQUAL$*256
+       JNE  DDEF6
+
+*    NOW GET THE SAVED POINTER AND FINISH UPDATING THE
+*    UDF ENTRY
+
+       MOV  @SVDEF1,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @SVDEF1+2,R4
+
+       MOV  @CLINE,*R4+
+       MOV  @PGMLN,*R4+
+       MOV  R12,*R4+
+       MOV  @ARGC,*R4
+       B    @SYM01            FINISH SCANNING LINE
+
+CNTPE3
+DDEF6  BL   @SYMSYN           SYNTAX ERROR
+
+       PAGE
+*
+*    COUNT PARAMETER LIST
+*
+
+CNTPRM DEC  R12
+       MOV  R12,@OLDPGM       SAVE THE START
+
+CNTP5  INC  @ARGC             INCREMENT ARG CONUTER
+
+CNTP3  MOVB *R12+,R8          GET A CHARACTER
+CNTP3A MOVB R8,R8             CHECK IT
+       JEQ  CNTPE3            IF AT END OF LINE
+
+       CI   R8,RPAR$*256
+       JEQ  CNTP4             YES
+       CI   R8,COMMA$*256     AT A COMMA ?
+       JNE  CNTP3             YES
+       JMP  CNTP5
+
+*    FINISHED WITH THE FIRST SCAN.
+*    GOT THE NUMBER OF ARGUMENTS
+*    CLEAR OUT THE VALUE SPACE FOR THEM
+
+CNTP4  MOV  @ARGC,R14         GET THE COUNTER
+       CLR  @SYMSZ            * CLEAR THE SYMBOL SIZE
+       CLR  R1                * START WITH ZERO
+CNTP4B INCT R1                * ADD TWO WORDS FOR ARG
+       DEC  R14               * DECREMENT COUNTER
+       JNE  CNTP4B            * JUMP IF NOT DONE
+CNTP4C CLR  R2                * NO PAGES
+       MOV  @OLDPGM,R12
+       MOVB *R12+,R8
+       RT
+
+       PAGE
+*
+*    NAME:  SRCHSY
+*
+*    WHAT:  THE NEXT BLOCK OF CODE CHECKS THE SYMBOL
+*           TABLE FOR THE SYMBOL.
+*            uses R0-R5
+
+SRCHSY CLR  R0
+       MOV  @PSCAN,R1         CHECK SCAN MODE
+       JNE  SRCH4             OFF
+
+       MOV  @SYMCNT,R0        ANY SYMBOLS ?
+       JEQ  SRCH5             NO
+
+       MOV  @SYMTAB,R5        PAGE
+       MOV  @SYMTAB+2,R4      ADDRESS
+
+*    SEARCH THE SYMBOL LIST    start at SYMTAB
+*    SAVE THE ADDRESS            last symbol searched is in LSTSYM
+*                            symbol to compare in >A000 space
+
+SRCH1  MOV  @SYMEND+2,R2      r2 contains the symbol to search against
+       AI   R2,>A006
+
+SRCH11 MOV  R5,R1             CHECK IF LAST ENTRY
+       JLT  SRCH3
+       SZCB R1,R1             MASK OUT THE JUNK
+       MOVB @DATBUF(R1),@MAP96
+       MOVB @DATBUF+1(R1),@MAP98
+
+       MOV  R5,@LSTSYM        SAVE BANK PAGE
+       MOV  R4,@LSTSYM+2      SAVE ADDRESS
+
+       MOV  R4,R1
+
+       AI   R1,>6006          MAKE 16 BIT
+       BLWP @STRCMP           COMPARE THE STRINGS
+
+       MOV  R0,R0             CHECK COMPARE
+       JEQ  SRCH4             SYMBOLS MATCH
+
+       AI   R1,-4             not found, so get
+       MOV  *R1+,R5           GET THE PAGE
+       MOV  *R1,R4            GET 13 BIT ADDRESS
+       JMP  SRCH11            JUMP IF NO
+
+*    EMPTY SYMBOL TABLE,
+
+SRCH5  MOV  @SYMEND,R4        GET THE PAGE
+       MOV  R4,@LSTSYM        LAST SYMBOL
+       MOV  R4,@SYMTAB        SYMBOL START
+       MOV  R4,@CURSYM        CURRENT SYMBOL
+
+       MOV  @SYMEND+2,R4      GET THE 13 BIT ADDRESS
+       MOV  R4,@SYMTAB+2      SYMBOL START
+SRCH3A MOV  R4,@LSTSYM+2      LAST SYMBOL
+       MOV  R4,@CURSYM+2      CURRENT SYMBOL
+
+SRCH3  SETO R0                INDICATE NOT FOUND
+SRCH4  RT
+
+       PAGE
+*
+*    NAME:  SRCHSU
+*
+*    WHAT:  SEARCHES THE SUB TABLE LOOKING FOR A MATCH
+*
+
+SRCHSU MOV  @SUBCNT,R0        ANY SUB ENTRIES
+       JEQ  SRCHU6            NO
+
+       MOV  @SUBTAB,R5
+       MOV  @SUBTAB+2,R4
+       JMP  SRCH1
+
+*    SUB TABLE EMPTY
+
+SRCHU6 MOV  @SYMEND,R4        THE TABLE WILL START HERE
+       MOV  R4,@SUBTAB
+       MOV  R4,@LSTSYM
+       MOV  R4,@CURSYM
+
+       MOV  @SYMEND+2,R4
+       MOV  R4,@SUBTAB+2
+*      MOV  R4,@LSTSYM+2      DONE ABOVE
+*      MOV  R4,@CURSYM+2      DONE ABOVE
+       JMP  SRCH3A
+
+       PAGE
+*
+*    NAME:  ADDSYM
+*
+*    WHAT:  ADD A SYMBOL TO THE SYMBOL TABLE
+*
+
+*    SET THE LINK ADDRESS FOR LAST SYMBOL
+
+ADDSYM MOV  @SYMCNT,R0        GET THE SYMBOL COUNT
+       INC  @SYMCNT           ADD ONE
+ADDSU1 MOV  R0,R0             WAS IT ZERO
+       JEQ  ADDSY0            YES IT WAS EMPTY
+
+       MOV  @LSTSYM+2,R4
+       MOV  @SYMEND,@>6002(R4) SET THE LINK PAGE
+       MOV  @SYMEND+2,@>6004(R4) SET THE LINK ADDRESS
+
+*    CALCULATE VALUE SPACE OFFSET
+*    AND INSERT IT INTO THE HEADER
+
+ADDSY0 MOV  @SYMEND+2,R4
+       MOVB @>A006(R4),R5     GET STRING SIZE
+       SRL  R5,8              ALIGN REGISTER
+
+*    ADD ONE FOR THE STRING LENGHT BYTE, AND ADD ONE
+*    IN CASE IT IS ODD
+
+       INCT R5                ADD TWO
+
+*    NOW MAKE AN ODD ADDRESS EVEN
+
+       ANDI R5,>FFFE          MAKE IT EVEN
+
+       AI   R5,6              ADD IN OVERHEAD
+       MOV  R5,@SYMSZ         SAVE THE SIZE
+       SRA  R5,1
+       SOC  R5,@HEADER        AND STORE IT
+
+*    MOVE THE HEADER INTO THE SYMBOL
+
+       MOV  @HEADER,@>A000(R4)    WRITE THE HEADER
+       RT                     AND RETURN
+
+       PAGE
+*
+*    NAME:  ADDSUB
+*
+*    WHAT:  ADD S SUBROUTINE TO THE SUB-TABLE
+*
+*
+
+*    SET THE LINK ADDRESS FOR LAST SYMBOL
+
+ADDSUB MOV  @SUBCNT,R0        GET THE SYMBOL COUNT
+       INC  @SUBCNT           ADD ONE
+       JMP  ADDSU1
+
+       PAGE
+*
+*    NAME:  ADDVS
+*
+*    WHAT:  THIS ROUTINE ADDS THE VALUE SPACE TO THE SYMBOL.
+*           ALL WE DO IS CLEAR THE NUMBER OF WORDS NEEDED
+*           FOR THIS SYMBOL. THE NUMBER OF WORDS IS PASSED
+*           IN R1
+*
+
+ADDVS  LI   R1,1              GET ONE WORD
+
+ADDVS4 CLR  R2                MSB OF COUNTER
+ADDV44 MOV  @HEADER,R0        GET THE HEADER
+       COC  @UDFBIT,R0        USER DEFINED FUNCTION
+       JEQ  ADDVS7            JUMP IF YES
+       COC  @UDSBIT,R0        USER DEFINED SUB
+       JEQ  ADDVS7            JUMP IF YES
+       COC  @STRBIT,R0        CHECK IF STRING ?
+       JEQ  ADDV70            YES, IT IS A STRING
+
+ADDVS6 COC  @INTBIT,R0        CHECK IF INTEGER?
+       JEQ  ADDVS3            JUMP IF YES  ONLY ONE WORD
+
+ADDVS7 SLA  R2,1              NUMERICS GET 4-WORDS
+       JOC  ADDVS2
+       SLA  R1,1
+       JNC  ADDV70
+       INC  R2
+ADDV70 SLA  R2,1
+       JOC  ADDVS2
+       SLA  R1,1
+       JNC  ADDVS3            JUMP IF NO CARRY
+       INC  R2
+
+ADDVSW
+ADDVS3 MOV  @SYMEND,R4        GET THE ENDDING PAGE
+       MOV  @SYMEND+2,R5      GET THE 13 BIT ADDRESS
+       A    @SYMSZ,R5         ADD THE HEADER INTO THE THING
+       COC  @CW2000,R5        DID WE CARRY OUT OF THE 8K PAGE?
+       JNE  AVS4              NO
+       ANDI R5,>1FFF          YES SO GO TO NEXT PAGE
+       INC  R4
+
+AVS4   MOV  R1,R3             SAVE OUT # OF WORDS TO CLEAR IN THIS SPACE
+       MOV  R2,R0
+       SLA  R2,1              NOW MAKE BYTES FORM WORDS (*2)
+       SLA  R1,1
+       JNC  AVS5
+       INC  R2
+AVS5   MOVB R1,R2             PUT MS 3 BITS TO R2
+       ANDI R2,>E0FF          MASK OFF THE OTHER 5 JUNK BITS
+       ANDI R1,>1FFF          13 BIT COMPLETE
+       SRC  R2,13             NOW 8 BIT COMPLETE
+       A    R5,R1             ADD THE 13 BIT TOGETHER
+       COC  @CW2000,R1        CARRY OUT OF THE 13 BIT?
+       JNE  AVS6              NO
+       ANDI R1,>1FFF          YES, SO ADJUST
+       INC  R2
+AVS6   A    R4,R2
+       C    R2,@DATTOP        AT THE END
+       JH   ADDVS2            YES
+       MOV  R1,@SYMEND+2
+       MOV  R2,@SYMEND
+
+*  NOW START TO CLEAR MEMORY GIVEN BY 8/13 BIT ADDRESS IN R4(MSW), R5(13 BIT)
+*    LENGTH IN # OF WORDS GIVEN BY R0(MSW) AND R3(LSW)
+
+       AI   R5,>A000              NOW MAKE R5 THE 16 BIT ADDRESS
+       CLR  R2                   FLAG TO CONTINUE THE CLEARING
+
+AVS9   MOVB @DATBUF(R4),@MAP9A    MAP IN THE DATA SPACE AT >A000
+       MOVB @DATBUF+1(R4),@MAP9C
+       LI   R1,>1000             CLEAR AT LEAST 8K BYTES  (4K WORDS)
+       S    R1,R3                8K LESS TO CLEAR
+       JOC  AVS8              BRANCH IF NO BORROW
+       DEC  R0                ELSE TRY TO GET BORROW
+       JOC  AVS8
+       A    R1,R3             RESTORE R3
+       JEQ  AVS10             ALL DONE
+       SETO R2                LAST ITERATION IN LOOP
+       MOV  R3,R1
+AVS8   CLR  *R5+
+       DEC  R1
+       JNE  AVS8
+       AI   R5,->2000         RESET R5 IN CASE OF ANOTHER ITERATION
+       INC  R4
+       MOV  R2,R2             CONTINUE?
+       JEQ  AVS9              YES
+
+AVS10  RT
+
+*    IF WE RUN OUT OF MEMORY, WE HAVE TO UNDO
+*    THE LAST ADD. RESET THE POINTERS, AND
+*    RE-CALCULATE THE FREE SPACE
+
+ADDVS2 MOV  @LSTSYM+2,R4      GET SYMBOLS ADDRESS
+       MOV  @BMASK,@>6002(R4) REMOVE THE LINK
+       CLR  @>6004(R4)        CLEAR 13 BIT ADDRESS
+
+       LI   R0,ERRMEM         LOAD THE ERROR CODE
+       B    @SYMRTN           AND RETURN
+
+       PAGE
+*
+*    NAME:  ENTER
+*
+*    WHAT:  ADDS THE SYMBOL TO THE END OF THE LIST
+*           MAPS IN SYMBOL END IN >A000
+*           AND BUILD THE SYMBOL IN THE TABLE
+*
+
+ENTER  MOV  @SYMEND,R4
+       MOV  R4,@CURSYM
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @SYMEND+2,R3      GET SYMBOL STORAGE
+       MOV  R3,R4
+       MOV  R3,@CURSYM+2
+       AI   R3,>A000          MAKE IT A 16 BIT ADDRESS
+       CLR  *R3+              HEADER
+       MOV  @BMASK,*R3+       SET THE PAGE
+       CLR  *R3+              CLEAR THE ADDRESS
+       INC  R3                SKIP THE LENGTH
+
+       CLR  R5                CLEAR COUNTER
+ENTER5 MOVB R8,*R3+           COPY THE FIRST CHARACTER
+       CLR  R8                AND START WITH A CLEAN REG
+       INC  R5                INCREMENT COUNTER
+
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       JGT  ENTER4            IT IS A VALID SYMBOL
+       SWPB R5                ALIGN FOR THE MOVE
+       MOVB R5,@>A006(R4)     WRITE IN THE STRING LENGTH
+       RT                     AND RETURN
+
+ENTER4 CI   R8,DOLAR*256      IS IS A STRING
+       JEQ  ENTER2            SET THE STRING FLAG
+
+       CI   R8,>2500          TEST IF INTEGER
+       JNE  ENTER5            JUMP IF NOT
+
+*    FIRST CHECK IF STRING
+*    YES - ERROR
+*    NO  - OK TO BE AN INTEGER OR ANYTHING ELSE
+
+ENTER6 MOV  @HEADER,R0        GET THE HEADER
+       COC  @STRBIT,R0        IS THE STRING BIT SET ?
+       JEQ  ENTER3            JUMP IF YES
+       MOV  @INTBIT,@HEADER   NO MAKE IT A INTEGER
+       JMP  ENTER5
+
+ENTER2 MOV  @HEADER,R0        IS IT A STRING
+       COC  @STRBIT,R0
+       JEQ  ENTER3            ALL READY A STRING
+       MOV  @STRBIT,@HEADER   NO MAKE IT ONE
+       JMP  ENTER5
+
+ENTER3 BL   @SYMSYN
+

@@ -1,0 +1,135 @@
+*
+*    NAME:  RECTAN
+*
+*  FORMAT:  CALL RECTANGLE(LT, PR1, PC1, PR2, PC2, PR3, PC3
+*
+
+RECTAN BL   @PARFST           PARSE LINE TYPE
+       JEQ  RECTER            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       BL   @RANGE
+       DATA 0,5
+       MOV  @SNUM+FAC,@LT
+
+RECT05 BL   @GETROW           PIXEL ROW 1
+       MOV  R1,@PR1
+
+       BL   @GETCOL           PIXEL COL 1
+       MOV  R1,@PC1
+
+       BL   @GETROW           PIXEL ROW 2
+       MOV  R1,@PR2
+
+       BL   @GETCOL           PIXEL COL 2
+       MOV  R1,@PC2
+
+       BL   @GETROW           PIXEL ROW 3
+       MOV  R1,@PR3
+
+       BL   @GETCOL           PIXEL COL 3
+       MOV  R1,@PC3
+
+*    NOW SEE IF THIS MAKES SENSE
+
+       C    @PC1,@PC2
+       JH   RECT04
+       C    @PR3,@PR1
+       JL   RECT04
+
+       C    @LT,@CW03
+       JL   RECT09
+
+       BL   @SOLID
+       JMP  RECT50
+
+RECTER BL   @RPTE07
+RECT04 BL   @RPTE30
+RECT47 BL   @RPTE37
+
+RECT09 C    @SMODE,@CW04
+       JL   RECT47
+       LWPI UREG2
+       LI   R0,X$SVC          SET VECTOR COLOR
+       MOV  @PC1,R1           DRAW TOP LINE
+       MOV  @PR1,R2
+       MOV  @PC2,R3
+       MOV  @PR1,R4
+       CLR  R6                LOAD OP-CODE
+       MOV  @LT,R7            GET LINE TYPE
+       JEQ  RECT20            LOAD BACK
+       SRL  R7,1
+       JNE  RECT30            LOGICAL
+       MOV  @DRAWC,R5
+RECT10 XOP  @SIX,0
+       JMP  RECT40
+
+RECT20 MOV  @DRAWC,R5
+       SWPB R5
+       JMP  RECT10
+
+RECT30 LI   R6,>0300          XOR OP-CODE
+       JMP  RECT10
+
+RECT40 MOV  @PC3,R1           DRAW BOTTOM LINE
+       MOV  @PR3,R2
+       MOV  @PC2,R3
+       MOV  @PR3,R4
+       XOP  @SIX,0
+
+       MOV  @PC1,R1           LEFT LINE
+       MOV  @PR1,R2
+       MOV  @PC1,R3
+       MOV  @PR3,R4
+       XOP  @SIX,0
+
+       MOV  @PC2,R1           RIGHT LINE
+       MOV  @PR2,R2
+       MOV  @PC2,R3
+       MOV  @PR3,R4
+       XOP  @SIX,0
+       LWPI UREG1
+
+RECT50 CB   R8,@CBHB3         AT A COMMA
+       JEQ  RECT05            YES, MORE TO DO
+
+       BL   @CKRPAR           ENSURE RIGHT PAREN
+
+       MOV  @PR3,@LPR         UPDATE LAST USED
+       MOV  @PC3,@LPC
+
+       B    @CONT             AND CONTINUE
+
+SOLID  LWPI UREG2             * USE ALT REG SET
+       LI   R0,X$SVC          SET VECTOR COLOR
+       MOV  @PC1,R1           DRAW TOP LINE
+       MOV  @PR1,R2
+       MOV  @PC2,R3
+       MOV  @PR1,R4
+       MOV  R4,R8             * TOP LEFT
+       S    @PR3,R8           * BOTTOM LEFT
+       ABS  R8
+       CLR  R6                LOAD OP-CODE
+       MOV  @LT,R7            GET LINE TYPE
+       AI   R7,-3
+       MOV  R7,R7
+       JEQ  SOLD20            LOAD BACK
+       SRL  R7,1
+       JNE  SOLD30            LOGICAL
+       MOV  @DRAWC,R5
+
+SOLD10 XOP  @SIX,0
+       INC  R2                * NEXT ROW
+       INC  R4
+       DEC  R8                * ONE LESS TO DO
+       JNE  SOLD10
+       LWPI UREG1
+       RT
+
+SOLD20 MOV  @DRAWC,R5
+       SWPB R5
+       JMP  SOLD10
+
+SOLD30 LI   R6,>0300          XOR OP-CODE
+       JMP  SOLD10
+
+

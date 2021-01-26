@@ -1,0 +1,319 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.157.CALLTBL
+*
+*    WHAT:  CALL TABLE
+*
+* VERSION:  3.0 - 10/30/86    BASE LINE
+*
+* NEXT TO  USE LNK74
+*-------------------------------------------------------------------------
+*
+*    NAME:  SRCHIN
+*
+*    WHAT:  SEARCH THE INTERNAL CALL TABLE
+*             uses R0-R6
+
+*    MAP IN THE SYMBOL TO FIND
+
+SRCHIN MOV  @SYMEND,R5
+       SZCB R5,R5             MASK OUT THE JUNK (ie the msb)
+       MOVB @DATBUF(R5),@MAP9A    map in the actual symbol
+       MOVB @DATBUF+1(R5),@MAP9C
+
+       MOV  @SYMEND+2,R2      GET THE 13 BIT ADDRESS
+       AI   R2,>A006          MAKE IT 16  (points to length of call name)
+
+       MOVB *R2+,R5           * LENGTH
+       SRL  R5,8              * ALIGN REGISTER
+       MOV  R5,R0             * SAVE STRING LENGTH
+       AI   R5,-3             * NOW THREE BECOMES 0
+       CI   R5,6              * 3-0, 9-6
+       JH   SRCH10            * JUMP IF YES
+       SLA  R5,1              * TIMES BY 2
+       MOV  @CALTBL(R5),R5    * GET TABLE ADDRESS
+*      MOV  *R5+,R3           * NUMBER OF TABLE ENTRIES
+*      JEQ  SRCH10            * IF ZERO NOTHING THERE
+
+SRCH01 MOV  *R5+,R1           * GET THE STRING ADDRESS
+       JEQ  SRCH10            * CAN NOT FIND A THING
+       MOV  R2,R4             * COPY OF STRING POINTER
+       MOV  *R1+,@CLINDX      * SAVE THE ADDRESS to the routine
+       MOV  R0,R3             * RESTORE STRING LENGTH
+
+SRCH02 CB   *R1+,*R4+         * DOES THE CHARACTER MATCH
+       JNE  SRCH01            * no, so try to continue
+       DEC  R3                * DEC STRING LENGTH
+       JNE  SRCH02            * JUMPIF NOT ZERO
+
+*    GOT A MATCH
+
+       RT                     AND RETURN
+
+SRCH10 CLR  @CLINDX           * INDICATE ITS AN EXTERNAL CALL
+       RT
+
+       PAGE
+
+CALTBL DATA CALTB3            3
+       DATA CALTB4            4
+       DATA CALTB5            5
+       DATA CALTB6            6
+       DATA CALTB7            7
+       DATA CALTB8            8
+       DATA CALTB9            9
+
+*--- 3
+
+CALTB3 DATA LNK32,LNK39,LNK17
+       DATA LNK69,LNK72
+       DATA 0
+
+LNK32  DATA CERR
+       TEXT 'ERR'
+
+LNK39  DATA SAY
+       TEXT 'SAY'
+
+LNK17  DATA KEY
+       TEXT 'KEY'
+
+LNK69  DATA LPRC
+       TEXT 'LPR'
+
+LNK72  DATA CIN
+       TEXT 'INP'
+*--- 4
+
+CALTB4 DATA LNK00,LNK12,LNK10,LNK33
+       DATA LNK34,LNK35,LNK42,LNK47
+       DATA LNK48,LNK50,LNK36
+       DATA LNK53,LNK55,LNK56
+       DATA LNK70,LNK73
+       DATA 0
+
+LNK00  DATA CHAR
+       TEXT 'CHAR'
+
+LNK12  DATA FILL
+       TEXT 'FILL'
+
+LNK10  DATA DRAW
+       TEXT 'DRAW'
+
+LNK33  DATA CINIT
+       TEXT 'INIT'
+
+LNK34  DATA CLINK
+       TEXT 'LINK'
+
+LNK35  DATA CLOAD
+       TEXT 'LOAD'
+
+LNK42  DATA LDCR
+       TEXT 'LDCR'
+
+LNK47  DATA STCR
+       TEXT 'STCR'
+
+LNK48  DATA TIME
+       TEXT 'TIME'
+
+LNK50  DATA DATE
+       TEXT 'DATE'
+
+LNK36  DATA PEEK
+       TEXT 'PEEK'
+
+LNK53  DATA MKEY
+       TEXT 'MKEY'
+
+LNK55  DATA MLOC
+       TEXT 'MLOC'
+
+LNK56  DATA MREL
+       TEXT 'MREL'
+
+LNK70  DATA PSET
+       TEXT 'PSET'
+
+LNK73  DATA COUT
+       TEXT 'OUTP'
+
+*----- 5
+
+CALTB5 DATA LNK4,LNK5,LNK6
+       DATA LNK13,LNK15,LNK16
+       DATA LNK28,LNK31,LNK37
+       DATA LNK38,LNK23,LNK40
+       DATA LNK51,LNK52
+       DATA LNK62,LNK65
+       DATA 0
+
+LNK4   DATA CLR
+       TEXT 'CLEAR'
+
+LNK5   DATA COINC
+       TEXT 'COINC'
+
+LNK6   DATA COLOR
+       TEXT 'COLOR'
+
+LNK13  DATA GCHAR
+       TEXT 'GCHAR'
+
+LNK15  DATA HCHAR
+       TEXT 'HCHAR'
+
+LNK16  DATA JOYST
+       TEXT 'JOYST'
+
+LNK28  DATA VCHAR
+       TEXT 'VCHAR'
+
+LNK31  DATA SOUND
+       TEXT 'SOUND'
+
+LNK37  DATA POKEV
+       TEXT 'POKEV'
+
+LNK38  DATA PEEKV
+       TEXT 'PEEKV'
+
+LNK23  DATA POINT
+       TEXT 'POINT'
+
+LNK40  DATA SPGET
+       TEXT 'SPGET'
+
+LNK51  DATA BTIME
+       TEXT 'BTIME'
+
+LNK52  DATA FILES
+       TEXT 'FILES'
+
+LNK62  DATA SCHAR
+       TEXT 'SCHAR'
+
+LNK65  DATA MYART
+       TEXT 'MYART'
+
+*----  6
+
+CALTB6 DATA LNK3,LNK7
+       DATA LNK11,LNK18,LNK21
+       DATA LNK26,LNK27,LNK29
+       DATA LNK41,LNK66,LNK68,LNK71
+       DATA 0
+
+LNK3   DATA CIRCLE
+       TEXT 'CIRCLE'
+
+LNK7   DATA DCOLOR
+       TEXT 'DCOLOR'
+
+LNK11  DATA DRAWTO
+       TEXT 'DRAWTO'
+
+LNK18  DATA LOCAT
+       TEXT 'LOCATE'
+
+LNK21  DATA MOTON
+       TEXT 'MOTION'
+
+LNK26  DATA SCREEN
+       TEXT 'SCREEN'
+
+LNK29  DATA BCOLOR
+       TEXT 'BCOLOR'
+
+LNK27  DATA SPRITE
+       TEXT 'SPRITE'
+
+LNK41  DATA MEMSET
+       TEXT 'MEMSET'
+
+LNK66  DATA TCOLOR
+       TEXT 'TCOLOR'  TEXT COLOR
+
+LNK68  DATA GPOINT    GET POINT COLOR
+       TEXT 'GPOINT'
+
+LNK71  DATA ECOLOR    EDGE COLOR
+       TEXT 'ECOLOR'
+
+*----  7
+
+CALTB7 DATA LNK1,LNK2
+       DATA LNK19,LNK20,LNK22
+       DATA LNK30,LNK61,LNK64
+       DATA 0
+
+LNK1   DATA CHRPAT
+       TEXT 'CHARPAT'
+
+LNK2   DATA CHRSET
+       TEXT 'CHARSET'
+
+LNK19  DATA MAGSPR
+       TEXT 'MAGNIFY'
+
+LNK20  DATA MARGIN
+       TEXT 'MARGINS'
+
+LNK22  DATA PATTRN
+       TEXT 'PATTERN'
+
+LNK30  DATA VERSON
+       TEXT 'VERSION'
+
+LNK61  DATA PALETE
+       TEXT 'PALETTE'
+
+LNK64  DATA SPRIT2
+       TEXT 'SPRITE2'
+
+*----  8
+
+CALTB8 DATA LNK9
+       DATA LNK14,LNK24,LNK54,LNK67
+       DATA 0
+
+LNK9   DATA DSTNCE
+       TEXT 'DISTANCE'
+
+LNK14  DATA GRAFIC
+       TEXT 'GRAPHICS'
+
+LNK24  DATA SPRPOS
+       TEXT 'POSITION'
+
+LNK54  DATA SMOUSE
+       TEXT 'SEEMOUSE'
+
+LNK67  DATA RSTPLT            RESET PALETTE
+       TEXT 'RESETPLT'
+
+*----- 9
+
+CALTB9 DATA LNK8
+       DATA LNK25,LNK58,LNK59
+       DATA LNK63
+       DATA 0
+
+LNK8   DATA DELSPR
+       TEXT 'DELSPRITE'
+
+LNK25  DATA RECT
+       TEXT 'RECTANGLE'
+
+LNK58  DATA MDRAG
+       TEXT 'MOUSEDRAG'
+
+LNK59  DATA HMOUSE
+       TEXT 'HIDEMOUSE'
+
+LNK63  DATA SPRSET
+       TEXT 'SPRITESET'
+
+

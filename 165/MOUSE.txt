@@ -1,0 +1,410 @@
+* SetMouse                    op 2A
+*
+* R1x = new Xposition for mouse
+* R2x = new Yposition for mouse
+* R3x = scale factor for mouse speed  (0 to 7) 0=fastest
+* -----
+*
+* GetMouse                    op 2B
+*
+* -----
+* R1x = Returned Xposition for mouse
+* R2x = Returned Yposition for mouse
+* R3x = b1 b2 b3 0 xxxx xxxx xxxx   (highest bits)
+*       \          b1= left   1=down
+*          \       b2= middle 1=down
+*             \    b3= right  1=down
+*
+* GetMouseRel                 op 2C
+*
+* -----
+* R1x = Returned X displacement since last call to GetMouse or GetMouseRel
+* R2x = Returned Y displacement since last call to GetMouse or GetMouseRel
+* R3x = b1 b2 b3 0 xxxx xxxx xxxx   (highest bits)
+*
+
+*
+*    NAME:  MOUSE KEY INTERRUPT
+*
+EMKINT LI   R0,X$GETR         GET THE RELATIVE MOVEMENT OF THE MOUSE AND KEYS
+       XOP  @SIX,0
+       MOVB @MSTAT,@OSTAT
+       MOVB R3,@MSTAT         SAVE MOUSE STATUS
+
+       MOV  @MROW,R4          SAVE PREVIOUS ROW AND COLUMN TO (1)
+       MOV  R4,@MROW1
+       MOV  @MCOL,R5
+       MOV  R5,@MCOL1
+
+       A    R2,R4             NOW ADD IN RELATIVE LOCATIONS
+       JGT  EMK04
+       CLR  R4                CAN NOT GO PAST TOP OF SCREEN
+EMK04  A    R1,R5
+       JGT  EMK07
+       CLR  R5                CAN'T GO PAST LEFT OF SCREEN
+EMK07  C    R5,@MAXPC
+       JLE  EMK18
+       MOV  @MAXPC,R5         CAN'T GO PAST RIGHT OF SCREEN
+EMK18  C    R4,@MAXPR
+       JLE  EMK22
+       MOV  @MAXPR,R4         CAN'T GO PAST BOTTOM OF SCREEN
+
+EMK22  MOV  R4,@MROW          SAVE CURRENT POSITION OF MOUSE
+       MOV  R5,@MCOL
+
+* NOW POSITION THE MOUSE ON THE SCREEN
+
+       MOV  R5,@SPTBL+4
+
+       MOV  @XFLAG,R5         FIRST TEST IF THE MOUSE IS TO BE SEEN
+       COC  @SMSBIT,R5        IS IT TO BE SEEN?
+       JNE  EMK60             NO, SO IGNOR IT
+       LI   R1,SPTBL          GET THE SPRITE SET UP
+       MOV  R1,R2
+       CLR  *R2+              IT IS SPRITE 0
+       MOV  R4,*R2
+       LI   R0,X$SLOC
+       LI   R2,1              ONLY ONE SPRITE TO LOCATE
+       XOP  @SIX,0            POSITION THE MOUSE ACCORDINGLY
+
+EMK60  MOVB @OSTAT,R0         WAS THERE A KEY DOWN LAST TIME?
+       JNE  EMK98             YES
+       MOVB @MSTAT,R1         NO, S0 WAS THERE A KEY DOWN THIS TIME?
+       JEQ  FKINT1            NO, SO JUST RETURN
+
+       MOV  @MCOL,@MCOL2      SET MOUSE LOC
+       MOV  @MROW,@MROW2
+
+       JMP  EMK44             YES, SO SEE IF A GOSUB TO PERFORM
+
+
+EMK98  MOVB @MSTAT,R1         KEY DOWN LAST TIME, HOW ABOUT THIS TIME?
+       JNE  EMK96             YES, SO SEE IF WE NEED TO DRAW A LINE, ETC
+
+       MOV  @MCOL1,@MCOL3     SAVE THE LOC WHERE THE MOUSE WAS LAST DOWN
+       MOV  @MROW1,@MROW3
+       JMP  FKINT1            ALL DONE
+
+
+EMK96  COC  @MDBIT,R5         TEST THE DRAW BIT
+       JNE  EMK44             NO
+       MOVB R1,R1             IS THE DRAW KEY DOWN NOW?
+       JGT  EMK44             NO
+       MOVB R0,R0             WAS IT DOWN LAST TIME?
+       JGT  EMK44             NO
+
+       BLWP @DMOUSE           PAINT THE LINE ON THE SCREEN
+
+EMK44  MOVB @KEYMOS,R4        TEST IF IN KEYBOARD MODE
+       JNE  FKINT1            YES, SO DON'T TEST FOR GO SUB MOUSE KEY
+       CLR  R4                INDEX INIT
+EMK46  SLA  R1,1
+       JNC  EMK45
+       MOV  @MKKEY(R4),@SNUM+FAC  WAS THAT KEY ARMED
+       JNE  EMK47
+EMK45  INCT R4
+       MOVB R1,R1
+       JNE  EMK46
+FKINT1 SETO R0
+       RT
+
+EMK47  LI   R0,SIDGOS*256     * LOAD THE STACK MARK
+       DECT R10
+       MOV  R11,*R10
+       BL   @BLDMRK           * BUILD A STACK ENTRY
+       SETO @10(R9)           * INDICATE ITS A FUNC/MSE
+       INC  @SPGM(R9)         * TO RESTORE PGM POINTER
+
+       MOV  @CLINE,@06+FAC    * SAVE THE CURRENT LINE NUMBER
+
+       BLWP @SRCHLN           * SEARCH LINE NUMBER TABLE
+       MOV  @CLINE,R0         * CHECK IF WE FOUND IT
+       JEQ  FKINT7            * JUMP IF NOT FOUND
+       CLR  R0                * RETURN R0=0
+       MOV  *R10+,R11
+       RT
+
+FKINT7 AI   R9,-STKSZ         * POP THE STACK
+       MOV  @06+FAC,@CLINE    * RESTORE THE CURRENT LINE NUMBER
+
+       LI   R0,ERRLNF
+       BL   @ERROR
+
+*
+*    NAME:  MKEY
+*
+*  FORMAT:  CALL MKEY(BOTTON1, BUTTON2, BUTTON3, ROW, COL)
+*                     NV       NV       NV       NV   NV
+*
+*
+MKEY   BL   @CKLPAR           ENSURE LEFT PAREN
+*
+*   USE THE PREVIOUS MSTAT AND MCOL AND MROW
+*
+*      LI   R0,X$GETM         GET THE MOUSE STATUS AT THIS TIME
+*      XOP  @SIX,0
+*
+*      MOV  R1,@MCOL          SAVE IT AWAY FOR ASSIGNMENT
+*      MOV  R2,@MROW
+*      MOVB R3,@MSTAT
+
+       MOV  @MROW,@SPTBL+4
+       MOV  @MCOL,@SPTBL+6
+       MOV  @THREE,@SPTBL     USE THIS AS A COUNTER
+       MOVB @MSTAT,@SPTBL+2   SAVE FOR LATER USE
+
+MKEY01 BL   @PSYM             PARSE BUTTON 1,2, OR 3 VARIABLE
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  MKEY11            JUMP IF YES
+
+       BL   @PSHFAC           * SAVE IT
+
+       LI   R1,1              ASSUME KEY IS DOWN
+       MOVB @SPTBL+2,R2
+       JLT  MKEY00            IT IS DOWN
+       CLR  R1
+MKEY00 SLA  R2,1
+       MOVB R2,@SPTBL+2
+       BL   @BLDINT
+       BL   @ASSGN
+
+       BL   @CKCOMA           AT A COMMA
+       DEC  @SPTBL
+       JNE  MKEY01            CONTINUE
+
+       BL   @PSYM             NOW FOR PIXEL ROW
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  MKEY11            JUMP IF YES
+       BL   @PSHFAC           * SAVE IT
+       MOV  @SPTBL+4,R1
+       INC  R1                MAKE BASE 1
+       BL   @BLDINT           RETURN ROW
+       BL   @ASSGN
+
+GPOI00 BL   @CKCOMA           AT A COMMA
+
+       BL   @PSYM             NOW FOR PIXEL COLUMN
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  MKEY11            JUMP IF YES
+       BL   @PSHFAC           * SAVE IT
+       MOV  @SPTBL+6,R1
+       INC  R1                MAKE BASE 1
+       BL   @BLDINT           RETURN ROW
+       BL   @ASSGN
+       BL   @CKRPAR           MAKE SURE RIGHT PAREN
+       B    @CONT             ALL DONE
+
+
+RPTE03 LI   R0,ERRSN          SN
+       BL   @ERROR
+
+MKEY11 BL   @RPTE07           SNM
+
+       PAGE
+*
+*    NAME:  MOUSE COMMON ROUTINE
+*
+*
+MCOM   DECT R10
+       MOV  R11,*R10
+       BL   @CKLPAR
+
+       BL   @PSYM
+       CB   @SID+FAC,@CSIDST
+       JEQ  MKERR
+
+       BL   @PSHFAC
+
+       BL   @CKCOMA
+
+       BL   @PSYM
+       CB   @SID+FAC,@CSIDST
+       JEQ  MKC10
+
+       BL   @PSHFAC
+
+       BL   @CKRPAR
+
+       MOV  *R10+,R11
+       RT
+
+MKC10  AI   R9,-STKSZ
+MKERR  BL   @RPTE07
+
+       PAGE
+*
+*    NAME:  MLOC
+*
+*  FORMAT:  CALL MLOC(ROW, COL)
+*                     NV   NV
+*
+MLOC   BL   @MCOM             PARSE TWO PARAMETERS
+       MOV  @MROW2,@SPTBL     SAVE FOR LATER USE
+       MOV  @MCOL2,R1         ASSIGN COLUMN
+MREL00 INC  R1                MAKE BASE 1
+       BL   @BLDINT
+       BL   @ASSGN
+
+       MOV  @SPTBL,R1         ASSIGN ROW
+       INC  R1                MAKE BASE 1
+       BL   @BLDINT
+       BL   @ASSGN
+       B    @CONT
+
+       PAGE
+*
+*    NAME:  MREL
+*
+*  FORMAT:  CALL MREL(ROW, COL)
+*                     NV   NV
+*
+MREL   BL   @MCOM             PARSE TWO PARAMETERS
+       MOV  @MROW3,@SPTBL
+       MOV  @MCOL3,R1         ASSIGN COLUMN
+       JMP  MREL00
+
+       PAGE
+*
+*    NAME:  MOUSEDRAG
+*
+*  FORMAT:  CALL MOUSEDRAG(ON[,MOUSE DRAW COLOR])
+*                         (0FF)         OPTIONAL (USES PREVIOUS OTHERWISE)
+*
+MDRAG  BL   @CKLPAR
+       MOV  @SPINDX,R0
+       JEQ  SMHM10
+       CI   R8,>E300          IS IT EXTENDED?
+       JEQ  MD100             YES
+       CI   R8,>9B00          NO, SO IS IT "ON"?
+       JNE  SM10              NO, SO ERROR
+       CB   *R12,@CBHB3       IS THE NEXT CHAR A COMMA?
+       JNE  MDRA00            NO
+       MOVB *R12+,R8          YES, SO PARSE THE NEXT VARIABLE
+       BL   @PARMID
+       JEQ  SM11
+       BL   @FTOI             GET THE INTEGER PART
+       MOV  @FAC+SNUM,R1
+       DEC  R1
+       MOVB R1,R1             IS IT OKAY?
+       JNE  RPTE30            BAD VALUE
+       SWPB R1
+       MOVB R1,@MSDRWC        SAVE THE DRAWING COLOR
+       DEC  R12               BACK UP THE POINTER FOR BELOW
+MDRA00 SOC  @MDBIT,@XFLAG     LET INTERRUPT TAKE OVER THE PROCESSING SET DRAG FG
+       MOVB @MSTAT,R0         IS THE DRAG KEY DOWN?
+       JLT  MDRA03            YES
+MD50   MOVB *R12+,R8
+MD51   BL   @CKRPAR
+       B    @CONT
+
+MD100  CB   *R12+,@CBH91      IS IT OFF
+       JNE  SM10              NO, SO ERROR
+       SZC  @MDBIT,@XFLAG     RESET THE DRAG FLAG
+       JMP  MD50
+
+MDRA03 MOV  @MCOL,@MCOL2      WHERE TO START THE DRAWING
+       MOV  @MROW,@MROW2
+       JMP  MD50              CONTINUE
+
+       PAGE
+*
+*    NAME:  HIDEMOUSE
+*
+*  FORMAT:  CALL HIDEMOUSE
+*
+*
+HMOUSE MOV  @SPINDX,R0
+       JEQ  SMHM10
+       LI   R0,X$SDEL         DELETE IT
+       LI   R1,SPTBL
+       LI   R2,1
+       CLR  *R1               USE SPRITE 0
+       XOP  @SIX,0
+       SZC  @SMSBIT,@XFLAG    RESET SEE MOUSE FLAG
+SMOU21 B    @CONT
+
+SMHM10 BL   @RPTE37           BAD GRAPHICS MODE
+
+       PAGE
+*
+*    NAME:  SEEMOUSE
+*
+*  FORMAT:  CALL SEEMOUSE(PR, PC, SPEED[,COLOR])
+*                                         UP TO 16 IF MODE 2
+*
+
+RPTE30 LI   R0,ERRBV
+       BL   @ERROR
+
+
+SMOUSE MOV  @SPINDX,R0
+       JEQ  SMHM10            GRAPHICS MODE ERROR
+
+       BL   @EOSTMT           ARE WE AT THE END?
+       JNE  SMOU20            YES, SO JUST TURN THE SPRITE BACK ON
+       BL   @DISMOS           DISPLAY THE MOUSE
+       JMP  SMOU21            CONTINUE
+
+
+SMOU20 CI   R8,>B700          CHECK FOR LEFT PAREN
+       JNE  SM10              SYNTAX ERROR
+
+       LI   R8,>B300          FORCE A COMMA
+       BL   @GETROW           NOW, GET PIXEL ROW
+       MOV  R1,@MROW
+
+       BL   @GETCOL
+       MOV  R1,@MCOL
+       BL   @DISMOS           DISPLAY THE SPRITE FOR THE MOUSE
+
+       BL   @PARMID           GET THE MOUSE SENSITIVITY
+       JEQ  SM11
+       BL   @FTOI
+       MOV  @FAC+SNUM,R3
+       DEC  R3                MAKE BASE 0
+       CI   R3,7
+       JH   RPTE30            BAD VALUE
+       SWPB R3                SAVE IT FOR LATER
+       MOVB R3,@MSPEED
+       CI   R8,>B300          IS IT A COMMA? (COLORS HERE)
+       JNE  MD51              NO, SO CHECK FOR RIGHT PAR
+       B    @SMOU10           YES, SO GO TO GET THE SPRITE COLORS
+
+SM10   BL   @RPTE03
+SM11   BL   @RPTE07
+
+DMOUSE DATA UREG2,$D400       DRAG THE LINE ROUTINE
+
+$D400  LI   R0,X$SVC          LOAD OP-CODE
+       MOV  @MCOL1,R1
+       MOV  @MROW1,R2
+       MOV  @MCOL,R3
+       MOV  @MROW,R4
+       CLR  R6                LOGICAL OPERATION
+       MOV  @FB,R5            TEXT BACKGROUND COLOR
+       MOVB @MSDRWC,R5        LOAD FOR
+       XOP  @SIX,0
+       RTWP
+
+DISMOS SOC  @SMSBIT,@XFLAG
+       LI   R1,SPTBL          SET THE SPRITE ON THE SCREEN
+       MOV  R1,R2
+       CLR  *R2+              SPRITE 0
+       MOV  @CWFC,*R2+        SPRITE PATTERN "FC"
+       MOV  @MROW,*R2+        ROW
+       MOV  @MCOL,*R2+        COLUMN
+       CLR  *R2+              VEL
+       CLR  *R2+              VEL
+       LI   R3,15             SPRITE COLOR
+       MOV  R3,R4
+       MOV  R3,*R2+
+DISM01 MOV  R3,*R2+           NOW PUT IN 16 COLORS
+       DEC  R4
+       JNE  DISM01
+       LI   R2,1
+       LI   R0,X$SDEF
+       XOP  @SIX,0
+       RT
+
+CWFC   DATA >00FC             SPRITE PATTERN # OF MOUSE
+

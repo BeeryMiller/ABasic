@@ -1,0 +1,66 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.155.PGMLINK
+*
+*    NAME:  PROGRAM LINK
+*
+* VERSION:  3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+       DATA EMKINT            0
+       DATA DSTNCE            1
+       DATA DRAWTO            2
+       DATA FILL              3
+       DATA GCHAR             4
+       DATA HCHAR             5
+       DATA LOCATE            6
+       DATA MAGSPR            7
+
+       DATA MOTION            8
+       DATA PATTRN            9
+       DATA RECTAN            10
+       DATA POINT             11
+       DATA SCREEN            12
+       DATA SPRITE            13
+       DATA VCHAR             14
+       DATA TCOLOR            15   CHAR MOVED TO 156
+
+       DATA CHRPAT            16
+       DATA CHRSET            17
+       DATA CLR               18
+       DATA COINC             19
+       DATA COLOR             20
+       DATA DCOLOR            21
+       DATA SPRIT2            22 SPRITE2
+       DATA SPRSET            23 SPRITESET
+
+       DATA GRAFIC            24
+       DATA CCIR              25
+       DATA DRAW              26
+       DATA MARGIN            27
+       DATA BTIME             28
+       DATA SPRPOS            29
+       DATA BCOLOR            30
+       DATA MKEY              31
+
+       DATA MLOC              32
+       DATA MREL              33
+       DATA MDRAG             34
+       DATA HMOUSE            35
+       DATA SMOUSE            36
+       DATA DELSPR            37
+       DATA PALETE            38
+       DATA RSTPLT            39  RESET PALETTE
+       DATA GPOINT            40  GET POINT COLOR
+       DATA SETCHR            41  SET CHAR SET
+       DATA CHAR              42  CALL CHAR
+       DATA SCHAR             43  CALL SCHAR
+       DATA GRAP24            44  THE XOP PART OF CALL MARGINS
+       DATA DELALL            45  DELETE ALL SPRITES EXCEPT MOUSE
+       DATA LPRC
+       DATA PSET
+
+CBHB3  BYTE >B3
+CBHFD  BYTE >FD
+CBHEC  BYTE >EC
+CBH91  BYTE >91

@@ -1,0 +1,153 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    \166\CALL2/SRC
+*
+*  NAME:    CALL PART-2
+*
+* VERSION:  3\0 - 12/01/88    BASE LINE
+*
+*-------------------------------------------------------------------------
+FILE0  EQU  $                 RD156
+       UNL
+       COPY "166\RD156"
+       LIST
+FILE0B EQU  $                 DATAREFS
+       UNL
+       COPY "160\DATAREFS"
+       LIST
+FILE1  EQU  $                 160\EQUSYS
+       UNL
+       PAGE
+       COPY "160\EQUSYS"
+       LIST
+FILE2  EQU  $                 160\EQUTOKEN
+       UNL
+       PAGE
+       COPY "160\EQUTOKEN"
+       LIST
+FILE3  EQU  $                 160\EQUXOP
+       UNL
+       PAGE
+       COPY "160\EQUXOP"
+       LIST
+FILE5  EQU  $                 160\EQUERR
+       UNL
+       PAGE
+       COPY "160\EQUERR"
+       LIST
+FILE6  EQU  $                 160\EQUSTACK
+       UNL
+       PAGE
+       COPY "160\EQUSTACK"
+       LIST
+FILE7  EQU  $                 160\VARY1
+       UNL
+       PAGE
+       COPY "160\VARY1"
+       LIST
+FILE8  EQU  $                 160\VARY2
+       UNL
+       PAGE
+       COPY "160\VARY2"
+       LIST
+FILE9  EQU  $                 160\OV152
+       UNL
+       PAGE
+       COPY "160\OV152"
+       LIST
+FILE10 EQU  $                 160\VARY3
+       UNL
+       PAGE
+       COPY "160\VARY3"
+       LIST
+FLE11A EQU  $                 160\EQUPAB
+       UNL
+       PAGE
+       COPY "160\EQUPAB"
+       LIST
+FLE11B EQU  $                 160\EQUASM
+       UNL
+       PAGE
+       COPY "160\EQUASM"
+       LIST
+
+       AORG >4000
+
+FILE12 EQU  $                 PGMLINK
+       UNL
+       PAGE
+       COPY "166\PGMLINK"
+       LIST
+FILE14 EQU  $                 ASSSUP & PEEKPOKE
+       UNL
+       PAGE
+       COPY "166\ASSSUPN"
+       LIST
+FILE15 EQU  $                 ASM2000
+       UNL
+       PAGE
+       COPY "166\ASM2000N"
+       LIST
+FILE16 EQU  $                 LOADER
+       UNL
+       PAGE
+       COPY "166\LOADER"
+       LIST
+FILE17 EQU  $                 MEMSET CIN, COUT, LDCR,STCR, ETC
+*      UNL
+       PAGE
+       COPY "166\MEMSET"
+       LIST
+FILE18 EQU  $                 REAL MEMSET
+       UNL
+       PAGE
+       COPY "166\MEMSETN"
+       LIST
+FILE19 EQU  $                 FILES
+       UNL
+       PAGE
+       COPY "166\FILESN"
+       LIST
+FILE20 EQU $                  SPEECH
+       UNL
+       PAGE
+       COPY "166\SPEECH"
+       LIST
+FILE21 EQU  $                 SOUND
+       UNL
+       PAGE
+       COPY "166\SOUND"
+       LIST
+FILE22 EQU  $                 VERSION
+       UNL
+       PAGE
+       COPY "166\VERSION"
+       LIST
+FILE23 EQU  $                 BLDINT
+       UNL
+       PAGE
+       COPY "166\BLDINT"
+       LIST
+FILE24 EQU  $                 ERRORN
+       UNL
+       PAGE
+       COPY "166\ERRORN"
+       LIST
+FILE25 EQU  $                 KEY
+       UNL
+       PAGE
+       COPY "166\KEY"
+       LIST
+FILE26 EQU  $                 JOYST
+       UNL
+       PAGE
+       COPY "166\JOYST"
+       LIST
+FILE27 EQU  $                 MYART PICTURE LOAD
+       UNL
+       PAGE
+       COPY "166\MYARTLOAD"
+       LIST
+P7END  EQU  $-2
+       END
+

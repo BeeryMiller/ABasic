@@ -1,0 +1,68 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS2.156.RD156
+*
+*  NAME:    REF/DEF
+*
+* VERSION:  3.0 - 10/31/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+       REF  FASMVB
+       REF  FASMVW
+
+       REF  PARONE            PARSE ONE
+       REF  PARFST            PARSE FIRST
+       REF  PARMID            PARSE MIDDLE
+       REF  PARLST            PARSE LAST
+
+       REF  MATH              MATH INTERFACE
+       REF  FASCOM            HIGH SPEED COMPARE ROUTINE
+
+       REF  EOSTMT            END OF STATMENT CHECKER
+       REF  CONT              CONTINUE PARSE
+
+       REF  CKLPAR            CHECK FOR LEFT PAREN
+       REF  CKRPAR            CHECK FOR RIGHT PAREN
+       REF  CKCOMA            CHECK FOR COMMA
+
+       REF  PARSE
+       REF  ERROR
+       REF  WARN
+
+       REF  PSHFAC            VALUE STACK PUSH
+       REF  POPFAC            VALUE STACK POP
+       REF  PSHPRS            PUSH FOLLOWED BY PARSE
+       REF  POPARG            POP STACK
+       REF  PSHARG
+
+       REF  PSYM              GET A SYMBOL POINTER
+       REF  GETVS
+       REF  GVSSTK
+
+       REF  MTOFAC
+       REF  MTOARG
+
+       REF  STRCMP
+       REF  GETSTR
+       REF  ALLOCS
+       REF  MEMSET
+
+       REF  FTOI
+       REF  ITOF
+
+       REF  ASSGN             ASSIGN NUMBER
+       REF  ASSGS                    STRING
+       REF  ASSG              ASSIGN A VARIABLE
+
+       REF  CLRWIN            CLEAR WINDOW
+       REF  GOTOXY            GOTO ROW/COL
+       REF  DOPRT             DO PRINT
+       REF  SROLL             SCROLL THE SCREEN
+
+       REF  ACCPAR            ACCUMULATE PARAMETERS
+       REF  RANGE
+
+*      REF  ERROR           ALREADY DEF'D   11-24-94  JU
+       REF  INITPB
+

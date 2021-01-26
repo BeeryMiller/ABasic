@@ -1,0 +1,159 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    \167\SYMBOL/SRC
+*
+*  NAME:    SYMBOL ASSEMBLY
+*
+*  VERSION: 3\0 - 10/30/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+       REF  FASMVB
+
+       REF  STRCMP            STRING COMPARE
+       REF  FASMVW
+       REF  GETPGM
+       REF  LTAB
+*-------------------------------------------------------------------------
+*
+*    NAME:  WDS2\167\PGMLINK
+*
+*
+*-------------------------------------------------------------------------
+       DEF  CALTBL       0
+       DEF  KEYTAB       2
+       DEF  ERRTAB       4
+       DEF  FKLTAB       6
+       DEF  LSTKWT       8
+       DEF  PRESCN       A
+       DEF  CRUNCH       C
+       DEF  LSTEXK       E
+       DEF  FKNMES       10
+       DEF  EXPTB        12
+       DEF  MSGLM        14
+       DEF  MSGLP        16
+       DEF  MSGLR        18
+       DEF  MSGIN        1A
+       DEF  MSGWRN       1C
+       DEF  MEM1
+       DEF  MEM2
+
+FILE0  EQU  $                DATAREFS
+       UNL
+       COPY "160\DATAREFS"
+       LIST
+FILE1  EQU  $
+       UNL
+       PAGE
+       COPY "160\EQUSYS"
+       LIST
+FILE2  EQU  $
+       UNL
+       PAGE
+       COPY "160\EQUTOKEN"
+       LIST
+FILE3  EQU  $
+       UNL
+       PAGE
+       COPY "160\EQUXOP"
+       LIST
+FILE4  EQU  $
+       UNL
+       PAGE
+       COPY "160\EQUCALL"
+       LIST
+FILE5  EQU  $
+       UNL
+       PAGE
+       COPY "160\EQUERR"
+       LIST
+FILE6  EQU  $
+       UNL
+       PAGE
+       COPY "160\EQUSTACK"
+       LIST
+FILE7  EQU  $
+       UNL
+       PAGE
+       COPY "160\VARY1"
+       LIST
+FILE8  EQU  $
+       UNL
+       PAGE
+       COPY "160\VARY2"
+       LIST
+FILE9  EQU  $                 OV157
+       UNL
+       PAGE
+       COPY "160\OV157"
+       LIST
+
+       AORG >4000
+
+*FILE10 EQU  $                 PGMLINK
+*      UNL
+*      PAGE
+*      COPY "157\PGMLINK"
+*      LIST
+FILE11 EQU  $                 SYMSUP
+       UNL
+       PAGE
+       COPY "167\SYMSUPN"
+       LIST
+FILE12 EQU  $                 DSUB
+       UNL
+       PAGE
+       COPY "167\DSUB"
+       LIST
+FILE13 EQU  $                 DIM
+       UNL
+       PAGE
+       COPY "167\DIM"
+       LIST
+FILE14 EQU  $                 SYMBOL
+       UNL
+       PAGE
+       COPY "167\SYMBOL"
+       LIST
+FILE15 EQU  $                 CPT
+       UNL
+       PAGE
+       COPY "167\CPT"
+       LIST
+FILE16 EQU  $                 CRUNCH
+       UNL
+       PAGE
+       COPY "167\CRUNCH1"
+       LIST
+FILE17 EQU  $                 KEYWD
+       UNL
+       PAGE
+       COPY "167\KEYWD"
+       LIST
+FILE18 EQU  $                 ERRMSG
+       UNL
+       PAGE
+       COPY "167\ERRMSG"
+       LIST
+FILE19 EQU  $                 MISCTAB
+       UNL
+       PAGE
+       COPY "167\MISCTAB"
+       LIST
+FILE20 EQU  $                 CALLTBLO
+       UNL
+       PAGE
+       COPY "167\CALLTBLO"
+       LIST
+FILE21 EQU  $                 DATA
+       UNL
+       PAGE
+       COPY "167\DATAN"
+       LIST
+FILE22 EQU  $                 PAD DATA
+       UNL
+       PAGE
+       COPY "167\PADDEF"
+       LIST
+P7END  EQU  $-2
+       END
+

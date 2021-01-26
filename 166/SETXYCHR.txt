@@ -1,0 +1,38 @@
+*      CHRSET(X,Y)
+*      WHERE X>=127   Y<256
+*      USES PART OF CHRSET ROUTINE IN FILE 165.CHARN
+*
+CC1    BYTE 0
+CC2    BYTE 0
+*MP1CHR MOV  R8,@TEMP2
+*      BL   @PARFST           *WAS MP1CHR
+MP1CHR JMP  SETERR        *JEQ  SETERR
+       BL   @FTOI
+       MOV  @SNUM+FAC,@CC1
+       BL   @PARLST
+       JEQ  SETERR
+       BL   @FTOI
+       MOV  @SNUM+FAC,@CC2
+*      BL   @CKRPAR
+*      JNE  SETERR
+       INC  @CC2
+SETLOP LI   R0,X$CPD
+       LI   R1,DEFCR1
+       LI   R2,1
+       MOV  @CC1,R3
+       LI   R4,0
+       XOP  @SIX,0
+       INC  @CC1
+       C    @CC1,@CC2
+       JNE  SETLOP
+       MOV  *R10+,R11
+       RT
+*MPCHR1 BL   @CKRPAR
+*      JNE  SETERR
+*      MOV  @CC1,@CC2
+*      INC  @CC2
+*      JMP  SETLOP
+SETERR LI   R0,ERRBV
+       BL   @ERROR
+
+

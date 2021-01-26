@@ -1,0 +1,447 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.157.SYMBOL
+*
+*  NAME:    BUILD SYMBOL TABLE
+*
+*  VERSION: 3.0 - 10/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+*    NAME:  PRESCN
+*
+*    WHAT:  BUILDS THE SYMBOL TABLE AND
+*           CHECKS FOR SYNTAX ERRORS
+
+PRESCN DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+*    NOW CLEAR OUT THE TEMPORARY LOCATIONS
+
+       LI   R0,VARBEG         GET THE START ADDRESS
+       LI   R1,VARND1         AND THE END ADDRESS
+PS01   CLR  *R0+              CLEAR A WORD
+       C    R0,R1             COMPARE IF AT THE END
+       JL   PS01              JUMP IF NO
+
+       MOV  @RADBIT,@NVFLAG   INITIALIZE NV FLAG
+
+       MOVB @PFLAG,R0         CHECK IF IN A PROGRAM
+       JLT  SYM01B            JUMP IF IMPERATIVE
+       CLR  R8                * ELSE CLEAN UP OLD
+       JMP  SYM01
+
+SYM01B MOV  @SLINE,@CLINE     FIRST LINE
+       CLR  @DLINE            INITIALIZE DATA LINE
+
+SYM01A BL   @GETPGM           GET THE PROGRAM STATEMENT
+       MOV  R12,@PGMSTT       SAVE THE START OF THE PROGRAM
+
+*    START OF THE SCAN PROCESS
+*    GET A CHARACTER AND CHECK IF FALLS
+*    WITHIN THE RANGE OF SPECIAL CHARACTERS
+
+SYM01  MOV  @NVFLAG,@HEADER   RESET THE HEADER
+       MOVB *R12+,R8          GET THE NEXT CHAR
+       JEQ  SYM03             JUMP IF THE END
+       JLT  SYM02A            JUMP IF TOKEN
+*      JMP  SYM20             JUMP IF SYMBOL
+
+SYM20  BL   @ENTER            BUILD SYMBOL
+       BL   @SRCHSY
+       MOV  R0,R0             DID WE FIND IT
+       JEQ  SYM79             YES
+       BL   @ADDSYM           NO - ADD IT
+       CI   R8,>B700          DID SYMBOL END IN LEFT PAREN
+       JEQ  SYM22             YES CHECK DIM
+       BL   @ADDVS            AND DO IT
+
+SYM59  CI   R8,>B300          AT A COMMA
+       JEQ  SYM04             GET THE NEXT CHARACTER
+SYM61  MOV  @NVFLAG,@HEADER
+
+SYM02  MOVB R8,R8             CHECK CHAT
+SYM02D JEQ  SYM03             JUMP IF THE END
+       JGT  SYM20             JUMP IF SYMBOL
+
+SYM02A CI   R8,>E300          EXT FUNCTION/KEYWD
+       JEQ  SYM02B
+       CI   R8,>C900          CHECK IF TOKEN IS LINE #
+       JH   SYM04             JUMP IF HIGHER
+       CI   R8,>B000          CHECK IF TOKEN IS
+       JH   SYM05             JUMP IF HIGHER
+       MOV  R8,R6             YES GET A COPY
+       SLA  R6,1              REMOVE MS BIT
+       SRL  R6,8              ALIGN FOR INDEX
+       MOV  @SCNTAB(R6),R6    GET THE ADDRESS
+       B    *R6               AND GOTO IT
+
+
+EXNUD  MOVB *R12+,R8
+       CI   R8,>8C00
+       JEQ  DEFSTR
+       JMP  SYM02C
+
+SYM02B MOVB *R12+,R8          EAT THE NEXT CHAR
+SYM02C B    @NXTCHR
+
+SYM03  B    @NXTLN            NEXT LINE
+
+*    COMMA
+
+SYM04  MOV  @NVFLAG,@HEADER   NOW SET THE NUMERIC FLAG
+       B    @NXTCHR           GET THE NEXT CHARACTER
+
+SYM05  B    @NOCARE
+
+SYM22  B    @NONDIM
+
+SYM79  MOV  @PSCAN,R5    TEST IF PRESCAN OFF
+       JNE  SYM59        PRESCAN IS OFF THERFORE DON'T CHECK TYPE
+
+       MOV  @LSTSYM+2,R5
+       MOV  @>6000(R5),R1
+       COC  @UDFBIT,R1    TEST IF UDF (IS SO, IGNOR)
+       JEQ  SYM59
+       COC  @DIMBIT,R1    TEST IF THE SYMBOL FOUND IS DIMENSIONED
+       JNE  SYM110        NO
+       CI   R8,>B700     IS DIMENSIONED, SO MUST BE A LEFT PAREN
+       JEQ  SYM61        MATCHES
+
+SYM100 LI   R0,ERRBS     NO
+
+SYM24  B    @SYMRTN
+
+SYM110 CI   R8,>B700   NOT DIMENSIONED, SO CAN NOT BE A LEFT PAREN
+       JNE  SYM59
+       JMP  SYM100
+
+       PAGE
+
+*
+*    DEFINE TYPES ARE HERE
+*
+*    SYNTAX: DEFINT VARIABLE,VARIABLE
+*            DEFRAD
+*            DEFSTR
+
+DEFINT MOV  @INTBIT,R1        LOAD INTERGER
+       JMP  DEFCOM            JOIN COMMON
+
+DEFREL MOV  @RADBIT,R1        LOAD RADIX
+       JMP  DEFCOM            JOIN COMMON
+
+DEFSTR MOV  @STRBIT,R1        LOAD STRING
+
+*    DEFINE INTEGER S, CHECK IF ALL TOKEN
+*    FOLLOWS IT.
+*    YES - CHECK IF ONLY ALL
+*    NO  - SET THE CURRENT VARIABLE TO INT
+
+
+DEFCOM MOV  R1,@HEADER        SET THE INTEGER BIT
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       JGT  INT$5             SYMBOL
+       JEQ  INT$4             AT THE END SYNTAX ERROR
+       CI   R8,>8A00          CHECK IF DIM FOLLOWS
+       JNE  INT$1             NO CHECK SOME MORE
+       B    @DIM$1            GO TO DIM CODE
+
+INT$1  CI   R8,>EC00          CHECK FOR ALL TOKEN
+       JEQ  INT$3             YES
+
+INT$4  BL   @SYMSYN           NO - SYNTAX ERROR
+
+INT$3  MOVB @PFLAG,R0         * CHECK IF PROGRAM
+       JLT  INT$7             * JUMP IF YES
+       BL   @ERRIMP
+
+INT$7  MOV  @ALFLAG,R0        * GET THE ALL FLAG
+       JNE  INT$4             * IF NON-ZERO, ALL READY AN ALL
+       CI   R1,STRBIT         * CHECK IF STRING
+       JEQ  INT$4             * JUMP IF YES
+       MOV  R1,@NVFLAG        * SET THE PERM TYPE
+       SETO @ALFLAG           * SET THE FLAG
+       B    @SYM01            * CONTINUE SCANNING LINE
+
+INT$5  BL   @ENTER            BUILD SYMBOL
+       BL   @SRCHSY           SEARCH FOR SYMBOL
+       MOV  R0,R0             DID WE FIND IT
+       JEQ  INT$4             YES
+       BL   @ADDSYM           NO - ADD IT
+       BL   @ADDVS            AND DO IT
+
+       MOVB R8,R8             AT A EOL
+       JEQ  SYM03             YES
+       CI   R8,>B300          AT A COMMA
+       JNE  INT$4             NO - ERROR
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       JEQ  SYM03             YES
+       JMP  INT$5             NO
+
+       PAGE
+*
+*    ENCOUNTERD AN OPTION STATEMENT
+*    CHECK IF ITS BEFORE A DIM STATEMENT
+*    YES - PROCESS IT
+*    NO  - ITS AN ERROR
+*
+
+OPTION MOV  @BASE1,R0         CHECK IF WE ENCOUNTERED A ?
+       JNE  OPT$08            YES SKIP IT
+       SETO @BASE1
+       CB   *R12+,@CBHF1      CHECK IF WE HAVE AN OPTION BASE
+       JNE  OPT$08            NO
+
+       CB   *R12+,@CBHC8      YES - GET NEXT CHARACTER MUST BE UNQUOTED STRING
+       JNE  OPT$08            NO
+
+       CB   *R12+,@CBH01      MUST BE LENGTH OF 1
+       JNE  OPT$08            NO
+
+       MOVB *R12+,R1          GET THE BASE
+       SRL  R1,8
+       AI   R1,->0030         SUBTRACT OF THE ASCII PART
+       CI   R1,1
+       JLE  OPT$07            OKAY, ITS 0 OR 1
+
+OPT$08 LI   R0,ERROBE         OPTION BASE ERROR
+       B    @SYMRTN
+
+OPT$07 MOV  R1,@BASE          SET IT TO ZERO
+
+OPT$10 B    @NXTCHR           GET THE NEXT CHARACTER
+
+       PAGE
+
+*    ENCOUNTERED AN IF STATEMENT
+
+IF     SOC  @IFBIT,@FNFLAG    SET THE IF BIT
+       JMP  IMPER
+
+GO     MOVB *R12+,R8          EAT THE NEXT CHARACTER
+
+*    IMPERATIVE CHECKER
+
+IMPER  MOVB @PFLAG,R0         PROGRAM
+       JLT  NXTCHR            YES -
+
+ERRIMP LI   R0,ERROLP         ONLY LEGAL IN A PROGRAM
+       B    @SYMRTN
+
+DATA1  MOV  @DLINE,R0         GOT A DATA ?
+       JNE  DATA2             JUMP IF YES
+       MOV  @CLINE,@DLINE     COPY THE LINE NUMBER
+       MOV  @PGMSTT,R1        START OF STATEMENT
+       LI   R2,DATAB          COPY TO DATA BUFFER
+       MOV  @BUF3L,R3         GET THE LINE LENGTH
+       BL   @FASMVB            MOVE IT
+
+*    THIS IS AFTER THE FACT. A DATA STATEMENT MUST
+*    BE THE FIRST CHARACTER ON THE LINE
+
+       LI   R2,DATAB          GET THE BUFFER ADDRESS
+       MOVB *R2+,R8           READ THE FIRST BYTE
+       CI   R8,>9300          MUST BE A DATA
+       JNE  ERRIMP
+       MOVB *R2+,@CHATD       READ THE NEXT CHARACTER
+       MOV  R2,@LNBUF         UPDATE THE POINTER
+
+DATA2  MOVB @PFLAG,R0         TEST IF IN A PROGRAM
+       JLT  DATA3             JUMP IF YES
+       JMP  ERRIMP
+
+DATA3  B    @NXTLN2
+
+FOR    INC  @FORNET           INCREMENT FOR COUNTER
+       MOV  @FNFLAG,R0
+       ANDI R0,>4000
+       JEQ  NXTCHR
+
+SYMSYN LI   R0,ERRSN          SYNTAX ERROR
+       B    @SYMRTN
+
+NEXT   MOV  @FNFLAG,R0         GET THE IF-FLAG
+       ANDI R0,>4000          STIP IT OUT
+       MOV  R0,R0             CHECK IT
+       JNE  SYMSYN            SYNTAX ERROR
+       DEC  @FORNET
+       JLT  NXTCHR            CAN NOT GET NEGATIVE
+*      JMP  NXTCHR
+
+ELSE   JMP  NXTCHR            GET NEXT CHARACTER
+
+ON     EQU  $
+RETURN MOVB *R12+,R8          GET NEXT CHARACTER
+       CI   R8,>C900          IS IT A LINE NUMBER
+       JEQ  RET$30            YES
+       CI   R8,>8200          STATEMENT SEP ?
+       JEQ  RET$20            YES
+       MOVB R8,R8             AT THE END OF THE LINE
+       JNE  RETURN            NO
+
+RET$05 JMP  NXTLN             GET NEXT LINE
+
+RET$20 B    @SYM01
+
+RET$30 INCT R12               SKIP LINE NUMBER
+       JMP  RETURN            AND PARSE SOME MORE
+
+       PAGE
+NOCARE CI   R8,>C900          LINE NUMBER
+       JH   NXTCHR
+       JEQ  SKPLN
+       CI   R8,>C800          STRING
+       JEQ  SKPSTR
+       CI   R8,>C700          NUMERIC CONSTANT
+       JEQ  SKPSTR
+NXTCHR MOVB *R12+,R8          GET NEXT CHARACTER
+       B    @SYM02            GO BACK TO BEGINNING
+
+SKPLN  INCT R12               SKIP LINE NUMBER
+       JMP  NXTCHR            JOIN COMMON CODE
+
+SKPSTR MOVB *R12+,R3          GET NEXT CHARACTER
+       SRL  R3,8              AGIGN REGISTER
+       A    R3,R12            ADD TO PROGRAM POINTER
+       JMP  NXTCHR            GET NEXT CHARACTER
+
+       PAGE
+*
+*    CHECK TO SEE IF A TAIL REM OR PRE-SCAN COMMAND
+*
+*    SYNTAX: !@P-
+*            !@P+
+*            !@P*
+*
+
+TAILCK MOVB *R12+,R8          GET NEXT CHARACTER
+       CI   R8,>4000          IS IT A AT SIGN
+       JNE  NXTLN             NO - TAIL REMARK GET NEXT LINE
+
+       MOVB *R12+,R8          YES GET NEXT CHARACTER
+       CI   R8,>5000          UPPER CASE P
+       JEQ  SYM3CA            YES
+       CI   R8,>7000          LOWER CASE P
+       JEQ  SYM3CA            YES
+       JMP  NXTLN             ISSUE SYNTAX ERROR
+
+
+SYM3CA MOVB *R12+,R8          GET NEXT CHARACTER
+       CI   R8,>2D00          MINUS
+       JNE  SYM3CB
+       INC  @PSCAN            TURN PRE-SCAN OFF
+       JMP  NXTLN
+
+SYM3CB CI   R8,>2B00          PLUS
+       JNE  SYM3CC
+       CLR  @PSCAN            TURN PRE-SCAN ON
+       JMP  NXTLN
+
+SYM3CC CI   R8,>2A00          PRE-SCAN TERMANITOR
+       JEQ  SYMDNE
+
+       PAGE
+*
+*    GET NEXT PROGRAM LINE
+*
+
+NXTLN  MOVB @PFLAG,R0         CHECK IF IN PROGRAM MODE
+       JLT  NXTLN2            JUMP IF PROGRAM
+
+*    SYMBOL BUILDING IS COMPLETED
+*    WITH NO ERRORS
+
+SYMDNE CLR  R0
+       MOV  @FORNET,R1        * CHECK FOR-NEXT COUNTER
+       JEQ  SYMDN1            * JUMP IF EQUAL FOR/NEXT PAIRS
+
+ERFNN  LI   R0,ERRFNN
+       JMP  SYMRTN
+
+NXTLN2 LI   R0,VARBEG         START TO CLEAR
+NXTLN1 CLR  *R0+
+       CI   R0,VAREND         AT END
+       JL   NXTLN1            JUMP IF NO
+
+       S    @CW04,@CLINE      ADD 4 TO LINE TABLE POINTER
+       MOV  @CLINE,R0         GET THE POINTER
+       C    R0,@ELINE         AT THE END
+       JL   SYMDNE            YES
+       SZCB @IFBIT,@FNFLAG
+NXTLN3 B    @SYM01A           DO IT AGAIN
+
+SYMDN1 MOV  @FNFLAG,R1        * CHECK IF WE HAVE EQUAL SUB/SUBEND PAIRS
+       COC  @SUBBIT,R1        * DID WE GET SUB-END
+       JNE  SYMRTN            * JUMP IF NO
+       LI   R0,ERRMS          * LOAD MISSING SUB-END
+
+SYMRTN MOV  *R10+,R11         GET RETURN ADDRESS
+       RT
+
+       PAGE
+*
+*    NAME:  DCALL
+*
+*    WHAT:  PARSE A CALL STATEMENT
+*
+*
+
+DCALL  MOVB *R12+,R8          GET NEXT CHAR
+       CI   R8,>C800          UNQUOTED STRING
+       JEQ  DCALL8
+       B    @DIMERR           NO - ITS A SYNTAX ERROR
+
+DCALL8 MOVB *R12+,R8          GET THE LENGTH
+       MOV  R8,R2
+       SRL  R2,8              ALIGN FOR ADD
+
+       MOV  @SYMEND,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @SYMEND+2,R4      GET THE 13 BIT ADDRESS
+       AI   R4,>A000          MAKE IT 16
+       CLR  *R4+              CLEAR THE HEADER
+       MOV  @BMASK,*R4+       SET THE PAGE LINK
+       CLR  *R4+              CLEAR THE ADDRESS
+       MOVB R8,*R4+           WRITE THE LENGTH
+
+DC01   MOVB *R12+,*R4+        NOW MOVE THE NAME
+       DEC  R2                DONE ?
+       JNE  DC01              NO
+
+*    NEXT SEARCH THE EXISTING TABLE LOOKING FOR THE SUB
+
+       BL   @SRCHSU           SEARCH THE TABLE
+       MOV  R0,R0             FIND IT
+       JEQ  CALL04            YES
+
+*    NEXT CHECK IF INTERNAL CALL
+
+       BL   @SRCHIN           SEARCH INTERNAL TABLE
+
+       SOCB @UDSBIT,@HEADER   SET THE CORRECT BIT IN THE HEADER
+       BL   @ADDSUB           ADD THE SYMBOL
+
+       LI   R1,1              NEED THREE WORDS
+       MOV  @SYMEND+2,@LSTSYM+2
+       BL   @ADDVS4           CLEAR OUT VALUE SPACE
+
+*    NOW WRITE THE INTERNAL INDEX FLAG
+
+       MOV  @LSTSYM+2,R1      GET 13 BIT ADDRESS
+       AI   R1,>A000          MAKE IT 16
+       MOV  *R1,R2            GET THE HEADER
+       ANDI R2,>000F          MASK OUT VSO
+       SLA  R2,1              TIMES BY 2
+       A    R2,R1             ADD TO 16 BIT ADDRESS
+       MOV  @CLINDX,*R1       WRITE THE FLAG
+
+CALL04 MOVB *R12+,R8          GET THE NEXT CHAR
+       CI   R8,>B700          GOT A LEFT PAREN
+       JNE  CALL05            NO
+CALL07 MOVB *R12+,R8
+CALL05 MOV  @NVFLAG,@HEADER   RESET THE HEADER
+       B    @SYM02            CONTINUE SCAN
+

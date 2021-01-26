@@ -1,0 +1,261 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.158.RDRST
+*
+*  NAME:    READ/RESTORE NUD
+*
+*  VERSION: 3.00 - 10/21/86    BASE LINE
+*           3.01 - 02/23/87
+*
+*-------------------------------------------------------------------------
+
+*
+* SYNTAX:   1. RESTORE
+*           2. RESTORE { LINE NO. }
+*           3. RESTORE { FILE NO. }
+*           4. RESTORE { FILE NO. } REC { NUMERIC VARIABLE }
+
+
+RESTOR CI   R8,>FD00          * NOW CHECK FOR FILE #
+       JNE  REST02            * JUMP IF NO
+
+*    MUST BE A FILE
+
+       BL   @GFILEN           PARSE FILE NUMBER
+       MOV  @SNUM+FAC,R1      GET THE FILE NUMBER
+       JEQ  RST$03            IF #0 THEN TREAT LIKE "RESTORE"
+       MOV  R0,R0             IS THE CHANNEL # OPEN?
+       JEQ  RSTR01            NO, FILE ERROR
+       CLR  @LRN(R15)         CLEAR IT IN CASE NO RECORD # GIVEN
+       BL   @PARREC
+       LI   R0,$REST          SELECT RESTORE OPTION
+       BL   @FILIOO           PERFORM THE I/O
+       JNE  RST$00            ERROR IN PERFORMING THE I/O OPERATION
+       B    @CONT             CONTINUE
+
+RSTR01 B    @OPNEBV           ERROR BAD VALUE
+
+
+REST02 CI   R8,>C900          LINE NUMBER
+       JEQ  RST$01            YES
+       BL   @EOSTMT           AT THE END OF THE STATEMENT
+       JEQ  RST$03            YES
+RPTE33 LI   R0,ERRDAT         NO ITS AN ERROR
+RST$00 BL   @ERROR
+
+RST$02 MOV  @06+FAC,@CLINE    RESTORE CLINE
+       LI   R0,ERRLNF         LOAD ERROR CODE
+       JMP  RST$00
+
+*    LINE NUMBER RESTORE FIRST GET THE LINE NUMBER
+
+RST$01 MOVB *R12+,@SNUM+FAC   GET THE LINE NUMBER FROM PROGRAM
+       MOVB *R12+,@SNUML+FAC
+       MOVB *R12+,R8          * GET NEXT CHARACTER
+       MOV  @CLINE,@06+FAC    SAVE CLINE
+       BLWP @SRCHLN           SEARCH THE LINE NUMBER TABLE
+       MOV  @CLINE,R0         DID WE FIND IT
+       JEQ  RST$02            JUMP IF NO
+       MOV  R0,@DLINE         * SAVE THE POINTER
+       MOV  @06+FAC,@CLINE    * RESTORE CLINE
+       JMP  RST$07            JOIN COMMON CODE
+
+*    RESTORE TO THE FIRST DATA STATEMENT
+*    IN THE PROGRAM
+
+
+RST$03 MOV  @SLINE,R0         START AT THE BEGINNING
+RST$07 BL   @RSTSU1           TRY TO FIND IT
+       JNE  RPTE33            BRANCH IF NO DATA STATEMENT FOUND
+RD$07A B    @CONT             AND CONTINUE
+
+       PAGE
+*
+*    NAME:  READ
+*
+*    WHAT:  READ STATEMENT
+*
+* VERSION:  3.1 - 10/01/88    BASE LINE
+*
+
+NREAD  BL   @PSYM             GET SYMBOL POINTER
+       BL   @PSHFAC           PUSH SYMBOL POINTER
+       MOV  @DLINE,R0         CHECK IF DATA STATEMENT PRESeNT
+       JEQ  RD$01             NO ITS AN ERROR
+
+RD$ZZ  CLR  R0
+       MOVB @CHATD,R0         GET THE CHARACTER
+       JEQ  RD$05
+RD$ZA  CI   R0,>9300          IF DATA SKIP IT
+       JEQ  RD$XY
+       CI   R0,>C700          IS IT UNQUOTED STRING
+       JEQ  RD$03
+       CI   R0,>C800          IS IT AN QUOTED STRING
+       JEQ  RD$02
+       CI   R0,>B300          IS IT A COMMA
+       JEQ  RD$XY             YES - CHECK SOME MORE
+
+RD$01  BL   @RPTE03           REPORT ERROR
+
+RD$XY  MOV  @LNBUF,R1         GET PERM POINTER
+       CLR  R0
+       MOVB *R1+,R0           GET THE CHARACTER
+       MOV  R1,@LNBUF         SAVE PERM POINTER
+       MOVB R0,@CHATD         SAVE THE CHARACTER
+       JEQ  RD$XW             YES, ITS THE SAME AS ANOTHER COMMA
+       CI   R0,>B300          GOT ANOTHER COMMA
+       JNE  RD$ZA             NO
+RD$XW  CB   @SID(R9),@CSIDST  IS THE STACK ENTRY A STRING
+       JNE  RD$01
+
+       CLR  R1                INDICATE A NULL STRING
+       BL   @GETSTR
+       JMP  RD$14
+
+RD$05  JMP  RD$15
+
+*
+*    MAYBE ASSIGN A NUMERIC. FIRST CHECK IF THE STACK
+*    ENTRY IS NUMERIC. IF YES TRY TO ASSIGN A NUMBER.
+*          IS STRING   THEN ASSIGN A STRING
+
+RD$02  CB   @SID(R9),@CSIDST  IS THE STACK ENTRY A STRING
+       JEQ  RD$03             YES
+
+       MOV  @LNBUF,R2         GET SOURCE
+       MOVB *R2+,R3           READ LENGTH BYTE
+       MOV  R2,@LNBUF         SAVE PERM POINTER
+
+       SRL  R3,8              ALIGN
+       A    R3,@LNBUF         UPDATE THE POINTER
+
+       CB   @SID(R9),@CSIDIN  CHECK IF INTEGER
+       JNE  RD$09             JUMP IN NO
+       MOV  R7,R1             COPY FAC
+       LI   R0,SIDVS*256+SIDINT
+       MOV  R0,*R1+           WRITE SCOPE/TYPE
+       CLR  *R1+              GENERAL CLEAR
+       LI   R0,X$CSIN
+       XOP  @TEN,0            CONVERT STRING TO NUMBER
+       MOV  R1,@SNUM+FAC
+       JMP  RD$04
+
+RD$09  LI   R0,SIDVS*256+SIDRAD
+       MOV  R7,R1
+       MOV  R0,*R1+
+       CLR  *R1+
+       LI   R0,X$CSN
+       XOP  @TEN,0
+       JMP  RD$04
+
+RD$10  LI   R0,WRNNO
+       BL   @WARN             ISSUE WARNING MESSAGE
+       JMP  RD$04
+
+RD$07  JMP  RD$07A
+
+*
+*    ASSIGN A STRING
+*
+RD$03
+       MOV  @LNBUF,R0         GET PERM POINTER
+       MOVB *R0+,R1           READ LENGTH
+       MOV  R0,@LNBUF         ALIGN REGISTER
+
+       SRL  R1,8              ALIGN REGISTER FOR MOVE
+       JEQ  RD$06             TREAT ZERO LENGTH STRINGS DIFFERENT
+
+       BL   @GETSTR           GET THE STRING SPACE
+
+*      MOV  @STRP(R7),R4
+*      MOVB @DATBUF(R4),@MAP9A
+*      MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+FAC,R2      GET 13 BIT ADDRESS
+       AI   R2,>A000          MAKE IT 16
+
+       MOV  @LNBUF,R1         SOURCE
+       MOV  @SLEN+FAC,R3      LENGTH
+       A    R3,@LNBUF         UPDATE POINTER
+       BL   @FASMVB           MOVE IT
+
+       JMP  RD$04
+
+RD$06  CLR  R1
+       BL   @GETSTR           CREAT NULL STRING
+
+RD$04
+       MOV  @LNBUF,R0
+       MOVB *R0+,@CHATD
+       MOV  R0,@LNBUF
+
+RD$14  BL   @ASSG             DO THE ASSIGNMENT
+
+       MOVB R8,R8             AT THE END OF THE LINE
+       JEQ  RD$07             YES
+       CI   R8,>8200          AT A STATEMENT SEP
+       JEQ  RD$07             YES
+       BL   @CKCOMA           ENSURE COMMA
+       B    @NREAD            DO LOOP AGAIN
+
+*
+*    EXHAUSTED THE CURRENT DATA STATEMENT
+*    LOOK FOR ANOTHER. START AT CURRENT AND LOOK
+*    TO THE END OF THE PROGRAM
+
+RD$15  LI   R5,RD$15A         GET RETURN
+       DECT R10
+       MOV  R5,*R10
+       MOV  @DLINE,@08+FAC    GET STARTING POINT
+       BL   @RSTSU4           FIND THE NEXT DATA STATEMENT
+
+RD$15A JNE  RD$777            BRANCH IF NO DATA STATEMENT FOUND
+       B    @RD$ZZ            CONTINUE
+
+RD$777 B    @RPTE33
+       PAGE
+*
+*      ROUTINE TO SEARCH FOR NEXT DATA STATEMENT
+*
+
+RSTSU1 DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  R0,@08+FAC        SAVE STARTING POINTER TO LINE # TABLE
+
+       MOV  R0,R1
+       MOV  R1,@DLINE         * LOU DONT TAKE THIS OUT !
+RSTSU2 BL   @FASTPG           MAP IN LINE NUMBER TABLE
+
+       INCT R1                READ THE LINE NUMBER
+       MOV  *R1,R1            READ THE PROGRAM POINTER
+       BL   @FASTPG           MAP IN THE PROGRAM POINTER
+
+*    R1 - POINTS TO PROGRAM STATEMEMT
+
+       CB   *R1,@CBH93        IS IT A DATA STATEMENT
+       JEQ  RSTSU3            YES - SAVE IN PERM POINTERS
+RSTSU4 S    @CW04,@08+FAC     * POINT TO NEXT
+       MOV  @08+FAC,R1        * GET THE ADDRESS
+       MOV  R1,@DLINE         * SAVE THE POINTER
+       C    R1,@ELINE         * AT THE END
+       JHE  RSTSU2            * JUMP IF NO
+       CLR  @DLINE            * YES SO CLEAR THE POINTER
+       MOV  *R10+,R11         GET RETURN
+       RT                     RETURN WITH EQ BIT RESET
+
+RSTSU3 DEC  R1                BACK UP PROGRAM POINTER
+       MOVB *R1+,R3           READ THE LENGTH
+       SRL  R3,8              ALIGN REGISTER
+       JNE  RSTSU6            MAKE SURE WE HAVE A REAL LENGTH HERE
+       LI   R3,165            IF ZERO, THEN READ AT LEAST 165
+RSTSU6 EQU  $
+*      MOV  R3,@BUF6L         SAVE LENGTH (WHY?)
+       LI   R2,DATAB          DESTINATION
+       BL   @FASMVB           MOVE IT
+       LI   R2,DATAB          START WITH BUFFER ADDRESS
+       MOVB *R2+,@CHATD       READ THE NEXT CHAR
+       MOV  R2,@LNBUF         UPDATE THE POINTER
+       MOV  *R10+,R11         RETURN
+       C    R0,R0             SET EQ BIT ON RETURN
+       RT
+

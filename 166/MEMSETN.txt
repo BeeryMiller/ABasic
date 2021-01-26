@@ -1,0 +1,357 @@
+*
+*    NAME:  MEMSET
+*
+*    WHAT:  SET MEMORY LOCATIONS
+*
+*  FORMAT:  CALL MEMSET(ARRAY, VALUE)
+*
+CMEM15 BL   @RPTE03
+CMEM10 BL   @RPTE07
+
+CMEMS  BL   @CKLPAR
+       BL   @PSYM
+
+       BL   @PSHFAC
+
+       BL   @PARLST
+
+       CB   *R9,@CSIDDM
+       JNE  CMEM15
+
+       CB   @SID(R9),@SID+FAC
+       JNE  CMEM10
+
+       MOV  @SYMP(R9),R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SACC(R9),R5
+       MOV  @SYMA(R9),R4
+       AI   R4,>6000
+
+       BL   @CALMEM
+
+       MOV  R3,R1
+
+       CB   @CSIDST,@SID(R9)
+       JEQ  INSTR
+
+       CB   @CSIDRL,@SID(R9)
+       JNE  CMEM5
+       B    @INRAD
+
+CMEM5  B    @ININT
+
+       PAGE
+*
+*    INITIALIZE A STRING ARRAY
+*
+
+INSTR  MOV  R1,@ASSCNT
+       MOV  @BASE,@ELEMNT
+
+INST52 MOV  R9,R1
+       AI   R1,SNUM
+       LI   R2,ARG
+       LI   R0,SIDPTR*256+SIDSTR
+       MOV  R0,*R2+
+       CLR  *R2+
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+       CLR  *R2+
+       CLR  *R2+
+       CLR  *R2+
+       CLR  *R2
+
+       MOV  @ELEMNT,R2
+       CLR  R1
+       SLA  R1,1
+       SLA  R2,1
+       JNC  INS074
+       INC  R1
+INS074 SLA  R1,1
+       SLA  R2,1
+       JNC  INS078
+       INC  R1
+INS078 AI   R2,16             * ADD IN INDEX OVERHEAD
+       JNC  INS081
+       INC  R1
+INS081 MOVB R2,R1             * NOW CONVERT TO 8/13 BIT
+       ANDI R2,>1FFF
+       SRC  R1,13
+       SZCB R1,R1
+       A    @SYMA+ARG,R2
+       A    @SYMP+ARG,R1
+       COC  @CW2000,R2
+       JNE  INS091
+       ANDI R2,>1FFF
+       INC  R1
+INS091 MOV  R2,@SYMA+ARG
+       MOV  R1,@SYMP+ARG
+
+*    MAP IN SYMBOL TABLE
+
+       MOVB @DATBUF(R1),@MAP96
+       MOVB @DATBUF+1(R1),@MAP98
+
+       AI   R2,>6000
+       MOV  *R2+,R4
+       MOV  R4,R3
+       MOV  R4,@STRP+ARG
+       MOV  *R2+,R5
+       A    R5,R3
+       JEQ  INS115
+
+*    MAP IN STRING PAGE
+
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+       MOV  R5,@STRA+ARG
+       MOV  @>A000-2(R5),R3
+
+INS115 MOV  R3,@SLEN+ARG
+
+       BL   @PSHARG
+       BL   @ASSSTR
+       INC  @ELEMNT
+       DEC  @ASSCNT
+       JNE  INST52
+
+       AI   R9,-STKSZ
+       LI   R7,FAC
+       B    @CONT
+
+CHFFF0 DATA >FFF0
+
+       PAGE
+*
+*    NAME:  INITIALIZE RADIX99
+*
+*
+INRAD  CLR  R2
+       SLA  R1,1
+       JNC  INRAD1
+       INC  R2
+INRAD1 SLA  R2,1
+       JOC  INRAD2
+       SLA  R1,1
+       JNC  INRAD2            JUMP IF NO CARRY
+       INC  R2
+INRAD2 MOV  R1,R3             SAVE OUT # OF WORDS TO CLEAR IN THIS SPACE
+       MOV  R2,R0
+       SLA  R2,1              NOW MAKE BYTES FORM WORDS (*2)
+       SLA  R1,1
+       JNC  INRAD5
+       INC  R2
+INRAD5 MOVB R1,R2             PUT MS 3 BITS TO R2
+       ANDI R2,>E0FF          MASK OFF THE OTHER 5 JUNK BITS
+       ANDI R1,>1FFF          13 BIT COMPLETE
+       SRC  R2,13             NOW 8 BIT COMPLETE
+       A    R5,R1             ADD THE 13 BIT TOGETHER
+       COC  @CW2000,R1        CARRY OUT OF THE 13 BIT?
+       JNE  INRAD6            NO
+       ANDI R1,>1FFF          YES, SO ADJUST
+       INC  R2
+
+*  NOW START TO CLEAR MEMORY GIVEN BY 8/13 BIT ADDRESS IN R4(MSW), R5(13 BIT)
+*    LENGTH IN # OF WORDS GIVEN BY R0(MSW) AND R3(LSW)
+
+INRAD6 MOV  @SYMP(R9),R4
+       MOV  @SYMA(R9),R5
+       AI   R5,>6010
+       CLR  R2                FLAG TO CONTINUE THE CLEARING
+       LI   R7,FAC+SNUM       SET FROM ADDRESS
+
+AVS9   MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+       LI   R1,>1000          CLEAR AT LEAST 8K BYTES  (4K WORDS)
+       S    R1,R3             8K LESS TO CLEAR
+       JOC  AVS8              BRANCH IF NO BORROW
+       DEC  R0                ELSE TRY TO GET BORROW
+       JOC  AVS8
+       A    R1,R3             RESTORE R3
+       JEQ  AVS10             ALL DONE
+       SETO R2                LAST ITERATION IN LOOP
+       MOV  R3,R1
+
+AVS8   MOV  *R7+,*R5+
+       MOV  *R7+,*R5+
+       MOV  *R7+,*R5+
+       MOV  *R7,*R5+
+       LI   R7,FAC+SNUM
+       AI   R1,-4
+       JNE  AVS8
+       AI   R5,->2000         RESET R5 IN CASE OF ANOTHER ITERATION
+       INC  R4
+       MOV  R2,R2             CONTINUE?
+       JEQ  AVS9              YES
+
+AVS10  AI   R9,-STKSZ
+       LI   R7,FAC
+       B    @CONT
+
+       PAGE
+*
+*    NAME:  ININT
+*
+*    WHAT:  INITIALIZE AN INTEGER ARRAY
+
+ININT  CLR  R2
+       MOV  R1,R3             SAVE OUT # OF WORDS TO CLEAR IN THIS SPACE
+       MOV  R2,R0
+       SLA  R2,1              NOW MAKE BYTES FORM WORDS (*2)
+       SLA  R1,1
+       JNC  INIT5
+       INC  R2
+INIT5  MOVB R1,R2             PUT MS 3 BITS TO R2
+       ANDI R2,>E0FF          MASK OFF THE OTHER 5 JUNK BITS
+       ANDI R1,>1FFF          13 BIT COMPLETE
+       SRC  R2,13             NOW 8 BIT COMPLETE
+       A    R5,R1             ADD THE 13 BIT TOGETHER
+       COC  @CW2000,R1        CARRY OUT OF THE 13 BIT?
+       JNE  INIT6             NO
+       ANDI R1,>1FFF          YES, SO ADJUST
+       INC  R2
+INIT6
+
+*  NOW START TO CLEAR MEMORY GIVEN BY 8/13 BIT ADDRESS IN R4(MSW), R5(13 BIT)
+*    LENGTH IN # OF WORDS GIVEN BY R0(MSW) AND R3(LSW)
+
+       MOV  @SYMP(R9),R4
+       MOV  @SYMA(R9),R5
+       AI   R5,>6010
+       CLR  R2
+       LI   R7,FAC+SNUM
+
+INIT9  MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+       LI   R1,>1000          CLEAR AT LEAST 8K BYTES  (4K WORDS)
+       S    R1,R3             8K LESS TO CLEAR
+       JOC  INIT8             BRANCH IF NO BORROW
+       DEC  R0                ELSE TRY TO GET BORROW
+       JOC  INIT8
+       A    R1,R3             RESTORE R3
+       JEQ  INSP10            ALL DONE
+       SETO R2                LAST ITERATION IN LOOP
+       MOV  R3,R1
+
+INIT8  MOV  *R7,*R5+
+       DEC  R1
+       JNE  INIT8
+       AI   R5,->2000         RESET R5 IN CASE OF ANOTHER ITERATION
+       INC  R4
+       MOV  R2,R2             CONTINUE?
+       JEQ  INIT9             YES
+
+INSP10 AI   R9,-STKSZ
+       LI   R7,FAC
+       B    @CONT
+
+
+
+CALMEM CLR  R2                R2,R3 AS ACCUMULATORS  MSW
+       MOV  *R4+,R3                                  LSW
+       ABS  @BASE             BASE 1 OR 0
+       JEQ  ADV1              BASE 0
+       DEC  R3                BASE 1 SO ONE LESS DIMENSION
+ADV1   DEC  R5
+       JEQ  ADV02             ALL DONE
+       MOV  R3,R0             GET THE LSW
+       MOV  *R4+,R15          GET NEXT INDEX
+       ABS  @BASE
+       JEQ  ADV03
+       DEC  R15               BASE 1
+ADV03  MPY  R15,R0            FIRST MULTIPLY THE LSW
+       MOV  R1,R3             LSB
+       MOV  R2,R1             NOW GET THE MSB TO MULTIPLY
+       MOV  R0,R2
+       MOV  R1,R0
+       MPY  R15,R0
+       MOV  R0,R0
+       JNE  ADVOVF            OVERFLOW
+       A    R1,R2
+       JNC  ADV1
+
+ADVOVF BL   @POPARG
+       LI   R0,ERRMEM
+       BL   @ERROR
+
+ADV02  CZC  @CHFFF0,R2        MAKE SURE ONLY A 20 BIT NUMBER (BECAUSE WORDS)
+       JNE  ADVOVF            TOO LARGE FOR THE MACHINE
+
+       RT
+
+       PAGE
+
+ASSSTR DECT R10
+       MOV  R11,*R10
+
+       MOV  @SLEN(R9),R0      * IS THE SYMBOL ALREADY ASSIGNED TO A NON 0 STRING
+       JEQ  ASSG54            * JUMP IF ZERO, NEVER ASSIGNED
+
+*    MAP IN THE STRING AND FREE THE OLD STRING SPACE
+
+       MOV  @STRP(R9),R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA(R9),R1      GET 13 BIT ADDRESS
+       CLR  @>A000-6(R1)      CLEAR OLD BACKPOINTER PAIR
+       CLR  @>A000-4(R1)
+
+ASSG54 MOV  @SLEN+FAC,R1      GET THE STRING LENGTH
+       JEQ  ASTR$4            JUMP IF NULL
+       BL   @ALLOCS           GET THE STRING SPACE
+
+*    MAP STRING ONE TO >6000
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+FAC,R1      * GET 13 BIT SOURCE ADDRESS
+       AI   R1,>6000          * MAKE IT 16
+
+*    STRING TWO ALREADY MAPPED IN, SO JUST GET 16 BIT ADDRESS
+
+       MOV  @STRREF+2,R2      * GET 13 BIT DEST ADDRESS
+       AI   R2,>A000          * MAKE IT 16
+
+       MOV  @SLEN+FAC,R3      * GET LENGTH
+       BL   @FASMVW           * COPY STRING
+
+*    NOW SET THE BACK/FORWARD POINTER
+*    RE-MAP IN THE SYMBOL PAGE TO >6000
+
+       LI   R2,STRREF         * RIGHT HAND IS IN STRREF
+
+ASTR$5 MOV  @SYMP(R9),R4      GET THE OWNER
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SYMA(R9),R3      GET 13 BIT ADDRESS
+
+       MOV  @2(R2),R4         PUT 13 BIT ADDRESS IN FOR LATER USE
+       MOV  R4,@>6000+2(R3)      SET 13 BIT ADDRESS
+       MOV  *R2,@>6000(R3)       SET PAGE ADDRESS
+       JEQ  ASTR$3             IF PAGE IS ZERO THEN STRING IS NULL
+
+       MOV  @SYMP(R9),@>A000-6(R4)  WRITE SYMBOLS PAGE
+       MOV  @SYMA(R9),@>A000-4(R4)  WRITE SYMBOLS ADDRESS
+
+ASTR$3 CLR  R0                * INDICATE NO ERRORS
+       AI   R9,-STKSZ         * POP THE STACK
+       MOV  *R10+,R11
+       RT
+
+*    THE STRING IN FAC IS A TEMPORARY STRING
+*    JUST ASSIGN IT TO THE STRING IN ARG
+
+ASTR$2 LI   R2,FAC+STRP       * RIGHT HAND IS IN FAC
+       JMP  ASTR$5            * DO THE ASSIGN USING STRING IN FAC
+
+ASTR$4 CLR  R0                * MAKE A NULL STRING ENTRY
+       CLR  R1
+       STWP R2                * NOW R2 POINTS TO R0,R1
+       JMP  ASTR$5            * AND DO THE ASSIGN
+

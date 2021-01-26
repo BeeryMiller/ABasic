@@ -1,0 +1,290 @@
+*
+*    THE ERROR TABLE CONTAINS TWO ERROR MESSAGE STRING ENTRY
+*    FOR THE ERROR NUMBER IN THE SYSTEM. THE FIRST ENTRY IS
+*    THE STRING POINTER. THE SECOND NUMBER IS THE
+*    ERROR NUMBER AND ITS SEVERITY.
+*
+*                             ERROR
+*                             NUMBER
+*
+ERRTAB DATA MSG110            0 - NOT USED
+       DATA MSG110            1 -
+       DATA MSG10             2 -
+       DATA MSG14             3 -
+       DATA MSG16             4 -
+       DATA MSG17             5 -
+       DATA MSG19             6 -
+       DATA MSG24             7 -
+       DATA MSG25             8 -
+       DATA MSG28             9 -
+       DATA MSG36             10-
+       DATA MSG39             11
+       DATA MSG40             12
+       DATA MSG43             13
+       DATA MSG44             14
+       DATA MSG47             15
+       DATA MSG48             16
+       DATA MSG49             17
+       DATA MSG51             18
+       DATA MSG54             19
+       DATA MSG57             20
+       DATA MSG110            21
+       DATA MSG60             22
+       DATA MSG61             23
+       DATA MSG62             24
+       DATA MSG67             25
+       DATA MSG69             26
+       DATA MSG70             27
+       DATA MSG74             28
+       DATA MSG78             29
+       DATA MSG79             30
+       DATA MSG81             31
+       DATA MSG83             32
+       DATA MSG84             33
+       DATA MSG109            34
+       DATA MSG119            35
+       DATA MSG130            36 - I/O ERROR
+       DATA MSG135            37
+       DATA MSG118            38
+       DATA MSG97             39
+       DATA MSG20             40
+       DATA MSG10             41
+       DATA MSG54             42
+       DATA MSG78             43
+       DATA MSG83             44
+       DATA MSG130            45
+       DATA MSG60             46
+       DATA MSG110            47
+       DATA MSG110            48
+       DATA MSG101            49
+       DATA MSG102            50
+       DATA MSG103            51
+       DATA MSG104            52
+       DATA MSG105            53
+       DATA MSG106            54
+       DATA MSG107            55
+       DATA MSG108            56
+       DATA MSG115            57
+       DATA MSG116            58
+       DATA MSG111            59
+       DATA MSG112            60
+       DATA MSG113            61
+       DATA MSG114            62
+       DATA MSG120            63 - STRING FORMAT ERROR
+       DATA MSG121            64 - ERROR BASIC OS
+       DATA MSG122            65 - MOUSE MODE ERROR
+       DATA MSG62             66 - LINE TOO LONG FOR MERGE
+*
+
+EXPTB  DATA EMSG00
+       DATA EMSG01
+       DATA EMSG02
+
+       DATA EMSG03
+       DATA EMSG04
+       DATA EMSG05
+
+MSG10  BYTE 10,16
+       TEXT 'NUMERIC OVERFLOW'
+
+MSG14  BYTE 14,12
+       TEXT 'SYNTAX ERROR'
+
+MSG16  BYTE 16,24
+       TEXT 'ILLEGAL AFTER SUBPROGRAM'
+
+MSG17  BYTE 17,16
+       TEXT 'UNMATCHED QUOTES'
+
+MSG19  BYTE 19,13
+       TEXT 'NAME TOO LONG'
+
+MSG20  BYTE 20,22
+       TEXT 'UNRECOGNIZED CHARACTER'
+
+MSG24  BYTE 24,22
+       TEXT 'STRING-NUMBER MISMATCH'
+
+MSG25  BYTE 25,17
+       TEXT 'OPTION BASE ERROR'
+
+MSG28  BYTE 28,20
+       TEXT 'IMPROPERLY USED NAME'
+
+MSG36  BYTE 36,11
+       TEXT 'IMAGE ERROR'
+
+MSG39  BYTE 39,11
+       TEXT 'MEMORY FULL'
+
+MSG40  BYTE 40,14
+       TEXT 'STACK OVERFLOW'
+
+MSG43  BYTE 43,16
+       TEXT 'NEXT WITHOUT FOR'
+
+MSG44  BYTE 44,16
+       TEXT 'FOR-NEXT NESTING'
+
+MSG47  BYTE 47,21
+       TEXT 'MUST BE IN SUBPROGRAM'
+
+MSG48  BYTE 48,25
+       TEXT 'RECURSIVE SUBPROGRAM CALL'
+
+MSG49  BYTE 49,14
+       TEXT 'MISSING SUBEND'
+
+MSG51  BYTE 51,20
+       TEXT 'RETURN WITHOUT GOSUB'
+
+MSG54  BYTE 54,16
+       TEXT 'STRING TRUNCATED'
+
+MSG57  BYTE 57,13
+       TEXT 'BAD SUBSCRIPT'
+
+MSG60  BYTE 60,14
+       TEXT 'LINE NOT FOUND'
+
+MSG61  BYTE 61,15
+       TEXT 'BAD LINE NUMBER'
+
+MSG62  BYTE 62,13
+       TEXT 'LINE TOO LONG'
+
+MSG67  BYTE 67,14
+       TEXT 'CAN'
+       BYTE >27
+       TEXT 'T CONTINUE'
+
+MSG69  BYTE 69,26
+       TEXT 'COMMAND ILLEGAL IN PROGRAM'
+
+MSG70  BYTE 70,23
+       TEXT 'ONLY LEGAL IN A PROGRAM'
+
+MSG74  BYTE 74,12
+       TEXT 'BAD ARGUMENT'
+
+MSG78  BYTE 78,18
+       TEXT 'NO PROGRAM PRESENT'
+
+MSG79  BYTE 79,9
+       TEXT 'BAD VALUE'
+
+MSG81  BYTE 81,23
+       TEXT 'INCORRECT ARGUMENT LIST'
+
+MSG83  BYTE 83,11
+       TEXT 'INPUT ERROR'
+
+MSG84  BYTE 84,10
+       TEXT 'DATA ERROR'
+
+MSG97  BYTE 97,20
+       TEXT 'PROTECTION VIOLATION'
+
+MSG101 BYTE 101,16
+       TEXT 'INTEGER OVERFLOW'
+
+MSG102 BYTE 102,17
+       TEXT 'INVALID FILE NAME'
+
+MSG103 BYTE 103,20
+       TEXT 'ARGUMENT NOT NUMERIC'
+
+MSG104 BYTE 104,16
+       TEXT 'MISSING ARGUMENT'
+
+MSG105 BYTE 105,18
+       TEXT 'TOO MANY ARGUMENTS'
+
+MSG106 BYTE 106,15
+       TEXT 'STRING TOO LONG'
+
+MSG107 BYTE 107,19
+       TEXT 'GRAPHICS MODE ERROR'
+
+MSG108 BYTE 108,16
+       TEXT 'WINDOW TOO SMALL'
+
+MSG109 BYTE 109,10
+       TEXT 'FILE ERROR'
+
+MSG110 BYTE 99,20
+       TEXT 'INVALID ERROR NUMBER'
+
+MSG111 BYTE 111,15
+       TEXT 'MEMORY OVERFLOW'
+
+MSG112 BYTE 112,14
+       TEXT 'CHECKSUM ERROR'
+
+MSG113 BYTE 113,13
+       TEXT 'DUPLICATE DEF'
+
+MSG114 BYTE 114,11
+       TEXT 'ILLEGAL TAG'
+
+MSG115 BYTE 115,20
+       TEXT 'UNRESOLVED REFERENCE'
+
+MSG116 BYTE 116,17
+       TEXT 'NAME NOT IN TABLE'
+
+MSG118 BYTE 118,18
+       TEXT 'INDEX OUT OF RANGE'
+
+MSG119 BYTE 35,16
+       TEXT 'SYMBOL NOT FOUND'
+
+MSG120 BYTE 63,19
+       TEXT 'STRING FORMAT ERROR'
+
+MSG121 BYTE 64,14
+       TEXT 'ERROR BASIC OS'
+
+MSG122 BYTE 65,16
+       TEXT 'MOUSE MODE ERROR'
+
+MSG130 BYTE 130,9
+       TEXT 'I/O ERROR'
+
+MSG135 BYTE 135,20
+       TEXT 'SUBPROGRAM NOT FOUND'
+
+EMSG00 BYTE 5
+       TEXT 'COMMA'
+
+EMSG01 BYTE 10
+       TEXT 'LEFT PAREN'
+
+EMSG02 BYTE 11
+       TEXT 'RIGHT PAREN'
+
+EMSG03 BYTE 9
+       TEXT 'LINE TYPE'
+
+EMSG04 BYTE 9
+       TEXT 'PIXEL ROW'
+
+EMSG05 BYTE 9
+       TEXT 'PIXEL COL'
+
+MSGIN  BYTE 9
+       TEXT ' IN LINE '
+
+MSGWRN BYTE 10
+       TEXT '* WARNING '
+
+MSGLM  BYTE 11
+       TEXT ' ( MISSING '
+
+MSGLR  BYTE 3
+       TEXT ' ) '
+
+MSGLP  BYTE 3
+       TEXT ' ( '
+
+

@@ -1,0 +1,12 @@
+*
+*  NAME:    BUILD AN INTEGER IN FAC
+*
+BLDINT MOV  @BLDCON,@FAC
+       CLR  @FAC+2
+       MOV  R1,@FAC+SNUM
+       RT
+
+BLDCON BYTE SIDVS
+       BYTE SIDINT
+
+

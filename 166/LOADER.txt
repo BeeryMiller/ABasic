@@ -1,0 +1,352 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.156.LOADER
+*
+*-------------------------------------------------------------------------
+*    MEMORY MAP IS  >6000->9FFF THE PROGRAM SPACE IS MAPPED INT
+*                   >A000->BFFF THE HEADER MATERIAL FOR THE ASM
+*                   >C000->DFFF THE REF/DEF TABLE IS MAPPED IN
+*
+*
+*
+H20    BYTE >20
+HAA    BYTE >AA
+
+LOADER DATA UREG2,LDENTR      USE THE SECOND WORKSPACE
+
+*    LOAD ASSEMBLY PROGRAM
+
+LDENTR BL   @TESTNT             * MAKE SURE THE FIRST AND LAST ASM PAGES MAPPED
+       CLR  @ENTADD-ASOF+>8000    * CLEAR ENTRY ADDRESS TO THIS LOAD
+
+*    OPEN FILE AND TEST FOR ERRORS
+
+       CLR  @IOERR            * INDICATE OPEN
+       LI   R0,DEFPAB         * LOAD PAB
+       XOP  @EIGHT,0          * DO IO
+
+       MOVB @DEFPAB+ECODE,@IOERR
+       JNE  LDERR
+
+       LI   R0,$READ
+       MOVB R0,@DEFPAB+OPCODE
+       MOVB R0,@IOERR+1       IF I/O ERROR LATER
+
+       MOV  @ASMPTR,R1        * NOW MAP IN THE HEADER AND R/D PAGES
+       MOVB *R1,@MAP9A
+       MOVB @5(R1),@MAP9C
+
+       MOV  @FFA+>8000,R7           * GET FIRST FREE ADDRESS
+       MOV  R7,R5             * COPY
+       CLR  R12               * ASSUME NON COMPRESSED OBJECT
+       BL   @GTREC            * READ A RECORD
+       CI   R3,1              * COMPRESSED OBJECT?
+       JNE  DCD               * NO
+       INC  R12               * YES, SO INDICATE
+       CLR  R3                * PROCESS AS '0' TAG
+       JMP  COMP              * DON'T DECODE, SINCE NOT ASCII
+
+ENDOP  MOV  R11,R10           CLOSE THE FILE \
+       MOV  R0,R2             SAVE R0 IN CASE OF PREVIOUS ERROR
+       LI   R0,DEFPAB
+       LI   R1,$CLOSE
+       MOVB R1,*R0
+       MOVB R1,@IOERR+1
+       XOP  @EIGHT,0
+       MOV  R2,R0             PREVIOUS ERROR?
+       JNE  ENDOP1            YES, SO DON'T WORRY ABOUT CLOSE ERROR
+       MOVB @DEFPAB+ECODE,@IOERR  CLOSE ERROR?
+       JNE  LDERR                YES
+ENDOP1 B    *R10              NO, NORMAL RETURN
+
+*    END OF RECORD TAG
+
+JUMP   EQU  $
+CHKF   CI   R3,'F'            * END OF RECORD
+       JNE  DCD
+TAGF   CLR  R2                * INDICATE NO MORE CHARACTERS
+NXTTAG EQU  $
+TAG8   BL   @GTBYT            * GET NEXT BYTE
+       CI   R3,':'            * END OF FILE
+       JNE  CHKF
+
+*   END OF LOAD OPERATION
+
+       CLR  R0                * INDICATE NO ERROR
+       BL   @ENDOP            * CLOSE THE FILE
+       MOV  @ENTADD-ASOF+>8000,R0        * GET ENTRY ADDRESS
+       JEQ  NORMRT            * TO RETURN TO CALLER
+       BL   @CHKREF           * ANY UNRESLOVED REFS
+       JMP  NORMRT            * JUMP IF YES TO RETURN TO CALLER WITH ERROR
+
+********************************************************************************
+*   TO BE HERE, FINISH UP BY SAVING >F000 WORKSPACE AND STORING RETURN IN R11
+*
+       B    @DFLTEN           * MOVE RETURN ADDRESS INTO CALLERS R11
+
+
+LDERRC BL   @ENDOP            * END OPERATION (IE CLOSE FILE, ETC)
+       JMP  NORMRT
+
+LDERR  LI   R0,ERRIO          * GET ERROR CODE
+NORMRT MOV  R0,*R13           * SET UP THE USER REGISTER
+       RTWP                   * AND RETURN
+
+DCD    BL   @DECODE
+COMP   CLR  R4
+       MOVB @TAGTBL(R3),R4
+       SRL  R4,7
+       MOV  R8,@CHKSAV-ASOF
+       BL   @DCDF1
+       B    @JUMP(R4)
+
+*    PSEG
+
+TAG0   INC  R0                MAKE EVEN
+       ANDI R0,>FFFE
+       MOV  @FFA+>8000,R4           GET START ADDRESS
+       A    R0,R4             ADD IN THIS LENGTH
+       JOC  MEMOVF            TOO MUCH
+       C    R4,@LFA+>8000     DOES IT FIT?
+       JH   MEMOVF            NO
+       MOV  @FFA+>8000,R5           SET NEW LOAD BIAS
+       MOV  R4,@FFA+>8000     SAVE START FOR NEXT TIME
+       MOV  R5,R7             SET THE PROGRAM COUNTER
+
+TAGI   LI   R9,8
+SKIP   BL   @GTBYT
+       DEC  R9
+       JNE  SKIP
+       JMP  NXTTAG
+
+TAG2   A    R5,R0
+TAG1   MOV  R0,@ENTADD-ASOF+>8000
+       JMP  NXTTAG
+
+* CHECK THE CHECKSUM
+
+TAG7   A    R0,@CHKSAV-ASOF
+       JEQ  NXTTAG
+       LI   R0,ERRCS
+LDERC2 JMP  LDERRC
+
+MEMOVF LI   R0,ERRMO
+LDERC3 JMP  LDERRC
+
+TAGA   A    R5,R0
+TAG9   MOV  R0,R7
+       JMP  NXTTAG
+
+TAGC   A    R5,R0
+TAGB   MOV  R7,R10            NOW MAP IN THE
+       SRL  R10,13            GET THE MSB 3 BITS
+       A    @ASMPTR,R10
+       MOVB @-1(R10),@MAP96
+       MOVB *R10,@MAP98
+       MOV  R7,R10
+       ANDI R10,>1FFF
+       ORI  R10,>6000
+       MOVB R0,*R10+
+       SWPB R0
+       MOVB R0,*R10+
+       INCT R7                INCRMENT THE ACTUAL PGM POINTER
+       JMP  NXTTAG
+
+TAG3   A    R5,R0
+
+TAG4   BL   @PUSH
+       MOV  R0,R0
+       JEQ  DLTREF
+
+*      MOV  R4,R6
+
+NXTDEF AI   R6,-8             SEARCH FOR CORRESPONDING DEF
+       C    R6,R4
+       JH   NXTDE3
+       NEG  *R4
+NXTTG2 JMP  NXTTAG
+
+NXTDE3 C    *R4,*R6
+       JNE  NXTDEF
+       C    @2(R4),@2(R6)
+       JNE  NXTDEF
+       C    @4(R4),@4(R6)
+       JNE  NXTDEF
+       MOV  @6(R6),R3
+RESREF MOV  R0,R10            NOW MAP R3
+       BL   @MAP010
+       MOV  *R0,R9
+       MOV  R3,*R0
+       MOV  R9,R0
+       JNE  RESREF
+DLTREF AI   R4,8
+       MOV  R4,@LFA+>8000
+       JMP  NXTTG2
+
+TAG5   A    R5,R0
+
+TAG6   BL   @PUSH
+*      LI   R6,DEFTBL
+
+NXTENT AI   R6,-8
+NXTEN2 C    R6,R4
+       JEQ  NXTTG2
+       MOV  *R6,R10
+       JGT  NXTEN3
+       NEG  R10
+NXTEN3 C    *R4,R10
+       JNE  NXTENT
+       C    @2(R4),@2(R6)
+       JNE  NXTENT
+       C    @4(R4),@4(R6)
+       JNE  NXTENT
+       MOV  *R6,R10
+       JGT  DDFERR
+* RESOLVE THE REF
+       MOV  @6(R6),R3
+RESRF2 MOV  R3,R10
+       BL   @MAP310           NOW MAP R3
+       MOV  *R3,R9
+       MOV  R0,*R3
+       MOV  R9,R3
+       JNE  RESRF2
+       MOV  R6,R9
+       S    R4,R9
+       MOV  R6,R10
+       AI   R10,8
+       MOV  R6,R3
+DELREF DECT R3                WE CAN DO THIS EASIER BY JUST USING THE NEW
+       DECT R10               FOUND NAME ADDRESS LOCATION
+       MOV  *R3,*R10
+       DECT R9
+       JNE  DELREF
+       AI   R4,8
+       MOV  R4,@LFA+>8000
+       JMP  NXTEN2
+
+DDFERR MOV  R4,@2(R13)        CALLING R1 POINTS TO DUPLICATE DEF
+       LI   R0,ERRDDF
+LDERC1 JMP  LDERC2
+
+PUSH   MOV  R11,R10           PUSH REF DEF ON STACK
+       LI   R9,6              SYMBOL LENGTH
+       MOV  @LFA+>8000,R6
+       AI   R6,-8             ASSUME ROOM FOR ANOTHER
+       MOV  R6,R4
+       C    R6,@FFA+>8000     IS THERE ROOM?
+       JL   MEMOVF            NO
+       CI   R6,>C000          CAN NOT BE GREATER THAN 8K
+       JL   MEMOVF            BOMB OUT
+       MOV  R6,@LFA+>8000     YES, SO UPDATE THE END POINTER
+DEFENT BL   @GTBYT            GET A CHARACTER
+       SWPB R3
+       MOVB R3,*R6+           PUT IT ON THE REF/DEF TABLE
+       DEC  R9
+       JNE  DEFENT
+       MOV  R0,*R6            NOW MOVE VALUE INTO TABLE AFTER SYMBOL
+       LI   R6,>E000          POINT TO BEGINNING OF DEF/REF TABLE
+       B    *R10              RETURN
+
+DCDF1  MOV  R11,R10
+       CLR  R0
+       MOV  R12,R12           IS IT COMPRESSED OBJECT?
+       JEQ  CMPRS             NO
+       BL   @GTBYT
+       MOV  R3,R0
+       SWPB R0
+       BL   @GTBYT
+       A    R3,R0
+       B    *R10
+
+CMPRS  LI   R9,4
+CMPRS2 BL   @GTBYT
+       BL   @DECODE
+       SLA  R0,4
+       A    R3,R0
+       DEC  R9
+       JNE  CMPRS2
+       B    *R10
+
+DECODE AI   R3,-'0'
+       CI   R3,>A
+       JL   DECRTN
+       AI   R3,-7
+       CI   R3,'I'-'0'
+       JH   BADTAG
+DECRTN RT
+* ILLEGAL TAGS
+TAGD   EQU  $
+TAGE   EQU  $
+TAGG   EQU  $
+TAGH   EQU  $
+BADTAG LI   R0,ERRTAG
+       JMP  LDERC1
+
+* READ A RECORD FROM THE FILE
+
+GTREC  LI   R0,DEFPAB         * LOAD DEFAULT PAB
+       XOP  @EIGHT,0          * DO IO
+       MOVB @DEFPAB+ECODE,@IOERR   * TEST FOR ERRORS
+       JNE  GIOERR            * JUMP IF YES
+       MOV  @DEFPAB+CHRCNT,R2 * READ CHARACTER COUNT
+       LI   R1,EDITB+1        * GET BUFFER ADDRESS
+       CLR  R8                * CLEAR CHECKSUM
+GTBYT  DEC  R2                * DECREMENT COUNTER
+       JLT  GTREC             * JUMP IF NO MORE
+       MOVB *R1+,R3           * GET NEXT BYTE
+       SRL  R3,8              * ALIGN REGISTER
+       A    R3,R8             * CALCULATE CHECKSUM
+       RT                     * AND RETURN
+
+GIOERR B    @LDERR            * LONG BRANCH
+
+*    CHECK DEF/REF STACK
+
+CHKREF LI   R1,DEFTBL+8
+CHKRF2 AI   R1,-8
+       MOV  *R1,R0
+       JLT  URRERR
+       C    @LFA+>8000,R1
+       JNE  CHKRF2
+       INCT R11
+       RT
+
+URRERR LI   R0,ERRURR
+       RT
+
+MAP310 ANDI R3,>1FFF
+       ORI  R3,>6000
+       JMP  MAPR10
+
+MAP010 ANDI R0,>1FFF
+       ORI  R0,>6000
+MAPR10
+       SRL  R10,13
+       A    @ASMPTR,R10
+       MOVB @-1(R10),@MAP96
+       MOVB *R1,@MAP98
+       RT
+
+*    TAG TABLE
+
+TAGTBL BYTE TAG0-JUMP/2
+       BYTE TAG1-JUMP/2
+       BYTE TAG2-JUMP/2
+       BYTE TAG3-JUMP/2
+       BYTE TAG4-JUMP/2
+       BYTE TAG5-JUMP/2
+       BYTE TAG6-JUMP/2
+       BYTE TAG7-JUMP/2
+       BYTE TAG8-JUMP/2
+       BYTE TAG9-JUMP/2
+       BYTE TAGA-JUMP/2
+       BYTE TAGB-JUMP/2
+       BYTE TAGC-JUMP/2
+       BYTE TAGD-JUMP/2
+       BYTE TAGE-JUMP/2
+       BYTE TAGF-JUMP/2
+       BYTE TAGG-JUMP/2
+       BYTE TAGH-JUMP/2
+       BYTE TAGI-JUMP/2
+       BYTE 0
+

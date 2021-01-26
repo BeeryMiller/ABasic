@@ -1,0 +1,626 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS2.157.KEYWD
+*
+*  NAME:    BASIC KEYWORD TABLE
+*
+*  VERSION: 3.0 - 09/01/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+*    LIST KEY WORD TABLE. IF CHAR IS GREATER THAN >80
+*    THEN ITS A KEYWORD. AND THE STRING ADDRESS IS IN
+*    THIS TABLE. BK00 IS DEFINED AS A NULL STRING.
+*    ITS ENTRY INDICATES NO KEY WORD FOR THAT TOKEN.
+
+*    TOKENS: 80-8F
+
+LSTKWT DATA BK00,BK01,BK02,BK03
+       DATA BK04,BK05,BK06,BK07
+       DATA BK08,BK09,BK0A,BK0B
+       DATA BK0C,BK0D,BK0E,BK0F
+
+*    TOKENS: 90-9F
+
+       DATA BK10,BK11,BK12,BK13
+       DATA BK14,BK15,BK16,BK17
+       DATA BK18,BK19,BK1A,BK1B
+       DATA BK1C,BK1D,BK1E,BK1F
+
+*    TOKENS: A0-AF
+
+       DATA BK20,BK21,BK22,BK23
+       DATA BK24,BK25,BK26,BK27
+       DATA BK28,BK29,BK2A,BK2B
+       DATA BK2C,BK2D,BK2E,BK2F
+
+*    TOKENS: B0-BF
+
+       DATA BK30,BK31,BK32,BK33
+       DATA BK34,BK35,BK36,BK37
+       DATA BK38,BK00,BK3A,BK3B
+       DATA BK3C,BK3D,BK3E,BK3F
+
+*    TOKENS: C0-CF
+
+       DATA BK40,BK41,BK42,BK43
+       DATA BK44,BK45,BK00,BK00
+       DATA BK00,BK00,BK4A,BK4B
+       DATA BK4C,BK4D,BK4E,BK4F
+
+*    TOKENS: D0-DF
+
+       DATA BK50,BK51,BK52,BK53
+       DATA BK54,BK55,BK56,BK57
+       DATA BK58,BK59,BK5A,BK5B
+       DATA BK5C,BK5D,BK5E,BK5F
+
+*    TOKENS: E0-EF
+
+       DATA BK60,BK61,BK62,BK00
+       DATA BK64,BK00,BK66,BK67
+       DATA BK68,BK69,BK6A,BK6B
+       DATA BK6C,BK6D,BK6E,BK6F
+
+*    TOKENS: F0-FF
+
+       DATA BK70,BK71,BK72,BK73
+       DATA BK74,BK75,BK76,BK77
+       DATA BK78,BK79,BK7A,BK00
+       DATA BK7C,BK7D,BK7E,BK00
+
+*    THE EXTENDED KEY WORD TABLES
+
+
+*    TOKENS: 80-8F
+
+LSTEXK DATA BK00,BK81,BK82,BK83
+       DATA BK84,BK85,BK86,BK87
+       DATA BK88,BK00,BK00,BK8B
+       DATA BK8C,BK8D,BK8E,BK8F
+
+*    TOKENS: 90-9F
+
+       DATA BK90,BK91,BK00,BK93
+       DATA BK94,BK95,BK96,BK00
+       DATA BK00,BK00,BK00,BK00
+       DATA BK00,BK00,BK00,BK00
+
+       PAGE
+
+*    THIS TABLE IS USED BY THE CRUNCH ROUTINE TO
+*    PROVIDE A FAST LOOK-UP ON THE SYMBOL.
+
+KEYTAB DATA CHAR1,CHAR2,CHAR3,CHAR4
+       DATA CHAR5,CHAR6,CHAR7,CHAR8
+       DATA CHAR9,CHARA
+
+*    THESE TABLES ARE ORGANIZED BY THE LENGTH OF THE STRING.
+*    THE STRINGS ARE ARRANGED IN ACENSING ORDER TO FACILITATE
+*    SEARCHES
+
+CHAR1  DATA 16
+       DATA BK03,BK7D,BK38,BK37,BK36
+       DATA BK43,BK41,BK33,BK42,BK44
+       DATA BK35,BK34,BK3F,BK3E,BK40
+       DATA BK45
+
+CHAR2  DATA 8
+       DATA BK02,BK70,BK05,BK04
+       DATA BK1B,BK3A,BK5D,BK31
+
+CHAR3  DATA 36
+       DATA BK4B,BK6C,BK3B,BK5C,BK4C,BK8F
+       DATA BK4D,BK09,BK0A,BK0B,BK4A,BK4E,BK0C
+       DATA BK4F,BK8D,BK55,BK0D,BK50,BK5F,BK60
+       DATA BK86,BK3D,BK91,BK59,BK5E,BK1A
+       DATA BK57,BK29,BK51,BK52,BK53,BK21,BK7C
+       DATA BK54,BK5A,BK3C
+
+CHAR4  DATA 24
+       DATA BK71,BK6E,BK1D,BK95
+       DATA BK56,BK88,BK13
+       DATA BK01,BK06,BK83,BK19,BK93
+       DATA BK16,BK1F,BK17,BK61
+       DATA BK58,BK6B,BK32,BK18
+       DATA BK5B,BK87,BK30,BK2C
+
+CHAR5  DATA 20
+       DATA BK66,BK94,BK0E,BK20,BK8B
+       DATA BK85,BK69,BK6F,BK25
+       DATA BK7A,BK07,BK23,BK12
+       DATA BK82,BK8E,BK1C,BK84,BK10
+       DATA BK6D,BK2B
+
+CHAR6  DATA 17
+       DATA BK24,BK79,BK2E,BK19,BK67,BK2A,BK1E,BK11
+       DATA BK77,BK08,BK81,BK28,BK6A,BK78,BK62,BK96
+       DATA BK8C
+
+CHAR7  DATA 7
+       DATA BK2F,BK22,BK68,BK14,BK27,BK0F,BK26
+
+CHAR8  DATA 6
+       DATA BK72,BK75,BK74,BK64,BK7E,BK73
+
+CHAR9  DATA 2
+       DATA BK90,BK15
+
+CHARA  DATA 1
+       DATA BK76
+
+       PAGE
+*=========================================================================
+*    TEXT AREA
+
+BK00   BYTE >80,1
+       TEXT ' '
+
+BK01   BYTE >81,4
+       TEXT 'ELSE'
+
+BK02   BYTE >82,2
+       TEXT '::'
+
+BK03   BYTE >83,1
+       TEXT '!'
+
+BK04   BYTE >84,2
+       TEXT 'IF'
+
+BK05   BYTE >85,2
+       TEXT 'GO'
+
+BK06   BYTE >86,4
+       TEXT 'GOTO'
+
+BK07   BYTE >87,5
+       TEXT 'GOSUB'
+
+BK08   BYTE >88,6
+       TEXT 'RETURN'
+
+BK09   BYTE >89,3
+       TEXT 'DEF'
+
+BK0A   BYTE >8A,3
+       TEXT 'DIM'
+
+BK0B   BYTE >8B,3
+       TEXT 'END'
+
+BK0C   BYTE >8C,3
+       TEXT 'FOR'
+
+BK0D   BYTE >8D,3
+       TEXT 'LET'
+
+BK0E   BYTE >8E,5
+       TEXT 'BREAK'
+
+BK0F   BYTE >8F,7
+       TEXT 'UNBREAK'
+
+       PAGE
+*=========================================================================
+
+BK10   BYTE >90,5
+       TEXT 'TRACE'
+
+BK11   BYTE >91,6
+       TEXT 'LTRACE'
+
+BK12   BYTE >92,5
+       TEXT 'INPUT'
+
+BK13   BYTE >93,4
+       TEXT 'DATA'
+
+BK14   BYTE >94,7
+       TEXT 'RESTORE'
+
+BK15   BYTE >95,9
+       TEXT 'RANDOMIZE'
+
+BK16   BYTE >96,4
+       TEXT 'NEXT'
+
+BK17   BYTE >97,4
+       TEXT 'READ'
+
+BK18   BYTE >98,4
+       TEXT 'STOP'
+
+BK19   BYTE >99,4
+       TEXT 'KILL'
+
+BK1A   BYTE >9A,3
+       TEXT 'REM'
+
+BK1B   BYTE >9B,2
+       TEXT 'ON'
+
+BK1C   BYTE >9C,5
+       TEXT 'PRINT'
+
+BK1D   BYTE >9D,4
+       TEXT 'CALL'
+
+BK1E   BYTE >9E,6
+       TEXT 'OPTION'
+
+BK1F   BYTE >9F,4
+       TEXT 'OPEN'
+
+       PAGE
+*=========================================================================
+
+BK20   BYTE >A0,5
+       TEXT 'CLOSE'
+
+BK21   BYTE >A1,3
+       TEXT 'SUB'
+
+BK22   BYTE >A2,7
+       TEXT 'DISPLAY'
+
+BK23   BYTE >A3,5
+       TEXT 'IMAGE'
+
+BK24   BYTE >A4,6
+       TEXT 'ACCEPT'
+
+BK25   BYTE >A5,5
+       TEXT 'ERROR'
+
+BK26   BYTE >A6,7
+       TEXT 'WARNING'
+
+BK27   BYTE >A7,7
+       TEXT 'SUBEXIT'
+
+BK28   BYTE >A8,6
+       TEXT 'SUBEND'
+
+BK29   BYTE >A9,3
+       TEXT 'RUN'
+
+BK2A   BYTE >AA,6
+       TEXT 'LINPUT'
+
+BK2B   BYTE >AB,5
+       TEXT 'WHILE'
+
+BK2C   BYTE >AC,4
+       TEXT 'WEND'
+
+BK2D   BYTE >AD,1             EXTENDED STATEMENTS
+       TEXT ' '
+
+BK2E   BYTE >AE,6
+       TEXT 'DEFINT'
+
+BK2F   BYTE >AF,7
+       TEXT 'DEFREAL'
+
+       PAGE
+*=========================================================================
+
+BK30   BYTE >B0,4
+       TEXT 'THEN'
+
+BK31   BYTE >B1,2
+       TEXT 'TO'
+
+BK32   BYTE >B2,4
+       TEXT 'STEP'
+
+BK33   BYTE >B3,1
+       TEXT ','
+
+BK34   BYTE >B4,1
+       TEXT ';'
+
+BK35   BYTE >B5,1
+       TEXT ':'
+
+BK36   BYTE >B6,1
+       TEXT ')'
+
+BK37   BYTE >B7,1
+       TEXT '('
+
+BK38   BYTE >B8,1
+       TEXT '&'
+
+BK3A   BYTE >BA,2
+       TEXT 'OR'
+
+BK3B   BYTE >BB,3
+       TEXT 'AND'
+
+BK3C   BYTE >BC,3
+       TEXT 'XOR'
+
+BK3D   BYTE >BD,3
+       TEXT 'NOT'
+
+BK3E   BYTE >BE,1
+       TEXT '='
+
+BK3F   BYTE >BF,1
+       TEXT '<'
+
+       PAGE
+*=========================================================================
+
+BK40   BYTE >C0,1
+       TEXT '>'
+
+BK41   BYTE >C1,1
+       TEXT '+'
+
+BK42   BYTE >C2,1
+       TEXT '-'
+
+BK43   BYTE >C3,1
+       TEXT '*'
+
+BK44   BYTE >C4,1
+       TEXT '/'
+
+BK45   BYTE >C5,1
+       TEXT '^'
+
+BK4A   BYTE >CA,3
+       TEXT 'EOF'
+
+BK4B   BYTE >CB,3
+       TEXT 'ABS'
+
+BK4C   BYTE >CC,3
+       TEXT 'ATN'
+
+BK4D   BYTE >CD,3
+       TEXT 'COS'
+
+BK4E   BYTE >CE,3
+       TEXT 'EXP'
+
+BK4F   BYTE >CF,3
+       TEXT 'INT'
+
+       PAGE
+*=========================================================================
+
+BK50   BYTE >D0,3
+       TEXT 'LOG'
+
+BK51   BYTE >D1,3
+       TEXT 'SGN'
+
+BK52   BYTE >D2,3
+       TEXT 'SIN'
+
+BK53   BYTE >D3,3
+       TEXT 'SQR'
+
+BK54   BYTE >D4,3
+       TEXT 'TAN'
+
+BK55   BYTE >D5,3
+       TEXT 'LEN'
+
+BK56   BYTE >D6,4
+       TEXT 'CHR$'
+
+BK57   BYTE >D7,3
+       TEXT 'RND'
+
+BK58   BYTE >D8,4
+       TEXT 'SEG$'
+
+BK59   BYTE >D9,3
+       TEXT 'POS'
+
+BK5A   BYTE >DA,3
+       TEXT 'VAL'
+
+BK5B   BYTE >DB,4
+       TEXT 'STR$'
+
+BK5C   BYTE >DC,3
+       TEXT 'ASC'
+
+BK5D   BYTE >DD,2
+       TEXT 'PI'
+
+BK5E   BYTE >DE,3
+       TEXT 'REC'
+
+BK5F   BYTE >DF,3
+       TEXT 'MAX'
+
+       PAGE
+*=========================================================================
+
+BK60   BYTE >E0,3
+       TEXT 'MIN'
+
+BK61   BYTE >E1,4
+       TEXT 'RPT$'
+
+BK62   BYTE >E2,6
+       TEXT 'VALHEX'
+
+BK63   BYTE >E3,1
+       TEXT ' '
+
+BK64   BYTE >E4,8
+       TEXT 'TERMCHAR'
+
+BK65   BYTE >E5,1
+       TEXT ' '
+
+BK66   BYTE >E6,5
+       TEXT 'ALPHA'
+
+BK67   BYTE >E7,6
+       TEXT 'LALPHA'
+
+BK68   BYTE >E8,7
+       TEXT 'NUMERIC'
+
+BK69   BYTE >E9,5
+       TEXT 'DIGIT'
+
+BK6A   BYTE >EA,6
+       TEXT 'UALPHA'
+
+BK6B   BYTE >EB,4
+       TEXT 'SIZE'
+
+BK6C   BYTE >EC,3
+       TEXT 'ALL'
+
+BK6D   BYTE >ED,5
+       TEXT 'USING'
+
+BK6E   BYTE >EE,4
+       TEXT 'BEEP'
+
+BK6F   BYTE >EF,5
+       TEXT 'ERASE'
+
+       PAGE
+*=========================================================================
+
+BK70   BYTE >F0,2
+       TEXT 'AT'
+
+BK71   BYTE >F1,4
+       TEXT 'BASE'
+
+BK72   BYTE >F2,8
+       TEXT 'CONTINUE'
+
+BK73   BYTE >F3,8
+       TEXT 'VARIABLE'
+
+BK74   BYTE >F4,8
+       TEXT 'RELATIVE'
+
+BK75   BYTE >F5,8
+       TEXT 'INTERNAL'
+
+BK76   BYTE >F6,10
+       TEXT 'SEQUENTIAL'
+
+BK77   BYTE >F7,6
+       TEXT 'OUTPUT'
+
+BK78   BYTE >F8,6
+       TEXT 'UPDATE'
+
+BK79   BYTE >F9,6
+       TEXT 'APPEND'
+
+BK7A   BYTE >FA,5
+       TEXT 'FIXED'
+
+BK7C   BYTE >FC,3
+       TEXT 'TAB'
+
+BK7D   BYTE >FD,1
+       TEXT '#'
+
+BK7E   BYTE >FE,8
+       TEXT 'VALIDATE'
+
+       PAGE
+
+*BK80   BYTE >E3,1             NOT USED
+*       TEXT ' '
+*       BYTE >80
+
+BK81   BYTE >E3,6
+       TEXT 'RIGHT$'
+       BYTE >81
+
+BK82   BYTE >E3,5
+       TEXT 'LEFT$'
+       BYTE >82
+
+BK83   BYTE >E3,4
+       TEXT 'HEX$'
+       BYTE >83
+
+BK84   BYTE >E3,5
+       TEXT 'TIME$'
+       BYTE >84
+
+BK85   BYTE >E3,5
+       TEXT 'DATE$'
+       BYTE >85
+
+BK86   BYTE >E3,3
+       TEXT 'MOD'
+       BYTE >86
+
+BK87   BYTE >AD,4             EXTENDED STATEMENT
+       TEXT 'SWAP'
+       BYTE >87
+
+BK88   BYTE >E3,4
+       TEXT 'CINT'
+       BYTE >88
+
+BK8B   BYTE >E3,5
+       TEXT 'CREAL'
+       BYTE >8B
+
+BK8C   BYTE >AD,6
+       TEXT 'DEFSTR'
+       BYTE >8C
+
+BK8D   BYTE >AD,3
+       TEXT 'KEY'
+       BYTE >8D
+
+BK8E   BYTE >AD,5
+       TEXT 'MOUSE'
+       BYTE >8E
+
+BK8F   BYTE >AD,3
+       TEXT 'CLS'
+       BYTE >8F
+
+BK90   BYTE >E3,9
+       TEXT 'FREESPACE'
+       BYTE >90
+
+BK91   BYTE >E3,3
+       TEXT 'OFF'
+       BYTE >91
+
+*BK92   BYTE >E3,1
+*       TEXT ' '
+*       BYTE >92
+
+BK93   BYTE >E3,4
+       TEXT 'LIST'
+       BYTE >93
+
+BK94   BYTE >E3,5
+       TEXT 'BLINK'
+       BYTE >94
+
+BK95   BYTE >E3,4
+       TEXT 'CLIP'
+       BYTE >95
+
+BK96   BYTE >E3,6
+       TEXT 'INVERT'
+       BYTE >96
+
+

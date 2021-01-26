@@ -1,0 +1,158 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.155.SOUND
+*
+*    WHAT:  CALL SOUND
+*
+*  FORMAT:  SOUND(DURATION, FREQ1, VOL1, FREQ2, VOL2, FREQ3, VOL3
+*                 [FREQ4, VOL4],
+*          BUILD PARMS IN THE IMGBM1 BUFFER
+*
+*   PARMS ARE AS FOLLOWS:  IMGBM1+0    FREQ POINTER
+*                          IMGBM1+2    vol pointer
+*                          IMGBM1+4    NOISE FLAG
+*                          IMGBM1+6    R0
+*                            \
+*                          IMGBM1+20   R7
+*                          IMGBM1+22   ADDER FOR FREQUENCY (IF >32767)
+*
+*-------------------------------------------------------------------------
+
+GETVOL DECT R10
+       MOV  R11,*R10
+       BL   @PARMID
+       JEQ  SND$10            JUMP IF STRING
+       BL   @FTOI
+       MOV  @SNUM+FAC,R1
+       CI   R1,30
+       JH   SND$11            * ERROR BAD VALUE
+       SLA  R1,7              * USE ONLY THE MS NIBBLE
+       MOV  *R10+,R11
+       RT
+
+SND$10 BL   @RPTE07           SNM
+
+SND$11 BL   @RPTE30           BAD VALUE
+
+SND$12 LI   R0,ERRBA          BAD ARG
+       B    @ERROR
+
+CW06   DATA 6
+CH7FFF DATA >7FFF
+
+*    LOAD THE SOUND LIST WITH DEFAULTS
+
+SOUND  LI   R1,CPUSND         * SRC SOUND LIST DEFAULTS
+       LI   R2,IMGBM1         * DEST ADDRESS
+       LI   R3,20             * NUMBER OF BYTES R0-R6
+       BL   @FASMVW
+
+       BL   @PARFST           PARSE DURATION
+       JEQ  SND$10            JUMP IF STRING
+       BL   @FTOI             CONVERT TO INTEGER
+
+*    CHECK IF DURATION IS NEGATIVE. IF YES STOP THE CURRENT SOUND
+
+       MOV  @SNUM+FAC,R1      CHECK VALUE IF GT THAN ZERO OK
+       MOV  R1,@STPSND        SET STOP SOUND FLAG
+       JEQ  SND$11            CAN NOT BE 0
+       ABS  R1                MAKE SURE IT IS POSITIVE
+       CI   R1,4250            MIN / MAX DURATION VALUE
+       JH   SND$11            CAN NOT BE > 4250
+       CLR  R2                SET UP FOR MPY
+       MPY  @CW06,R1          DURATION * 6
+       DIV  @CW100,R1         (DURATION * 6) / 100
+       MOV  R1,@IMGBM1+20      SEE IF DURATION IS 0
+       JNE  SND$2
+       INC  @IMGBM1+20         MAKE IT 1/60TH OF A SECOND
+
+
+SND$2  CLR  @IMGBM1+22        * ZERO OUT ADDER NUMBER
+       BL   @PARMID           PARSE FREQ
+       JEQ  SND$10            JUMP IF STRING
+
+       LI   R5,FAC+SNUM       POINT TO NUMBER IN FAC
+
+       MOVB *R5,R0            TEST IF NOISE
+       JLT  GETFQ9            IF LESS THAN "0", IT'S A NOISE
+
+* NOW TEST IF AN INTEGER
+
+       CB   @FAC+SID,@CSIDIN  * IS IT AN INTEGER?
+       JEQ  GETFQ1            * YES, SO JUST USE THE NUMBER
+       MOV  R5,R3             NUMBER IN FAC
+       LI   R2,R32767
+       BL   @FASCOM           COMPARE IT
+       JLE  GETFQ0            CONVERT THIS NUMBER, IT IS AN INTEGER
+
+       MOV  R5,R3             NUMBER IN FAC
+       LI   R2,R44733         TEST IF IN RANGE
+       BL   @FASCOM
+       JH   SND$11            * BAD VALUE
+
+       MOV  @CH7FFF,@IMGBM1+22 * OFFSET THE VALUE
+       LI   R2,R32767         * INPUT
+       MOV  R5,R3             * NUMBER IN FAC
+       MOV  R3,R1             * OUTPUT
+       LI   R0,X$FSUB         NOW DO THE SUBTRACT
+       XOP  @TEN,0
+
+GETFQ0 BL   @FTOI
+GETFQ1 MOV  @SNUM+FAC,R1
+       A    @IMGBM1+22,R1
+       CI   R1,110
+       JL   SND$11            TOO SMALL A VALUE
+       MOV  @IMGBM1,R2
+       CI   R2,IMGBM1+14
+       JHE  SND$12            * TOO MANY FREQ'S (BAD ARGUMENT)
+       MOV  R1,*R2+
+       MOV  R2,@IMGBM1
+       BL   @GETVOL           GET THE VOLUME
+       MOV  @IMGBM1+2,R2
+       MOVB R1,*R2+
+       MOV  R2,@IMGBM1+2
+       JMP  GETFQ8
+
+GETFQ9 INV  @IMGBM1+4         INVERSE THE NOISE FLAG
+       JEQ  SND$12            * MORE THAN 1 NOISE (ERROR BAD ARGUMENT)
+       NEG  @SNUM+FAC         -(FREQUENCY)
+       BL   @FTOI
+       MOV  @SNUM+FAC,R1
+       DEC  R1
+       CI   R1,7
+       JH   SND$11            * NOT WITHIN RANGE
+       SLA  R1,8
+       MOVB R1,@IMGBM1+18
+       BL   @GETVOL
+       MOVB R1,@IMGBM1+19
+
+GETFQ8 CI   R8,>B600          RIGHT PAREN?
+       JNE  SND$2             NO, TRY TO CONTINUE
+
+       MOV  @STPSND,R0        CHECK STOP SOUND FLAG
+       JLT  LODSND            JUMP IF WE ARE NOT TO WAIT
+SND$05 LI   R0,X$SNDS         WAIT UNTIL PREVIOUS SOUND IS FINISHED
+
+       XOP  @SIX,0
+
+       JNE  SND$05            WAIT UNTIL IT ENDS
+
+LODSND LI   R1,IMGBM1+6       NOW LOAD THE SOUND LIST TO THE AUX REGISTERS
+       LI   R2,UREG2
+       LI   R3,16             R0-R7
+       BL   @FASMVW
+
+       LWPI UREG2             LOAD ALTERNATE SET
+
+       XOP  @SIX,0
+
+       LWPI UREG1             BACK TO ORIGINAL
+       BL   @CKRPAR           ENSURE RIGHT PAREN
+       B    @CONT
+
+CPUSND DATA IMGBM1+8,IMGBM1+14,0
+       DATA X$SND,>0000,>0000,>0000,>0F0F,>0F00,>000F    R0-R7
+
+R32767 DATA >4203,>1B43,0,0   32767  MAX INTEGER
+
+R44733 DATA >4204,>2F21,0,0   44733  MAX FREQUENCY

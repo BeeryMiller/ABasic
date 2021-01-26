@@ -1,0 +1,137 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS2.158.RD158
+*
+*  NAME:    NUDS PART TWO
+*
+* VERSION:  3.0 - 10/31/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+       REF  TOPL35            164
+       REF  RUN3              164
+       REF  RUN4              164
+       REF  LDRSET            164
+
+       REF  FASMVB
+       REF  FASMVW
+
+       REF  VSLOW
+
+       REF  PARONE            PARSE ONE
+       REF  PARFST            PARSE FIRST
+       REF  PARMID
+       REF  PARLST            PARSE LAST
+
+       REF  MATH
+
+       REF  EOSTMT            END OF STATMENT CHECKER
+       REF  CONT
+       REF  STKCON
+
+       REF  GETPGM            GET PROGRAM LINE
+       REF  CKLPAR            CHECK FOR LEFT PAREN
+       REF  CKRPAR            CHECK FOR RIGHT PAREN
+       REF  CKCOMA            CHECK FOR COMMA
+
+       REF  PARSE
+       REF  ERROR
+       REF  WARN
+
+       REF  PSHFAC            VALUE STACK PUSH
+       REF  POPFAC            VALUE STACK POP
+       REF  PSHPRS            PUSH FOLLOWED BY PARSE
+       REF  POPARG            POP STACK
+       REF  PSHARG
+
+       REF  PSYM              GET A SYMBOL POINTER
+       REF  GETVS
+
+       REF  MTOFAC
+       REF  MTOARG
+
+       REF  MEMSET
+       REF  MEMCPY
+       REF  STRCAT
+       REF  STRCMP
+       REF  GETSTR
+
+       REF  ASSGN             ASSIGN NUMBER
+       REF  ASSGS             ASSIGN STRING
+       REF  ASSG              ASSIGN A VARIABLE
+
+       REF  ACCPAR            ACCUMULATE PARAMETERS
+
+       REF  SRCHLN            SEARCH LINE
+
+       REF  BLDMRK
+       REF  TOPLEV
+*      REF  EOSTMT        BLOCKED OUT ALREADY DEFINED   11-21-94 JU
+       REF  EOLINE
+       REF  EOL
+       REF  EXEC
+       REF  EXEC$9
+       REF  EXEC10
+       REF  CHKEND
+       REF  CHKPGM
+
+       REF  FTOI
+       REF  ITOF
+
+       REF  DOPRT
+       REF  DOPRT8            FOR BLINKING AND INVERSE OPTIONS
+       REF  GOTOXY
+
+       REF  READNA
+       REF  READ4A
+       REF  SETVRA            SET THE MAX LENGTH OF THE LINE
+       REF  BLKEBF
+
+       REF  FNDSUB
+
+       REF  SKPS01
+
+       REF  INITPB            INITIALIZE PAB
+
+       REF  CLRWIN            CLEAR WINDOW
+       REF  SROLL             SCROLL THE SCREEN
+       REF  TONE1
+       REF  TONE2
+       REF  STPSND
+
+       REF  ITOD
+       REF  STOPSD
+* ADDED FOR NEGATIVE SIZE WITHIN WINDOW    11-21-94 JU
+*      REF  TTL
+
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS2.158.PGMLINK
+*
+*-------------------------------------------------------------------------
+       DEF  OPEN         00
+       DEF  CLOSE        02
+       DEF  DELETE       04
+       DEF  DISPLY       06
+       DEF  PRINT        08
+       DEF  LINPUT       10
+       DEF  ACCEPT       12
+       DEF  INPUT        14
+
+       DEF  EOF          16
+       DEF  NREC         18
+       DEF  RESTOR       20
+       DEF  NREAD        22
+
+       DEF  NBREAK       24
+       DEF  NUNBRK       26
+       DEF  NTRACE       28
+       DEF  LTRACE       30
+       DEF  NRUN         32
+       DEF  ETRACE       34
+       DEF  EXECBK       36
+       DEF  EXEC6C       38
+       DEF  FILEIO       40
+*      DEF  EFKINT       42
+*      DEF  TREND        44   VECTOR TO THE CLOSE OF THE L TRACE BUFFER
+*      DEF  CLOSAL       46

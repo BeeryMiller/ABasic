@@ -1,0 +1,626 @@
+*
+*    NAME:  SPRITE
+*
+*  FORMAT:  CALL SPRITE(#SN, CC, FC, PR1, PC1, VV, HV)
+*                      (#SN, CC, FC, PR1, PC1)
+*                      (#SN, CC, FC, PR1, PC1, #SN,
+*               SPRITE2(#SN, CC, FC1, ... FC16, PR1, PC1, VV, HV)
+*
+SPRIT2 SETO @SDEF             SET USE SPRITE 2 MODE CALL
+       JMP  SPR10
+
+SPRI02 MOV  @MCNTR,R1         TEST IF WE HAVE ENOUGH ROOM FOR ANOTHER SPRITE
+       CI   R1,SPTBL+88
+       JL   SPRI04            TABLE HAS ROOM FOR ANOTHER ENTRY
+
+       LI   R0,X$SDEF         LOAD OP-CODE
+       LI   R1,SPTBL          LOAD SPRITE LIST ADDRESS
+       MOV  @PARCNT,R2        NUMBER OF SPRITES
+       XOP  @SIX,0
+       JMP  SPRI05            START OVER AGAIN
+
+
+SPRITE CLR  @SDEF             USE SPRITE 1 MODE CALL
+SPR10  CI   R8,>B700          MUST BE A "("
+       JNE  SPRI17
+SPRI05 CLR  @PARCNT           NO SPRITE SO FAR
+       LI   R1,SPTBL          INITIALIZE POINTER TO SPRITE TABLE
+       MOV  R1,@MCNTR         SAVE FOR USE
+SPRI04 INC  @PARCNT
+       CB   *R12,@CBHFD       MUST BE A "#"
+       JNE  SPRI17            SYNTAX ERROR
+
+       BL   @GETSP1           PARSE THE SPRITE NUMBER
+
+       MOV  @MCNTR,R2         PUT THE NUMBER IN THE LIST
+       MOV  R1,*R2+
+       MOV  R2,@MCNTR
+
+       BL   @PARMID           GET THE CHARACTER CODE
+       JEQ  SPRI16            CAN NOT BE A STRING
+       BL   @FTOI
+       MOVB @FAC+SNUM,R0
+       JNE  SPRIBV            BAD VALUE FOR CHARACTER #
+       MOV  @MCNTR,R1
+       MOV  @SNUM+FAC,*R1+
+       MOV  R1,@MCNTR
+
+       BL   @SPCOLR           GET THE COLORS ZERO POSITION AND VELOCITY
+
+       BL   @GETROW           GET THE ROW
+       MOV  @TLM,R2
+       MOV  R1,*R2            PUT IN THE LIST
+
+       BL   @GETCOL           GET THE COLUMN
+       MOV  @TLM,R2
+       MOV  R1,@2(R2)         PUT IN THE LIST
+
+       CI   R8,>B600          TEST RIGHT PAREN
+       JEQ  SPRI08            AT END
+       CB   *R12,@CBHFD       TEST "#"
+       JEQ  SPRI02            DEFINE ANOTHER SPRITE
+
+       BL   @PARMID           GET VERTICAL V
+       JEQ  SPRI16
+       BL   @FTOI
+       MOV  @TLM,R1
+       MOV  @SNUM+FAC,@4(R1)
+
+       BL   @PARMID           GET HORZ V
+       JEQ  SPRI16
+       BL   @FTOI
+       MOV  @TLM,R1
+       MOV  @SNUM+FAC,@6(R1)
+
+       CI   R8,>B300          IS IT A COMMA (CONTINUE?)
+       JEQ  SPRI02            YES
+
+SPRI08 BL   @CKRPAR
+
+       MOV  @SPINDX,R0        CHECK MODE
+       JEQ  SPRI18            JUMP IF TEXT
+       LI   R0,X$SDEF         LOAD OP-CODE
+       LI   R1,SPTBL          LOAD SPRITE LIST ADDRESS
+       MOV  @PARCNT,R2        NUMBER OF SPRITES
+       XOP  @SIX,0
+       B    @CONT
+
+
+SPRIBV BL   @RPTE30           BAD VALUE
+SPRI16 BL   @RPTE07
+SPRI17 BL   @RPTE03
+RPTE37
+SPRI18 LI   R0,ERRGRM         * GM ERROR
+       BL   @ERROR
+
+       PAGE
+*
+*    NAME:  PATTRN
+*
+*  FORMAT:  CALL PATTERN(#SN, CC
+*
+PATTRN CLR  @PARCNT           * CLEAR SPRITE COUNTER
+       LI   R1,SPTBL          * SET UP STRUCTURE
+       MOV  R1,@MCNTR         * SAVE ADDRESS
+       CI   R8,>B700          * ENSURE LEFT PAREN
+       JNE  SPRI16            * JUMP IF NO
+PAT20  CB   *R12,@CBHFD       * CHECK IF NEXT IS A NUMBER SIGN
+       JNE  SPRI17            * JUMP IF NO
+
+       BL   @GETSP1           * PARSE THE SPRITE
+
+       MOV  @MCNTR,R2         * GET ADDRESS
+       MOV  R1,*R2+           * SAVE SPRITE NUMBER
+       MOV  R2,@MCNTR
+
+       BL   @PARMID           * PARSE CHAR NUMBER
+       JEQ  SPRI16            * JUMP IF STRING
+       BL   @FTOI             * CONVERT IT
+       MOVB @FAC+SNUM,R0
+       JNE  SPRIBV            * OUT OF RANGE
+       MOV  @MCNTR,R1         * GET ADDRESS
+       MOV  @SNUM+FAC,*R1+    * SAVE CHAR #
+       MOV  R1,@MCNTR         * SAVE ADDRESS
+       INC  @PARCNT           * INC SPRITE COUNTER
+
+       CI   R8,>B300          * CHECK IF AT COMMA
+       JEQ  PAT20             * JUMP IF YES
+
+       BL   @CKRPAR           * ENSURE RIGHT PAREN
+
+       MOV  @SPINDX,R0        * CHECK MODE
+       JEQ  SPRI18            * JUMP IF TEXT
+       LI   R0,X$SPAT         * LOAD OP-CODE
+       LI   R1,SPTBL          * SPRITE LIST
+       MOV  @PARCNT,R2        * NUMBER OF SPRITES
+       XOP  @SIX,0
+
+       B    @CONT
+
+       PAGE
+*
+*    NAME:  MAGNFY
+*
+*  FORMAT:  CALL MAGNIFY(NE)
+*
+
+MAGSPR BL   @PARONE           PARSE MAGNIFICATION FACTOR
+       JEQ  SPRI16            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @FAC+SNUM,R1
+       JEQ  M13               OUT OF RANGE
+       CI   R1,4
+       JH   M13               OUT OF RANGE
+       MOV  @SPINDX,R0        CHECK MODE
+       JEQ  M12               JUMP IF TEXT
+       LI   R0,X$SMAG         LOAD OP CODE
+       XOP  @SIX,0
+
+       B    @CONT             AND CONTINUE
+
+M10    BL  @RPTE03            SN
+M11    BL  @RPTE07            SNM
+M12    BL  @RPTE37            GM ERROR
+M13    BL  @RPTE30            BV
+       PAGE
+*
+*    NAME:  MOTION
+*
+*  FORMAT:  CALL MOTION(#SN, VV, HV)
+*
+
+MOTION CLR  @PARCNT           CLEAR INDEX
+       LI   R1,SPTBL
+       MOV  R1,@MCNTR         CLEAR COUNTER
+       CI   R8,>B700          ENSURE LEFT PAREN
+       JNE  M10               JUMP IF NO
+MOT10  CB   *R12,@CBHFD       CHECK IF NEXT IS A NUMBER SIGN
+       JNE  M10               JUMP IF NO
+
+       BL   @GETSP1           PARSE THE SPRITE
+
+       MOV  @MCNTR,R2
+       MOV  R1,*R2+
+       MOV  R2,@MCNTR
+
+       BL   @PARMID           PARSE VERTICAL
+       JEQ  M11               JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @MCNTR,R1         GET INDEX
+       MOV  @SNUM+FAC,*R1+
+       MOV  R1,@MCNTR
+
+       BL   @PARMID           PARSE HORIZONTAL
+       JEQ  M11               JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @MCNTR,R1         GET INDEX
+       MOV  @SNUM+FAC,*R1+
+       MOV  R1,@MCNTR
+       INC  @PARCNT           INC SPRITE COUNTER
+
+       CI   R8,>B300          AT A COMMA
+       JEQ  MOT10             YES, MORE TO DO
+       BL   @CKRPAR           ENSURE RIGHT PAREN
+       MOV  @SPINDX,R0        CHECK MODE
+       JEQ  M12               JUMP IF TEXT
+
+       LI   R0,X$SMOT         LOAD OPCODE
+       LI   R1,SPTBL          TABLE
+       MOV  @PARCNT,R2        GET COUNTER
+       XOP  @SIX,0
+
+       B    @CONT
+
+       PAGE
+*
+*    NAME:  DELSP
+*
+*  FORMAT:  CALL DELSPRITE(ALL)
+*                         (#SN,
+*
+
+DELSPR MOV  @SPINDX,R0        IN CORRECT MODE?
+       JEQ  M12               NO, IN A TEXT MODE
+       CLR  @PARCNT           CLEAR INDEX
+       LI   R1,SPTBL
+       MOV  R1,@MCNTR         CLEAR COUNTER
+       CI   R8,>B700          ENSURE LEFT PAREN
+       JNE  M10
+       CB   *R12,@CBHEC         CHECK FOR ALL
+       JNE  DEL10             NO
+DEL20  INC  R12
+       MOVB *R12+,R8
+       BL   @CKRPAR
+       BL   @DELALL
+       B    @CONT             CONTINUE
+
+DEL10  CB   *R12,@CBHFD         NUMBER SIGN
+       JNE  M10               JUMP IF NO
+
+       BL   @GETSP1           PARSE THE SPRITE NUMBER
+
+       MOV  R1,R1             IS IT SPRITE 0?
+       JNE  DEL21             NO, SO USE IT
+       MOV  @XFLAG,R0         IT IS SPRITE 0 SO TEST IF IN SEE MOUSE MODE
+       COC  @SMSBIT,R0
+       JEQ  DEL23
+
+DEL21  MOV  @MCNTR,R2         GET INDEX
+       MOV  R1,*R2+
+       MOV  R2,@MCNTR
+       INC  @PARCNT           ADD ONE TO SPRITE COUNTER
+
+DEL23  CI   R8,>B300          AT A COMMA
+       JEQ  DEL10
+
+       BL   @CKRPAR           NOT A COMMA, MUST BE RIGHT
+       LI   R1,SPTBL          LOAD TABLE
+       MOV  @PARCNT,R2        MOVE COUNTER
+       JEQ  DEL22             ANY TO DELETE? (NO)
+       LI   R0,X$SDEL         LOAD OP-CODE
+       XOP  @SIX,0
+DEL22  B    @CONT
+
+
+DEL25  BL   @RPTE03           (ERRSN)
+
+       PAGE
+*
+*    NAME:  DSTNCE
+*
+* FORMAT1:  CALL DISTANCE(#SN1, #SN2, NV)
+*       2:               (#SN1, PR, PC, NV)
+*
+
+DSTNCE CLR  @PARCNT           CLEAR INDEX
+       CLR  @MCNTR
+       CI   R8,>B700          ENSURE LEFT PAREN
+       JNE  DEL25             JUMP IF NO
+DST04  CB   *R12,@CBHFD       NEXT CHAR A NUMBER SIGN
+       JNE  DEL25             JUMP IF NO
+
+       BL   @GETSP1
+
+       MOV  R1,@SPTBL
+
+       CB   *R12,@CBHFD       NEXT CHAR NUMBER SIGN
+       JEQ  DST05             YES
+
+       BL   @GETROW
+       MOV  R1,@SPTBL+4
+
+       BL   @GETCOL           GET COL NUMBER
+       MOV  R1,@SPTBL+6       SAVE DOT COLUMN
+
+       BL   @CKCOMA           CHECK FOR COMMA
+
+       BL   @PSYM             GET THE SYMBOL
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  DST15             JUMP IF YES
+       BL   @PSHFAC           SAVE IT
+
+       LI   R2,2              INDICATE, GET POSITION AND DISTANCE FROM PR,PC
+       MOV  @SPTBL+4,R3       DOT ROW
+       MOV  @SPTBL+6,R4       DOT COLUMN
+
+DST01  LI   R0,X$SPOS         LOAD OP-CODE
+       MOV  @SPTBL,R1         GET SPRITE NUMBER
+       DEC  R1                MAKE BASE 0
+       XOP  @SIX,0
+
+       MOV  R3,R1             GET THE DISTANCE
+
+NOTMAX BL   @BLDINT           BUILD INTEGER
+       BL   @ASSGN            ASSIGN NUMBER
+
+       CI   R8,>B300          AT A COMMA
+       JEQ  DST04             NO
+       BL   @CKRPAR           ENSURE RIGHT PAREN
+       B    @CONT
+
+
+DST05  BL   @GETSP1
+
+       MOV  R1,@SPTBL+2
+
+       BL   @CKCOMA           ENSURE COMMA
+
+       BL   @PSYM             GET THE SYMBOL
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  DST15             JUMP IF YES
+       BL   @PSHFAC           SAVE IT
+
+       LI   R2,1              INDICATE SPRITE TO SPRITE DISTANCE
+       MOV  @SPTBL+2,R3       SECOND SPRITE
+       DEC  R3                MAKE BASE 0
+       JMP  DST01             USE COMMON CODE
+
+DST15  BL   @RPTE07           (ERRSMN)
+
+       PAGE
+*
+*    NAME:  COINC
+*
+* FORMAT1:  CALL COINC(ALL, NV [,NPRV,NPCV])
+*       2:            (#SN1, #SN2, TOL, NV)
+*       3:            (#SN, PR, PC, TOL, NV)
+
+COINC  BL   @CKLPAR           ENSURE LEFT PAREN
+       MOV  @SPINDX,R0        CHECK MODE
+       JEQ  COIN52            JUMP IF TEXT
+
+       CLR  @SPTBL+8          ASSUME SPRITE WITH SPRITE TEST
+       CI   R8,>EC00          CHECK IF ALL TOKEN
+       JEQ  COIN30            JUMP IF YES
+       CI   R8,>FD00          CHECK IF NUMBER SIGN
+       JNE  DST15             JUMP IF NO
+
+       BL   @GETSP2
+
+       MOV  R1,@SPTBL         SPRITE 1
+
+       CI   R8,>B300          CHECK IF COMMA
+       JNE  DST15             JUMP IF NO
+       CB   *R12,@CBHFD       CHECK IF NEXT CHAR IS SPRITE
+       JEQ  COIN20
+
+       INC  @SPTBL+8          TEST IS SPRITE TO DISTANCE
+
+       BL   @GETROW
+       MOV  R1,@SPTBL+2
+
+       BL   @GETCOL           PARSE COL
+       MOV  R1,@SPTBL+4
+
+       BL   @PARMID           PARSE TOL
+       JEQ  COIN51            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @SNUM+FAC,@SPTBL+6
+       JMP  COIN90
+
+
+COIN52 BL   @RPTE37           GM ERR
+
+COIN20 BL   @GETSP1
+
+       MOV  R1,@SPTBL+2
+
+       BL   @PARMID           PARSE TOL
+       JEQ  COIN51            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+
+       MOV  @SNUM+FAC,@SPTBL+4
+
+COIN90 BL   @CKCOMA           ENSURE COMMA
+       BL   @PSYM             GET SYMBOL
+       CB   @SID+FAC,@CSIDST  IS IT A STRING
+       JEQ  DST15             JUMP IF STRING
+
+       BL   @PSHFAC           SAVE IT
+
+*    SPRITE WITH SPRITE
+
+       LI   R2,1
+       LI   R3,SPTBL
+       LI   R4,SPTBL+8        OUTPUT TABLE POINTER
+       MOV  *R4+,R1            GET TYPE OF CALL
+       SETO *R4+              NOW MAKE SURE THAT THE DEFAULT SPRITE IS 0
+       SETO *R4
+       DECT R4
+       LI   R0,X$SCOI
+       XOP  @SIX,0
+       CLR  R1
+       MOV  R0,R0             R0 = 0 IF NO COINC
+       JEQ  COIN91
+       INV  R1                MAKE NEGATIVE 1
+COIN91 BL   @BLDINT
+       BL   @ASSGN
+       DECT @SPTBL+8          SEE IF "ALL" TYPE OF COINC CALL
+       JNE  COIN92
+       CLR  @SDEF             CLR FLAG FOR LATER USE
+       CI   R8,>B300          IS ALL, SO SEE IF A COMMA
+       JEQ  COIN93            GET THE COINC
+
+COIN92 BL   @CKRPAR           MAKE SURE RIGHT PAREN
+       B    @CONT             AND AWAY WE GO
+
+*    ALL TOKEN
+
+COIN30 INCT @SPTBL+8          TEST IS "ALL"
+       MOVB *R12+,R8          GET NEXT CHAR
+       JMP  COIN90            CONTINUE ABOVE
+
+
+COIN50 BL   @RPTE03           SYN
+COIN51 BL   @RPTE07           SNM
+
+       PAGE
+*
+*    NAME:  POSIT
+*
+*  FORMAT:  CALL POSITION(#SN, NV1[DR], NV2[DC])
+*
+
+SPRPOS CI   R8,>B700          ENSURE RIGHT PAREN
+       JNE  COIN50
+       MOV  @SPINDX,R0        CHECK MODE
+       JEQ  COIN52            JUMP IF TEXT
+       SETO @SDEF             SET SPOS FLAG
+POS05  CB   *R12,@CBHFD         AT A NUMBER SIGN
+       JNE  COIN50            JUMP IF NO
+
+       BL   @GETSP1
+
+       CLR  R2
+       LI   R0,X$SPOS
+       XOP  @SIX,0            GET THE POS
+       MOV  R0,@SPTBL+10
+       MOV  R1,@SPTBL+12
+
+COIN93 BL   @CKCOMA           ENSURE A COMMA
+       BL   @PSYM             GET THE SYMBOL
+       CB   @SID+FAC,@CSIDST  IS IS A STRING
+       JEQ  COIN50            YES - ERROR
+       BL   @PSHFAC           SAVE IT
+       MOV  @SPTBL+10,R1
+       INC  R1
+       BL   @BLDINT
+       BL   @ASSGN
+
+       BL   @CKCOMA           ENSURE A COMMA
+       BL   @PSYM             GET THE NEXT SYMBOL
+       CB   @SID+FAC,@CSIDST  IS IT A STRING
+       JEQ  COIN50            YES - ERROR
+       BL   @PSHFAC           SAVE IT
+
+       MOV  @SPTBL+12,R1
+       INC  R1                MAKE BASE 1
+       BL   @BLDINT
+       BL   @ASSGN            ASSIGN ROW
+
+       MOV  @SDEF,R0          NOW TEST IF POS OR COINC "ALL"
+       JEQ  POS10             IT IS COINC ALL
+
+       CI   R8,>B300          AT A COMMA ?
+       JEQ  POS05
+
+POS10  BL   @CKRPAR           ENSURE RIGHT PAREN
+       B    @CONT
+
+       PAGE
+*
+*    NAME:  LOCATE
+*
+*  FORMAT:  CALL LOCAT(#SN, PR, PC
+*
+
+LOCATE CLR  @PARCNT           CLEAR INDEX
+       LI   R1,SPTBL
+       MOV  R1,@MCNTR
+       CI   R8,>B700          ENSURE LEFT PAREN
+       JNE  COIN50            JUMP IF NO
+
+LOC10  CB   *R12,@CBHFD       NEXT CHAR A NUMBER SIGN
+       JNE  COIN50            JUMP IF NO
+
+       BL   @GETSP1
+
+       MOV  @MCNTR,R2
+       MOV  R1,*R2+
+       MOV  R2,@MCNTR
+
+       BL   @GETROW
+       MOV  @MCNTR,R2
+       MOV  R1,*R2+
+       MOV  R2,@MCNTR
+
+       BL   @GETCOL
+       MOV  @MCNTR,R2
+       MOV  R1,*R2+
+       MOV  R2,@MCNTR
+       INC  @PARCNT
+
+       CI   R8,>B300
+       JEQ  LOC10
+
+       BL   @CKRPAR
+
+       MOV  @SPINDX,R0
+       JEQ  SPC30             GM ERR
+
+       LI   R0,X$SLOC
+       LI   R1,SPTBL
+       MOV  @PARCNT,R2
+       XOP  @SIX,0
+
+       B    @CONT
+
+       PAGE
+*
+*   NAME:   SPCOLR
+*
+*   WHAT:   PARSE AND RETURNS THE SPRITE COLOR LIST
+*
+
+SPC30  BL   @RPTE37           GRAPHICS MODE ERROR
+
+SPCOLR DECT R10
+       MOV  R11,*R10
+       MOV  @MCNTR,R1
+       MOV  R1,@TLM           SAVE POINTER TO POSITION
+       CLR  *R1+              CLEAR POSITION
+       CLR  *R1+
+       CLR  *R1+              CLEAR VELOCITY
+       CLR  *R1+
+       MOV  R1,@MCNTR         SAVE START OF COLOR TABLE
+       LI   R1,16
+       MOV  @SPINDX,R0        CHECK SPRITE MODE
+       JGT  SPC20             SPRITE MODE 2
+       JEQ  SPC30             IT IS NOT A SPRITE MODE
+
+*    TO BE HERE IS SPRITE MODE ONE
+
+       MOV  @SDEF,R0          WAS IT A CALL SPRITE2?
+       JNE  SPC30             YES, SO ERROR
+       LI   R1,1
+SPC20  MOV  R1,@FCCNT
+SPC10  BL   @PARMID
+       JEQ  SPC40             MUST NOT BE A STRING
+       BL   @FTOI
+       BL   @RANGE
+       DATA 1,16              COLORS MUST BE IN THIS RANGE
+       DEC  @SNUM+FAC
+       MOV  @SDEF,R0          WAS IT CALL SPRITE OR SPRITE2?
+       JEQ  SPC29             IT WAS CALL SPRITE
+       MOV  @MCNTR,R1
+       MOV  @SNUM+FAC,*R1+    STORE THE COLOR IN THE TABLE
+       MOV  R1,@MCNTR
+       DEC  @FCCNT
+       JNE  SPC10
+SPC14  MOV  *R10+,R11
+       RT
+
+SPC29  MOV  @MCNTR,R1
+       MOV  @SNUM+FAC,R2
+       MOV  @FCCNT,R3
+SPC31  MOV  R2,*R1+
+       DEC  R3
+       JNE  SPC31
+       MOV  R1,@MCNTR
+       JMP  SPC14
+
+SPC40  BL   @RPTE07
+GETSP3 BL   @RPTE30           BV
+
+GETSP1 INC  R12
+GETSP2 MOVB *R12+,R8
+       DECT R10               PUSH THE STACK
+       MOV  R11,*R10
+       BL   @PARSE            GET SPRITE NUMBER
+       BYTE RPAR$
+       BYTE 0
+       CB   @FAC+SID,@CSIDST
+       JEQ  SPC40             IF STRING  SNM
+       CB   @FAC+SID,@CSIDIN  IF INT ALREADY
+       JEQ  GETSP4
+       BL   @FTOI             CONVERT TO INTEGER
+GETSP4 MOV  @FAC+SNUM,R1
+       CI   R1,31
+       JH   GETSP3            BAD VALUE
+       MOV  *R10+,R11
+       RT
+
+DESPTB DATA 1,2,3,4,5,6,7,8   DELETE SPRITE TABLE  ALL BUT 0
+       DATA 9,10,11,12,13,14,15,16
+       DATA 17,18,19,20,21,22,23,24
+       DATA 25,26,27,28,29,30,31
+
+DELALL SETO R2
+       MOV  @XFLAG,R0
+       COC  @SMSBIT,R0        DELETE SPRITE 0?
+       JNE  DEL26             IT IS OKAY
+       LI   R1,DESPTB         ALL SPRITES BUT SPRITE 0
+       LI   R2,31
+DEL26  LI   R0,X$SDEL         OPCODE
+       XOP  @SIX,0
+       RT

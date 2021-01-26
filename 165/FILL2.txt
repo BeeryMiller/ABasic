@@ -1,0 +1,296 @@
+STACKS DATA FSTACK
+STACKE DATA FSTCKE
+
+BITS   DATA >8040
+       DATA >2010
+       DATA >0804
+       DATA >0201
+
+XYMIN  DATA 0
+YMAX   DATA 191
+XMAX   DATA 255
+       PAGE
+*------------------------------------------------------------------------
+*  X IS COORD OF ENCLOSED SPACE
+*  Y IS COORD OF ENCLOSED SPACE
+*  X MUST BE 0 TO 255
+*  Y MUST BE 0 TO 191
+* R3 - X
+* R4 - Y
+* R5 - STACK    R14- VDP DATA
+* R10- RT SAVE  R15- VDPWA
+*------------------------------------------------------------------------
+FILLIN LWPI CREGS
+       LI   R0,XCRD1
+       CLR  *R0+              XCRD1
+       CLR  *R0+              XCRD2
+       CLR  *R0+              YCRD
+       CLR  *R0+              TEMP1
+       CLR  *R0+              TEMP2
+       LI   R14,PORT0R
+       LI   R15,PORT1W
+
+       MOV  @FB,R1
+       MOVB @DRAWC,R1
+
+       MOV  R1,R2
+       MOV  R2,R3
+       SLA  R1,4
+       SLA  R2,4
+       SWPB R3
+       SOC  R2,R3
+       SLA  R2,4
+       SOC  R2,R1
+       ANDI R3,>00FF
+       SOC  R3,R1
+       MOV  R1,@DRWCLR
+
+       MOV  @PR1,R4
+       MOV  @PC1,R3
+
+       MOV  @STACKS,R5        Reset stack pointer
+       BL   @PUSH             Push starting position on stack
+FILL1  BL   @POP
+       CLR  @ABORT
+       BL   @HORLIN           Draw a horizontal line & give XCRD, YCRD values
+       MOV  @ABORT,@ABORT     ABORT FLAG SET
+       JNE  FILL2
+       MOV  @XCRD1,R3
+       MOV  @YCRD,R4
+       DEC  R4                ]
+       BL   @OPENCK           ] Check above line
+       MOV  @XCRD1,R3
+       MOV  @YCRD,R4
+       INC  R4                Y=Y+1
+       BL   @OPENCK           ] Check below line
+FILL2  C    R5,@STACKS        TOP OF STACK?
+       JH   FILL1             Are you done filling?
+       LWPI UREG1             * CONTINUE0
+       RT
+
+       PAGE
+*
+*    WHAT: PUSH VALUES ON STACK
+*
+
+PUSH   C    R5,@STACKE
+       JH   PUSH2
+       MOV  R3,*R5+
+       MOV  R4,*R5+
+       RT
+
+PUSH2  LWPI UREG1
+       LI   R0,ERRMEM
+       BL   @ERROR
+
+*
+*    WHAT:   POP VALUES FROM STACK
+*
+
+POP    DECT R5
+       MOV  *R5,R4
+       DECT R5
+       MOV  *R5,R3
+       RT
+
+       PAGE
+*
+*    WHAT:  FILL COINCIDENCE CHECK
+*
+
+FCOIN  MOV  R4,R6
+       SLA  R6,5
+       SOC  R4,R6
+       ANDI R6,>FF07
+       MOV  R3,R8
+       ANDI R8,7
+       A    R3,R6
+       S    R8,R6
+
+       LIMI 0
+       SWPB R6
+       MOVB R6,*R15
+       SWPB R6
+       MOVB R6,*R15
+       CLR  R1
+       CLR  R7
+       MOVB @BITS(R8),R7
+       MOVB *R14,R1
+       LIMI 2
+       COC  R7,R1
+       RT
+
+       PAGE
+*
+*    WHAT:  CHECK FOR OPENINGS
+*
+*
+OPENCK MOV  R11,R10
+       C    R4,@XYMIN
+       JLT  OPENC4
+       C    R4,@YMAX
+       JGT  OPENC4
+OPENC1 MOV  R3,@TEMP1
+       BL   @FCOIN
+       JNE  OPENC2
+       C    R3,@XCRD2
+       JEQ  OPENC4
+       INC  R3
+       JMP  OPENC1
+
+OPENC2 C    R3,@XCRD2
+       JEQ  OPENC3
+       BL   @FCOIN
+       JEQ  OPENC3
+       INC  R3
+       JMP  OPENC2
+
+OPENC3 MOV  R3,@TEMP2
+       MOV  @TEMP1,R3
+       BL   @PUSH
+       MOV  @TEMP2,R3
+       C    R3,@XCRD2
+       JNE  OPENC1
+OPENC4 B    *R10
+
+       PAGE
+*------------------------------------------------------------------------
+*
+*    WHAT: DRAW HORIZONTAL LINE
+*
+*------------------------------------------------------------------------
+HORLIN MOV  R11,R10
+       MOV  R4,@YCRD
+       BL   @FCOIN
+       JNE  HORLI0
+       SETO @ABORT
+       B    *R10
+
+HORLI0 C    R3,@XYMIN
+       JLT  HORLI1
+       BL   @FCOIN
+       JEQ  HORLI1
+       DEC  R3
+       JMP  HORLI0
+
+HORLI1 INC  R3
+       MOV  R3,@XCRD1
+HORLI2 C    R3,@XMAX
+       JGT  HORLI3
+       BL   @FCOIN
+       JEQ  HORLI3
+       INC  R3
+       JMP  HORLI2
+
+HORLI3 DEC  R3
+       MOV  R3,@XCRD2
+       S    @XCRD1,R3
+       INC  R3
+       MOV  R3,R6
+       MOV  @XCRD1,R8
+       MOV  @YCRD,R9
+       MOV  R9,R4
+       SLA  R4,5
+       SOC  R9,R4
+       ANDI R4,>FF07
+       MOV  R8,R2
+       ANDI R2,7
+       A    R8,R4
+       S    R2,R4
+       MOV  R4,R9
+       MOV  R4,R12
+       AI   R12,>2000
+       ORI  R9,>4000
+       ORI  R12,>4000
+       LIMI 0
+       SWPB R4
+       MOVB R4,*R15
+       SWPB R4
+       MOVB R4,*R15
+       LI   R3,>FF00
+       MOVB *R14,R1
+       LIMI 2
+       MOV  R2,R0
+       SRC  R3,0
+       LI   R8,8
+       S    R2,R8
+       S    R8,R6
+       JGT  HORLI4
+       MOV  R6,R0
+       ABS  R0
+       LI   R7,>00FF
+       SLA  R7,0
+       SZCB R7,R3
+HORLI4 SOCB R3,R1
+       LIMI 0
+       SWPB R9
+       MOVB R9,*R15
+       SWPB R9
+       MOVB R9,*R15
+       NOP
+       MOVB R1,*R14
+       SWPB R12
+       MOVB R12,*R15
+       SWPB R12
+       MOVB R12,*R15
+       NOP
+       NOP
+       MOVB @DRWCLR,*R14
+       MOV  R6,R6
+       JLT  HORLRT
+       JEQ  HORLRT
+       AI   R9,8
+       AI   R4,8
+       AI   R12,8
+       CI   R6,8
+       JLT  HORLI6
+       SETO R3
+
+HORLI5 LIMI 0
+       SWPB R9
+       MOVB R9,*R15
+       SWPB R9
+       MOVB R9,*R15
+       AI   R9,8
+       MOVB R3,*R14
+       AI   R4,8
+       SWPB R12
+       MOVB R12,*R15
+       SWPB R12
+       MOVB R12,*R15
+       AI   R12,8
+       MOVB @DRWCLR,*R14
+       LIMI 2
+
+       AI   R6,-8
+       JEQ  HORLRT
+       CI   R6,7
+       JGT  HORLI5
+HORLI6 SWPB R4
+       MOVB R4,*R15
+       SWPB R4
+       MOVB R4,*R15
+       LI   R3,>00FF
+       MOVB *R14,R1
+       MOV  R6,R0
+       SRC  R3,0
+       SOCB R3,R1
+
+       LIMI 0
+       SWPB R9
+       MOVB R9,*R15
+       SWPB R9
+       MOVB R9,*R15
+       NOP
+       MOVB R1,*R14
+       SWPB R12
+       MOVB R12,*R15
+       SWPB R12
+       MOVB R12,*R15
+       NOP
+       MOVB @DRWCLR,*R14
+       LIMI 2
+
+HORLRT B    *R10
+
+

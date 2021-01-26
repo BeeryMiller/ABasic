@@ -1,0 +1,811 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.155.SAYBASIC
+*
+*    NAME:  CALL SAY
+*
+*  VERSION: 3.0 - 10/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+GETPRM MOV  R8,R5
+       DECT R10
+       MOV  R11,*R10          SAVE RETURN
+       MOVB *R12+,R8          GET NEXT CHAR
+       CI   R5,RPAR$*256      DONE?
+       JEQ  DONSP1            YES (OR AT LEAST SHOULD BE)
+       CI   R8,RPAR$*256      SHOULD NOT FIND THIS
+       JEQ  SAY001
+       BL   @EOSTMT
+       JEQ  SAY001
+       CI   R8,COMMA$*256
+       JEQ  INP$81            IS COMMA, SO SKIP IT
+       BL   @PARSE
+RPAR   BYTE RPAR$,0
+
+       CB   @FAC+SID,@CSIDST  STRING?
+       JNE  SAYESN            NO, ERROR, STRING NUMBER MISMATCH
+
+       MOV  @FAC+STRP,R4        USE THE STRING IN DATA SPACE
+       MOVB @DATBUF(R4),@MAP9A     DON'T MOVE IT
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @FAC+STRA,R1      GET 13 BIT ADDRESS
+       AI   R1,>A000          MAKE IT 16
+
+       MOV  @FAC+SLEN,R3      GET LENGTH
+       MOVB R3,R3             TEST FOR STRING TOO LONG
+       JNE  GETP00
+       LI   R2,IMGBM1         MOVE THE STRING TO THE IMAGE BUF
+       MOVB @FAC+SLEN+1,*R2+
+       JEQ  INP$81
+       BL   @FASMVB
+       MOV  *R10+,R11         ON RETURN R3 IS LENGTH, R1 POINTS TO STRING
+       INCT R11
+       RT
+
+GETP00 LI   R0,ERRSSL         SPEECH STRING TOO LONG
+       BL   @ERROR
+       PAGE
+*
+*  FORMAT:  CALL SAY(WORD-STRING, DIRECT STRING
+*
+
+SAY    CLR  R15               SET SPEECH MODE TO TEXT
+       CI   R8,LPAR$*256      MUST BE LEFT PAREN
+       JEQ  SAY000
+SAY001 BL   @RPTE03           SYNTAX ERROR
+
+
+SAY002 INV  R15
+SAY000 BL   @GETPRM           GET SPEECH TEXT
+       JMP  SAY002            SKIP TO NEXT MODE
+
+       BL   @SAY$
+       MOV  R0,R0             ERROR?
+       JEQ  SAY002            NO, CONTINUE
+
+SAYERR BL   @ERROR
+
+SAYESN LI   R0,ERRSNM
+       JMP  SAYERR
+
+INP$81 MOV  *R10+,R11
+       RT
+
+DONSP1 INCT R10               RESTORE THE STACK
+       B    @CONT
+       PAGE
+*
+*      CALL SPGET(WORD-STRING, SV, ...
+*
+SPGET  CI   R8,LPAR$*256      PARSE STRING PHASE
+       JNE  SAY001            JUMP IF NOT LEFT PAREN
+
+*  GET PHONEIMS
+*  RETURN IN DISBUF
+SPG000 BL   @GETPRM
+       JMP  SAY001            IS ZERO, SO SKIP
+       BL   @SPGET$
+       MOV  R0,R0             ERROR?
+       JNE  SAYERR            ERROR IN R0
+
+* FOUND IT. ASSIGN IT
+
+       CI   R8,COMMA$*256
+       JNE  SAY001
+       MOVB *R12+,R8
+       BL   @PSYM             PARSE VARIABLE
+       CB   @FAC+SID,@CSIDST  CHECK IF STRING
+       JNE  SAYESN            JUMP IF NUMERIC
+       BL   @PSHFAC           SAVE VARIABLE
+       MOVB @DISBUF,R1        GET THE LENGTH
+
+       SRL  R1,8              ALIGN REGISTER
+       BL   @GETSTR           GET THE STRING IT IS MAPPED IN AT >A000 ALREADY
+
+       MOV  @FAC+STRA,R2      GET 13 BIT ADDRESS
+       AI   R2,>A000          MAKE IT 16
+
+       LI   R1,DISBUF         SOURCE
+       MOVB *R1+,R3           GET LENGTH
+       SRA   R3,8             ALIGN REGISTER
+       JEQ  SPG001
+       BL   @FASMVB           MOVE STRING
+SPG001 BL   @ASSGS            ASSIGN STRING
+*      MOV  R0,R0             ANY ERRORS  (CAN NOT, SINCE TAKEN CARE OF ABOVE)
+       JMP  SPG000            CONTINUE
+       PAGE
+*-------------------------------------------------------------------------------
+*
+*    FILE:  WDS1.155.SPEECH
+*
+*    NAME:  SPEECH SUPPORT
+*
+*  VERSION: 3.0 - 10/25/86    BASE LINE
+*
+*
+* SPGET#  -> GIVE IT A STRING AT DISBUF (LENGTH IS 1ST BYTE OF STRING)
+* SAY#    -> GIVE IT A STRING AT IMGBM1 (LENGTH IS 1ST BYTE OF STRING)
+*            ALSO, R7 MUST HAVE THE CURRENT PARAMETER # IN IT
+*           (STARTING AT .ZERO. !!)
+* ALL REGISTERS GET TRASHED, SO USE AN AUX WORKSPACE WHICH ISN'T AFFECTED BY
+* THE INTERRUPT ROUTINES
+*
+*-------------------------------------------------------------------------------
+*
+SPCHRD EQU  >9000
+SPCHWT EQU  >9400
+R4LSB  EQU  UREG2+9
+*A8379  EQU  >8379
+
+TIMLEN DATA 0
+TOTTIM DATA 0
+FOUND  DATA 0
+SPLIST DATA 0
+SAVEND DATA 0
+*VAR4   DATA 0
+*READIT EQU  >8300             * LOACTION OF 12 BYTES IN CPU RAM
+
+
+H00    BYTE >00
+H10    BYTE >10
+H50    BYTE >50
+H60    BYTE >60
+A8379  BYTE 0
+PAGE8S BYTE 0                 LOCATION TO SAVE THE >8000 PAGE BYTE
+PAGECS BYTE 0                 LOCATION TO SAVE THE >C000 PAGE BYTE
+CBHBC  BYTE >BC
+*
+* TABLE FOR 'GETTIM'
+*
+TSTTBL
+SPACED DATA ' '*256+>06,SPACES
+PLUS   DATA '+'*256+>00,NUMBER
+COMMA  DATA ','*256+>12,GOTTIM
+PERIOD DATA '.'*256+>3C,DECMAL
+HYPHEN DATA '-'*256+>0C,NUMBER
+COLON  DATA ':'*256+>30,GOTTIM
+SEMICO DATA ';'*256+>1E,GOTTIM
+H003C  DATA >003C
+*
+ZERO   TEXT '0'
+CHNINE TEXT '9'
+CAPA   TEXT 'A'
+POUND  TEXT '#'
+
+SPGET$ LWPI UREG2
+       BL   @TI994
+
+       BL   @SETUPP       SETS UP REGISTERS WITH POINTERS TO STRING
+*
+       BL   @GETTIM      \EAT ALL PRECEDING TIMING MARKS, THEY'RE NOT USED IN
+       BL   @TIMING      /DIRECT STRINGS
+*
+       CLR  R15          SPELL FLAG
+       BL   @PHRASE      FIND A PHRASE IN THE STRING THEY GAVE US
+       MOV  R15,R15
+       JEQ  SPGET1
+
+       MOV  R8,R9        LOOK UP ONLY THE 1ST CHAR IN PHRASE
+
+SPGET1 BL   @LOOKUP      LOOKUP LEAVES ADDRESS IN R4,LENGTH IN R3
+
+* SET-UP STRING TO RETURN TO BASIC
+
+       LI   R9,DISBUF
+
+       MOV  R3,R2
+
+       AI   R2,>0300
+       MOVB R2,*R9+      OVERALL LENGTH OF RETURNED STRING
+       MOVB @H60,*R9+    RETURNED STRING: >60,>00,LEN,<<<DATA>>>
+       MOVB @H00,*R9+
+       MOVB R3,*R9+
+
+       SRL  R3,8         MAKE IT INTO A COUNT
+*
+       JEQ  SPGET6
+*
+       BL   @LOADAD
+*
+SPGET2 BL   @GETBYT      RETURNS BYTE IN R0
+       LI   R2,8
+       CLR  R1
+*
+SPGET3 SRL  R1,1
+       SLA  R0,1
+       JNC  SPGET4
+       AI   R1,>8000
+*
+SPGET4 DEC  R2
+       JNE  SPGET3
+*
+SPGET5 MOVB R1,*R9+
+       DEC  R3
+       JNE  SPGET2
+
+SPGET6 B    @SPEND0
+
+       PAGE
+*---------------------------------------------------------------
+*
+*
+* EXPECTS STRING AT IMGBM1, PARAMETER NUMBER IN R7
+*
+*
+
+SAY$   LWPI UREG2
+       BL   @TI994            GO INTO 4A MODE
+       MOV  @UREG1+30,R7      GET TEXT/PHONIAM FLAG FROM CALLERS R15
+*
+       LI   R3,DISBUF    THIS IS WHERE WE'LL CREATE OUR SPEECH LIST
+       MOV  R3,@SPLIST
+*
+       BL   @SETUPP
+*
+       SRL  R7,1         IS THIS DIRECT STRING, OR TEXT?
+       JOC  NEXT1        JUMP FOR DIRECT STRING
+*
+DIRSPK CLR  @TOTTIM
+       BL   @GETTIM
+       BL   @TIMING
+*
+WHILE1 C    R5,R10
+       JH   WEND1        NO MORE CHARS LEFT IN OUR STRING
+*
+       BL   @PHRASE
+*
+       ABS  R15
+       JNE  SAY2
+*
+       BL   @LOOKUP
+       ABS  @FOUND
+       JNE  SAY1
+*
+       SETO R15
+       JMP  SAY2
+*
+SAY1   BL   @STDATA
+*
+SAY2   ABS  R15
+       JEQ  SAY4
+*
+       MOV  R9,@SAVEND
+       MOV  @H003C,@TOTTIM
+*
+REP1
+WHILE2 C    R8,@SAVEND
+       JH   SAY4
+*
+       CB   *R8,@SPACED
+       JNE  WEND2
+       INC  R8
+       JMP  WHILE2
+*
+WEND2  MOV  R8,R9
+       BL   @LOOKUP
+       BL   @STDATA
+       INC  R8
+*
+       C    R8,@SAVEND
+       JLE  REP1
+*
+SAY4   CLR  @TOTTIM
+       BL   @TIMING      (WE ARE ALREADY POINTING AT THE TIMING CHAR WHICH ENDED
+*                         THE PHRASE...)
+       JMP  WHILE1
+*
+WEND1  C    @TIMLEN,@H00FE
+       JEQ  SAY5
+*
+       CLR  R4
+       BL   @STDATA
+*
+* SPEAK THE LIST NOW
+*
+SAY5   LI   R3,DISBUF    START OF SPEECH LIST
+*
+WHILE3 C    R3,@SPLIST
+       JHE  SPEND0
+*
+REP2   BL   @READIT      WAIT UNTIL NOBODY SPEAKING
+       SLA  R0,1
+       JOC  REP2
+*
+       MOVB *R3+,R1
+       INV  R1           \NEGATE A BYTE
+       AI   R1,>0100     /
+*
+       MOVB R1,@A8379    TIMER BYTE
+*
+       MOVB *R3+,R4
+       SWPB R4
+       MOVB *R3+,R4
+       SWPB R4
+       JMP  REP6
+
+*
+REP3   LI   R0,>1200
+REP7   DEC  R0
+       JNE  REP7
+       AB   @CBH01,@A8379
+*
+REP6   MOVB @A8379,R0
+       JLT  REP3         TIMER MUST START FROM >80 TO >FF
+*
+       MOV  R4,R4
+       JEQ  SAY6
+*
+       BL   @LOADAD
+       MOVB @H50,@SPCHWT ISSUE THE SPEAK COMMAND
+       LI   R0,100
+DLY1   DEC  R0
+       JNE  DLY1
+*
+SAY6   JMP  WHILE3
+
+*
+* DIRECT SPEECH
+*    USE R4 AS INTERMEDIATE STRING COUNTER
+*
+
+NEXT1  LI   R0,ERRBV     JUST IN CASE
+       CB   *R5,@H60
+       JNE  SPEND
+*
+REP4   BL   @READIT
+       MOV  R0,R0
+       JLT  REP4         WAIT UNTIL SPEECH IS DONE
+*
+       MOVB *R5+,@SPCHWT
+       MOVB *R5+,R4
+       MOVB *R5+,@R4LSB
+       A    R5,R4
+       LI   R2,16        OK TO LOAD 16 BYTES INTO SPEECH DEVICE
+*
+LOOPB  MOVB *R5+,@SPCHWT
+       C    R5,R10
+       JH   SPEND0
+*
+       C    R4,R5
+       JEQ  NEXT1
+
+*      LI   R0,10        DON'T NEED THIS ANYMORE
+*LOOPA  DEC  R0
+*      JNE  LOOPA
+
+       DEC  R2
+       JNE  LOOPB        OK TO LOAD MORE BYTES
+*
+REP5   BL   @READIT
+*
+       SLA  R0,1
+       JNC  SPEND0       SPEECH GOT SCREWED UP SOMEHOW, ABORT
+*
+       SLA  R0,1
+       JNC  REP5         SPEECH DEVICE STILL HAS MORE THAN 8 UNPROCESSED BYTES
+*
+       LI   R2,8         OK TO LOAD 8 MORE BYTES...
+       JMP  LOOPB
+*
+****************************************************************
+*
+STDATA MOV  @SPLIST,R3
+       CI   R3,256/3*3+DISBUF
+       JNE  STDAT1
+*
+       LI   R0,ERRSSL
+       JMP  SPEND        RETURN, ERROR: TABLE OVERFLOW
+*
+STDAT1 MOV  @TOTTIM,R1
+       CI   R1,>0080
+       JL   STDAT2
+*
+       LI   R1,>007F
+*
+STDAT2 SWPB R1
+       MOVB R1,*R3+
+       MOVB R4,*R3+
+       MOVB @R4LSB,*R3+
+*
+       MOV  R3,@SPLIST
+       RT
+
+
+SPEND0 CLR  R0
+SPEND  MOV  R0,@UREG1
+       LI   R12,>1EFE
+       SBO  0
+       LI   R12,>1EF4
+       SBO  0                 GET BACK TO 9640 MODE
+       MOVB @PAGECS,@MAP9C
+       MOVB @PAGE8S,@MAP98
+       LWPI UREG1
+       LIMI 2                 GET THINGS GOING AGAIN
+       RT
+       PAGE
+*
+* SETUP: SETS UP REGISTERS, WAITS FOR NON-BUSY SPEECH DEVICE
+*
+SETUPP MOV  R11,R12           * SAVE RETURN
+
+       CLR  @TIMLEN           * CLEAR TIME LENGTH
+
+       LI   R5,IMGBM1         * LOAD STRING ADDRESS
+       MOVB *R5+,R10          * LENGTH OF STRING
+       SRL  R10,8
+       A    R5,R10            * NOW R10 POINTS TO CHAR AFTER STRING
+       DEC  R10               * NOW R10 POINTS TO LAST CHAR IN STRING
+
+* LOAD READ CODE ONTO 16 BIT BUS
+
+*      LI   R0,READIT
+*      LI   R1,REDCOD
+*      LI   R2,REDLEN
+*SETL1  MOV  *R1+,*R0+
+*      DECT R2
+*      JNE  SETL1
+*
+WAIT   BL   @READIT
+       SLA  R0,1
+       JOC  WAIT
+       B    *R12
+*
+* CODE TO READ A BYTE FROM SYTHESIZER
+*
+READIT
+REDCOD MOVB @SPCHRD,R0
+       NOP
+       NOP
+       NOP
+       RT
+REDLEN EQU  $-REDCOD
+*
+****************************************************************
+*
+* LOADAD
+*   SETS PHROM ADDRESS FROM R4
+*
+LOADAD MOV  R4,R1
+       SWPB R1
+       LI   R2,4
+*
+LOADL1 MOV  R1,R0
+       ANDI R0,>0F00
+       AI   R0,>4000
+       MOVB R0,@SPCHWT
+       SRC  R1,4
+       DEC  R2
+       JNE  LOADL1
+       LI   R0,>4000
+       MOVB R0,@SPCHWT
+*
+       LI   R1,10
+LOADL2 DEC  R1
+       JNE  LOADL2
+*
+       RT
+*
+****************************************************************
+*
+* PHRASE
+*      EQUAL FLAG MEANS "SPELL" THE WORD
+*
+* UPDATES 1ST IN STRING TO POINT PAST END OF THIS PHRASE
+* RETURNS POINTER TO 1ST AND LAST IN PHRASE
+*
+*
+PHRASE MOV  R11,R13
+       CLR  R15          USED TO SET SPELLING FLAG
+*
+       CB   *R5,@POUND
+       JNE  NOT#
+*
+       INC  R5
+*
+* SKIP ALL LEADING SPACES
+*
+PHR1   C    R5,R10
+       JH   PHR1A        PAST END OF STRING, NO PHRASE.
+       CB   *R5+,@SPACED
+       JEQ  PHR1
+*
+* TIME TO LOOK FOR A SECOND # SIGN
+*
+       MOV  R5,R8
+       DEC  R8           POINTER TO 1ST CHAR IN PHRASE
+*
+PHR2   C    R5,R10
+       JH   PHR2A        END OF STRING FOUND, NOT NUMBER
+*
+       CB   *R5+,@POUND
+       JNE  PHR2
+*
+* FOUND 2ND # SIGN, SET UP R8,R9 CORRECTLY
+*
+       MOV  R5,R9
+       DECT R9           POINT TO CHAR BEFORE #
+       C    R8,R9
+       JLE  NUMRT        PHRASE WAS "#CHARS#"
+*
+* PHRASE LOOKED LIKE "##"
+*
+       MOV  R8,R9        THERE WERE TWO #'S IN A ROW, POINT TO LAST # (UHOH)
+       JMP  NUMRT
+*
+* PHRASE LOOKED LIKE: "#      "  OR "#"
+*
+PHR1A  MOV  R5,R8        WILL POINT PAST END OF STRING
+       DEC  R8
+       MOV  R8,R9        MAKE IT POINT TO LAST CHAR IN STRING...SAY "UHOH"
+       JMP  NUMRT
+*
+* PHRASE LOOKED LIKE "#    CHARS"
+*
+PHR2A  MOV  R5,R9        R5 POINTS PAST END OF STRING
+       DEC  R9           POINT TO LAST CHAR IN STRING
+*
+NUMRT  BL   @GETTIM
+       JMP  PHRRET
+
+*
+* THIS PHRASE DOESN'T START WITH #
+* SO, IT MUST END WITH A TIMING CHAR
+* OR END OF STRING
+*
+
+NOT#   MOV  R5,R8
+       CB   *R5,@CAPA
+       JHE  NOSPEL
+       SETO R15
+*
+NOSPEL INC  R5           POINT AT NEXT CHAR
+       BL   @GETTIM      NOW, R5 POINTS TO SAME CHAR OR *EOS OR AFTER TIMING
+       CI   R7,>00FE
+       JH   NOSPEL
+*
+       MOV  R5,R9        CHAR BEFORE CURRENT CHAR IS LAST IN PHRASE
+       DEC  R9
+*
+PHRRET B    *R13
+
+*
+*    WHAT:  LOOKUP
+*           (RETURNS POINTER AND LENGTH OF "UHOH" IF NOT FOUND)
+*
+LOOKUP MOV  R11,R14           * SAVE RETURN
+       CLR  R4                * TREE TO SEARCH
+       SETO @FOUND            * ASSUME WE'LL FIND IT
+*
+TRYAGN BL   @LOADAD
+       BL   @GETBYT
+*
+       CI   R0,>AA00
+       JNE  TREE2
+*
+       INC  R4
+       BL   @SEARCH
+       MOV  R0,R0
+       JEQ  TREE2
+*
+       MOV  R0,R4
+       JMP  LOOKRT
+*
+TREE2  MOV  R4,R4
+       JLT  DOUHOH
+       LI   R4,>8000
+       JMP  TRYAGN
+*
+DOUHOH LI   R4,>71F4     ADDRESS OF "UHOH"
+       LI   R3,>5100     LENGTH OF "UHOH" TIMES 256
+       CLR  @FOUND
+*
+LOOKRT B    *R14
+*
+****************************************************************
+*
+* SEARCH : SEARCH FOR A WORD ON THE TREE POINTED TO BY R4
+*
+* R8 POINTS TO 1ST  CHAR IN WORD
+* R9 POINTS TO LAST CHAR IN WORD
+*
+* RETURNS R0=POINTER TO SPEECH DATA
+*         R3h=LENGTH OF SPEECH DATA
+*
+SEARCH MOV  R11,R13
+SRCH   MOV  R9,R7
+       S    R8,R7
+       INC  R7           R7 NOW HAS LENGTH OF PHRASE
+       MOV  R8,R6        POINTER USED TO TRAVERSE PHRASE
+*
+       BL   @LOADAD
+       BL   @GETBYT      GET THE LENGTH OF THE PHRASE FROM PHROM
+       MOV  R0,R3
+       SWPB R3           MAKE IT A COUNT
+*
+NEXT   INC  R4           POINT TO NEXT LETTER
+       BL   @LOADAD
+       BL   @GETBYT
+       CB   *R6+,R0
+       JEQ  MATCH
+       JH   HIGH
+       JMP  LOW
+*
+MATCH  DEC  R3           MORE LETTERS IN PHROM?
+       JNE  STRN
+*
+       INC  R3
+       DEC  R7           MORE LETTERS IN OUR PHRASE?
+       JEQ  GOTIT        FOUND THE PHRASE!
+*
+HIGH   LI   R6,2         SKIP ONE POINTER IN PHROM
+       JMP  NXTPHR
+*
+STRN   DEC  R7
+       JNE  NEXT
+       INC  R3
+*
+LOW    CLR  R6           DON'T SKIP ANY POINTERS IN PHROM
+*
+* MORE LEAVES ON THIS TREE
+*
+NXTPHR A    R3,R4        BUMP PAST REMAINING CHARS IN PHROM
+       A    R6,R4
+       BL   @LOADAD
+       BL   @GETBYT
+       MOV  R0,R1
+       BL   @GETBYT
+       SWPB R0
+       A    R1,R0
+       JEQ  NOTIT        NO MORE LEAVES ON TREE
+       MOV  R0,R4
+       JMP  SRCH
+*
+GOTIT  AI   R4,6         WE WERE STILL POINTING AT LAST CHARACTER...BUMP UP
+       BL   @LOADAD
+       BL   @GETBYT
+       MOV  R0,R1
+       BL   @GETBYT
+       SWPB R0
+       A    R0,R1        R1 HAS ADDRESS OF SPEECH DATA
+       BL   @GETBYT
+       MOV  R0,R3        R3 HAS LENGTH
+       MOV  R1,R0        R0 HAS ADDRESS
+*
+NOTIT  B    *R13
+*
+****************************************************************
+*
+* GETBYT
+*
+*
+GETBYT MOVB @H10,@SPCHWT
+       LI   R0,3
+GETS1  DEC  R0
+       JNE  GETS1
+       B    @READIT      READIT DOES THE RETURN
+*
+****************************************************************
+*
+* TIMING: REMOVES ALL TIMING CHARS FROM FRONT OF STRING
+*
+*
+TIMING MOV  R11,R13
+TIME2  C    @TIMLEN,@H00FE    >FE OR >FF INDICATES NON-TIMING CHARACTER
+       JHE  TIMDON
+       A    @TIMLEN,@TOTTIM   ADD CURRENT TIMING TO OVERAL TIMING
+       INC  R5                POINT TO CHAR TO EXAMINE
+       BL   @GETTIM
+       JMP  TIME2
+*
+TIMDON B    *R13
+*
+****************************************************************
+*
+* GETTIM examine current char in string and set TIMLEN
+*        to apropriate value
+*
+*      >00 if it's a timing '+' (not followed by a digit)
+*      >06 if it's a timing ' ' (1st of a run of spaces)
+*      >0C if it's a timing '-' (not followed by a digit)
+*      >12 if it's a        ','
+*      >1E if it's a        ';'
+*      >30 if it's a        ':'
+*      >3C if it's a timing '.' (not enclosed by digits)
+*
+GETTIM MOV  R11,R12
+*
+* CHECK TO SEE IF CHAR IS OUT OF STRING BOUNDS
+*
+H00FE  EQU  $+2
+       LI   R7,>00FE
+
+       C    R5,R10
+       JH   GETRET       YES, IT IS
+       INC  R7
+       LI   R6,TSTTBL
+
+TBSRCH MOVB *R6,*R6
+       JEQ  GETRET
+*
+       CB   *R5,*R6
+       JEQ  GOTCHR
+*
+       AI   R6,4
+       JMP  TBSRCH
+*
+GOTCHR MOV  @2(R6),R11
+       B    *R11
+*
+**********************************
+*
+* IF IT'S A SPACE PRECEDED BY A SPACE, IT'S NOT TIMING
+*
+SPACES CI   R5,IMGBM1+1  IS IT FIRST CHAR IN STRING?
+       JEQ  GOTTIM       YEP, MUST BE TIMING
+*
+       MOVB @-1(R5),R0
+       CB   R0,@SPACED   IS PRECEDING CHARACTER SPACE?
+       JNE  GOTTIM       IF NO, THIS ONE IS TIMING
+       CLR  R7           THIS ONE ISN'T TIMING
+       JMP  GETRET
+*
+* PERIOD, IS IT A DECIMAL?
+*
+DECMAL DEC  R5
+       BL   @NUMERC
+       INC  R5
+       MOV  R0,R0
+       JEQ  GOTTIM
+*
+* NUMERIC SIGN... +,-, CONTINUATION OF DECIMAL POINT CHECK
+*
+NUMBER INC  R5
+       BL   @NUMERC
+       DEC  R5
+       MOV  R0,R0
+       JNE  GETRET
+*
+GOTTIM MOVB @1(R6),R7    LOAD PROPER TIMING INTO R7
+       SRL  R7,8
+*
+GETRET MOV  R7,@TIMLEN
+       B    *R12
+*
+****************************************************************
+*
+* NUMERC
+*  RETURN: R0=>FFFF IF,
+*                1) CHAR IS IN STRING
+*                2) CHAR IS A DIGIT
+*  OTHERWISE, R0=0
+*
+NUMERC CLR  R0
+       C    R5,R10
+       JH   NUM1         CHAR IS PAST END OF STRING
+*
+       CI   R5,IMGBM1
+       JLE  NUM1         CHAR IS BEFORE 1ST CHAR IN STRING
+*
+       CB   *R5,@ZERO
+       JL   NUM1
+*
+       CB   *R5,@CHNINE
+       JH   NUM1
+*
+       SETO R0
+*
+NUM1   RT
+*
+
+TI994  LIMI 0
+       MOVB @MAP98,@PAGE8S    SAVE THE CURRENT PAGES
+       MOVB @MAP9C,@PAGECS
+       MOVB @CBHBC,@MAP98     NOW MAP IN THE >BC PAGE TO >8000
+       MOVB @CBH03,@MAP9C     AND >03 TO >C000 PAGE
+       LI   R12,>1EF4         NOW GO INTO 4A MODE
+       SBZ  0
+       LI   R12,>1EFE
+       SBZ  0
+       RT

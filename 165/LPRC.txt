@@ -1,0 +1,38 @@
+LPRC   BL   @CKLPAR
+       BL   @PSYM             PARSE VARIABLE
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  LPRC24            ERROR
+       BL   @PSHFAC           SAVE IT
+
+       BL   @CKCOMA           CHECK FOR COMMA
+       BL   @PSYM             PARSE VARIABLE
+       CB   @SID+FAC,@CSIDST  IS IT A STRING
+       JEQ  LPRC24            ERROR
+       BL   @PSHFAC           SAVE IT
+
+       MOV  @LPC,R1
+       BL   @BLDINT
+       BL   @ASSGN
+
+       MOV  @LPR,R1
+       BL   @BLDINT
+       BL   @ASSGN
+LPRC20 BL   @CKRPAR           ENSURE RIGHT PAREN
+
+       B    @CONT
+
+LPRC24 BL   @RPTE37           STRING NUMBER MISMATCH
+
+
+       PAGE
+
+PSET   BL   @CKLPAR
+       DEC  R12              ADDED TO FAKE OUT GETROW ROUTINE
+       LI   R8,COMMA$*256    TEST'S FOR COMMA BEFORE VARIABLE  2-27-96  JU
+       BL   @GETROW
+       MOV  R1,@LPR
+       BL   @GETCOL
+       MOV  R1,@LPC
+
+       JMP  LPRC20
+

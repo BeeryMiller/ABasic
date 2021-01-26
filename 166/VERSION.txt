@@ -1,0 +1,16 @@
+*
+*    CALL VERSION(NV)
+*
+VERSON BL   @CKLPAR           CHECK IF LEFT PAREN
+       BL   @PSYM             GET SYMBOL POINTER
+       BL   @CKRPAR           CHECK RIGHT PAREN
+       CB   @SID+FAC,@CSIDST  IS IT A STRING ?
+       JEQ  VER10             YES - ITS AN ERROR
+       BL   @PSHFAC           NO - PUSH THE VARIABLE
+       MOV  @BVERON,R1        GET THE VERSION NUMBER
+       BL   @BLDINT           BUILD A INTEGER IN FAC
+       BL   @ASSG             ASSIGN THE VALUE
+       B    @CONT
+
+VER10  BL   @RPTE07           SNM
+

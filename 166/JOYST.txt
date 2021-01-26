@@ -1,0 +1,41 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.156.JOYST
+*
+*    NAME:  CALL JOYST
+*
+*  SYNTAX:  JOYST(UNIT, X(RTNVR), Y(RTNVR))
+*
+*-------------------------------------------------------------------------
+*
+* keyboard    XOP @FIVE,0
+*
+*      IN:     R0Lsb =  scan mode   (like ti modes, 0-5)
+*
+*      OUT:    R0Lsb =  returned mode  (same as >8374 in 99/4a)
+*              R1Msb =  returned scan code (same as >8375)
+*              R2Msb =  joystick Y value     (same as >8376)
+*              R2Lsb =  joystick X value     (same as >8377)
+*           EQ bit in Status register set if there's a new key in R0
+*
+*              mode 7 = break key check  return EQ=1 if Break on
+*              mode 8 = raw scan code returned in R1h
+*                       raw code returned is >FF if there was no code in buffer
+*
+JOYST  BL   @KJCOM            PARSE COMMON
+
+       XOP  @FIVE,0           KEYNUM ALREADY IN R0 ON RETURN
+
+       MOV  R2,@YPT           GET Y VALUE
+       MOV  R2,R1
+       SWPB R1
+       SRA  R1,8              MAKE IT AN INTEGER
+       BL   @BLDINT           BUILD FAC ENTRY
+       BL   @ASSGN            ASSIGN NUMBER
+
+       MOVB @YPT,R1           GET X VALUE
+       SRA  R1,8              MAKE IT AN INTEGER
+       BL   @BLDINT           BUILD FAC ENTRY
+       BL   @ASSGN            ASSING NUMBER
+       B    @CONT             CONTINUE
+

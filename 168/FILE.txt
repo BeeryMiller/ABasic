@@ -1,0 +1,1966 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.158.FILEOPS
+*
+*  NAME:    FILE OPERATIONS
+*
+*  VERSION: 3.0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+OPNVAR DATA >0090             OPEN VAR,DIS,UPDATE, SET ALTER PARM BIT
+
+OPEN   BL   @GFILEN           PARSE AND GET FILE NUMBER
+       MOV  R0,R0             R0<>0 IF CHANNEL NUMBER IN USE
+       JNE  OPERFE            YES - REPORT IT
+       MOV  @FAC+SNUM,R0           CHECK FOR "OPEN #0:"
+       JEQ  OPNEBV            CAN'T DO IT
+       LI   R0,>0800          OUT OF PAB SPACE
+       MOV  @PABPTR,R1        IS THERE ROOM FOR THIS FILE IN PAB SPACE?
+       JNE  OPEN00
+       MOV  R0,@IOERR
+       B    @DONEZZ
+
+
+* NOW SET UP ALL PARMS FOR DEFAULT PAB
+
+OPEN00 LI   R1,DEFPAB
+       MOV  @OPNVAR,*R1+
+       CLR  R2                NOW FILL IN THE REST WITH BLANKS
+       LI   R3,62
+       BLWP @MEMSET
+
+       MOVB @FAC+SNUML,@DEFPAB+FILENO
+
+       BL   @GFNAME           PARSE AND COPY FILE NAME
+
+* NOW CLEAR OUT ALL FLAGS USED FOR OPEN OPTIONS
+
+       LI   R0,WSM            WSM - REL      WSM+1 - VAR
+       CLR  *R0+              WSM+2 - REL/SEQ  WSM+3 - VAR/FIX
+       CLR  *R0+              WSM+4 - UP/AP/IP/OP WSM+5 - INT/DIS
+       CLR  *R0
+
+*    STOP SCANNING WITH EOL$, EOS$, TRAIL REM, ELSE
+
+OPTION MOVB R8,R8             IS IT END OF LINE
+       JEQ  DONE              UP TO THE END OF THE LINE
+       CI   R8,TREM$*256       STATEMENT SEP
+       JH   OPT111
+       CI   R8,ELSE$*256      TAIL REMARK
+       JHE  DONE
+OPT111 CI   R8,COMMA$*256
+       JNE  OPNERS
+       MOVB *R12+,R8
+       SETO R5                USED FOR NON ZERO CONSTANT
+
+* FIRST TEST TOKENS OUT OF SEQUENCE
+
+       CI   R8,INPUT$*256
+       JEQ  INPTOK
+       CI   R8,DISPL$*256
+       JEQ  DISTOK
+* NOW TEST IF LEGAL TOKEN
+       CI   R8,VARIA$*256
+       JL   OPNERS            SYNTAX ERROR
+       CI   R8,FIXED$*256
+       JH   OPNERS
+
+TIRANG MOV  R8,R4             PUT TOKEN IN R7
+       SRL  R4,8              PUT IN LSB
+       MOVB @IOTKTB->00F3(R4),R4
+       SRL  R4,7
+       B    @TIRANG(R4)       GO TO ROUTINE
+*
+*    ALL OPTIONS THAT ARE ONE BYTE
+*
+FIXTOK SZCB @CBH10,@DEFPAB+MFLAG   MASK OFF VARIABLE FLAG
+       JMP  FIX001            GO TO TEST IF FIXED OR VAR USED BEFORE
+VARTOK MOVB @WSM,R0           TEST IF RELATIVE USED BEFORE
+       JNE  RLVRER            BRANCH IF USED BEFORE
+       MOVB R5,@WSM+1         SET VARIABLE PARSED
+FIX001 MOVB @WSM+3,R0         TEST IF FIXED OR VARIABLE PARSED BEFORE
+       JNE  BDOPAT            BRANCH IF SO
+       MOVB R5,@WSM+3         SET FIX/VAR FLAG
+       BL   @GVOPT            GET VALUE IF ANY
+* NOW GET NEXT TOKEN AND CHECK FOR VALUE
+* TEST IF RECORD LN < 255
+       MOVB R0,R0
+       JNE  OPNEBV            RECORD LENGTH > 255
+
+* RECORD LENGTH IN FAC+1
+
+       MOV  @FAC+SNUM,@DEFPAB+LRC
+       JMP  OPTION
+
+OPNERS LI   R0,ERRSN
+ERR09  BL   @ERROR            ERROR ROUTINE
+
+OPERFE LI   R0,ERRFE          FILE ERROR
+       JMP  ERR09
+
+RLVRER
+BDOPAT LI   R0,ERRBA          BAD ARGUMENT
+       JMP  ERR09
+
+OPNEBV LI   R0,ERRBV          BAD VALUE
+       JMP  ERR09
+
+RELTOK MOVB @WSM+2,R0         TEST IF VARIABLE USED BEFORE
+       JNE  RLVRER            BRANCH IF USED BEFORE
+       MOVB R5,@WSM           SET RELATIVE FLAG
+       SOCB @CBH01,@DEFPAB+MFLAG     SET RELATIVE FLAG IN PAB
+       SZCB @CBH10,@DEFPAB+MFLAG     RESET VARIABLE FLAG IN PAB
+SEQTOK MOVB @WSM+2,R0         TEST IF REL/SEQ FLAG USED BEFORE
+       JNE  BDOPAT            BRANCH IF THIS OPTION USED BEFORE
+       MOVB R5,@WSM+2         SET FLAG
+       BL   @GVOPT            GET VALUE IF ANY
+       MOV  @FAC+SNUM,@DEFPAB+RECNUM
+       JMP  OPTION
+
+INPTOK SOCB @CBH04,@DEFPAB+MFLAG
+UPDTOK
+OPNATB MOVB @WSM+4,R0
+       JNE  BDOPAT            TOKEN TYPE USED BEFORE
+       MOVB R5,@WSM+4
+OPNATC MOVB *R12+,R8
+       JMP  OPTION
+
+OUTTOK SOCB @CBH02,@DEFPAB+MFLAG
+       JMP  OPNATB
+
+APDTOK SOCB @CBH06,@DEFPAB+MFLAG
+       JMP  OPNATB
+
+INTTOK SOCB @CBH08,@DEFPAB+MFLAG
+DISTOK MOVB @WSM+5,R0
+       JNE  BDOPAT
+       MOVB R5,@WSM+5
+       JMP  OPNATC
+
+*
+*
+*    DONE WITH PARSE TRY TO OPEN AND IF SUCCESSFUL, PUT PAB IN STRING SPACE
+*
+DONE   LI   R0,DEFPAB
+       SB   @BMASK,@DEFPAB+MFLAG      ADDED FOR HD CATALOG 1-29  JU
+       XOP  @EIGHT,0          PERFORM OPEN OPCODE
+       MOVB @DEFPAB+ECODE,@IOERR
+       JNE  DONEZZ
+* NOW ZERO OUT RECORD NUMBER
+       AB   @BMASK,@DEFPAB+MFLAG      RETURN TO PREV VALUE   JU
+DON2   CLR  @DEFPAB+RECNUM
+
+* NOW GET A BUFFER THE LOGICAL RECORD LENGTH FROM STRING SPACE
+
+       MOV  @DEFPAB+LRC,R1
+       BL   @GETSTR           GET THE MEMORY IN >A000 SPACE
+       MOV  @FAC+STRP,@DEFPAB+PABBUF   SET THE POINTER TO THE STRING
+       MOV  @FAC+STRA,R3
+       MOV  R3,@DEFPAB+PABBUF+2
+       AI   R3,>A000-6        LENGTH, AND 2 WORD BACK POINTER
+       MOV  @PABLST,*R3+
+       BL   @MAPFD            GET THE PAB IN >6000 SPACE (USES R1)
+       MOV  R1,R2
+       ANDI R1,>1FFF          GET THE 13BIT LENGTH
+       AI   R1,PABBUF
+       MOV  R1,*R3
+       LI   R1,DEFPAB         DEFPAB
+       LI   R3,64
+       BL   @FASMVW
+
+       B    @CONT             AND CONTINU PARSE
+
+DONEZZ LI   R0,ERRIO
+ERR091 BL   @ERROR
+       PAGE
+*
+*    NAME:  GET FILE NUMBER AND COPY TO PAB
+*           THIS WILL SET THE SIZE
+*
+*
+*    ENTRY: BL   @GFILEN
+*
+*    INPUT:
+*
+*   OUTPUT:
+*
+
+GFILEN DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       CI   R8,NUMBE$*256
+NUM#   EQU  $-2
+       JNE  OPNERS
+       MOVB *R12+,R8
+       BL   @PARSE            PARSE UPTO ':'
+       BYTE COLON$
+CBH06  BYTE >06
+       BL   @CHKPA2           NUMBER IN R0 ON RETURN
+       MOVB R0,R0
+       JNE  OPNEBV            IS >255
+       SWPB R0
+       MOVB R0,@DEFPAB+FILENO    MOVE THE FILE NUMBER
+       JEQ  GFIL1
+       BL   @FINDFD
+GFIL1  MOV  *R10+,R11
+       RT
+
+       PAGE
+*
+*    NAME:  GET FILE NAME
+*
+*    ENTRY: BL   @GFNAME
+*
+*    WHAT:  CHECKS FOR COLON, THEN NAME, AND MOVES NAME TO PAB AT >6000
+*
+*    INPUT:
+*
+*   OUTPUT:
+
+GFNAME CI   R8,COLON$*256
+       JNE  CLSYN
+       MOVB *R12+,R8
+GFNAM2 DECT R10               SAVE RETURN
+       MOV  R11,*R10
+       BL   @PARSE
+       BYTE COMMA$            UPTO A COMMA
+IMGTOK BYTE IMAGE$
+
+       CB   @FAC+SID,@CSIDST  IS IT A STRING
+       JNE  GFISNM            NO - ITS AN ERROR
+
+GETPT1 MOV  @DDIR,R2          ASSUME DEFAULT DIR
+       MOVB @DATBUF(R2),@MAP96
+       MOV  @DDIR+2,R1
+       AI   R1,>6000
+       MOV  *R1+,R3           GET D DIR LENGTH
+       MOV  @FAC+SLEN,R4      GET THE LENGTH
+       JEQ  GETPT2
+       CI   R4,PATNML
+       JH   PNTLER            PATHNAME TOO LONG
+       MOV  @FAC+STRP,R1      MAP IT IN
+       MOVB @DATBUF(R1),@MAP96
+       MOVB @DATBUF+1(R1),@MAP98
+       MOV  @FAC+STRA,R1
+       AI   R1,>6000
+       MOV  R4,R3
+GETPT2 LI   R2,STRBUF
+       MOV  R3,R0
+       BL   @FASMVB
+       MOVB @CBH00,*R2        NULL TERMINATE
+       LI   R1,STRBUF         INIT FOR LATER
+       LI   R2,STRBUF
+       MOV  R0,R3
+       CB   *R2,@BACKSL       BACK SLASH FIRST CHARACTER?
+       JEQ  GETPT3            YES, USE MDOS PATHNAME SEARCH
+GETPT4 CB   *R2,@COLONC
+       JEQ  GETPT3            USE MDOS PATHNAME SEARCH
+       CB   *R2+,@DOT
+       JEQ  GETPT5            USE NAME AS IS
+       DEC  R0
+       JNE  GETPT4            CONTINUE
+
+GETPT5 LI   R2,NAMEL+DEFPAB
+       SWPB R3
+       MOVB R3,*R2+
+       SWPB R3
+       MOV  *R10+,R11
+       B    @FASMVB           DONE
+
+GETPT3 LI   R2,NAMEL+DEFPAB
+       CLR  R3
+       LI   R0,X$PRFN
+       MOVB @CB40,*R2
+       XOP  @NINE,0
+       JEQ  GFIL1             GOOD RETURN
+
+       LI   R0,ERRIFN
+       JMP  GFNAM1
+
+*
+*
+PNTLER LI   R0,ERRNTL
+       JMP  GFNAM1
+
+GETPTN DECT R10
+       MOV  R11,*R10
+       JMP  GETPT1
+
+GFISNM LI   R0,ERRSNM
+GFNAM1 JMP  ERR091
+
+       PAGE
+*
+*    NAME:  CLOSE STATEMENT
+*
+*    SYNTAX RULES:   1. CLOSE { FILE NO. }
+*                    2. CLOSE { FILE NO. }:DELETE
+*                    3. CLOSE ALL
+*
+
+CLOSE  CI   R8,ALL$*256       IS IT CLOSE ALL?
+       JNE  CLOSE5
+       BL   @CLOSAL
+       MOVB *R12+,R8
+       JMP  CLOSE6
+
+
+CLOSE5 BL   @GFILEN           PARSE AND GET FILE NUMBER
+       MOV  R0,R0             ERROR ?
+       JEQ  CLOERF            IF DOES NOT EXIST
+       CI   R8,COLON$*256
+       JEQ  CLOSE3            TEST FOR CLOSE DELETE
+
+*     TEST CONTINUE FLAG AND WRITE OPERATION
+
+       BL   @CLSONE           CLOSE THIS FILE
+
+CLOSE7 JNE  GFNAM1            REPORT ERROR
+CLOSE6 BL   @EOSTMT           MUST BE AT END OF STATEMENT
+       JNE  CLSYN             SYNTAX ERROR
+NREC$1 B    @CONT             CONTINUE
+
+
+* NOW TEST FOR DELETE
+
+CLOSE3 CB   *R12+,@DELTOK     IS IT DELETE?
+       JNE  CLSYN             NO, SO SYNTAX ERROR
+       MOVB *R12+,R8          GET NEXT CHAR FOR PARSE
+       LI   R0,$DELET         DELETE
+       BL   @FILIOO
+       BL   @CLOSE9           NOW FREE THE PAB
+       JMP  CLOSE7            NOW TEST IF ERROR
+
+
+GFNBV1 B    @OPNEBV
+
+*    ERROR REPORTING
+
+CLSYN  B    @OPNERS
+
+CLOERF B    @OPERFE           FILE ERROR
+       PAGE
+*
+*    NAME:  KILL "FILE SPEC"
+*
+*
+*
+*
+
+DELETE BL   @GFNAM2           PARSE THE NAME
+       LI   R0,DEFPAB         USE DEFAULT PAB FOR OPERATION
+       MOVB @CBH07,*R0
+       XOP  @EIGHT,0
+       MOVB @DEFPAB+ECODE,@IOERR
+       JEQ  NREC$1            NO ERROR SO CONTINUE
+       MOVB *R0,@IOERR+1
+       B    @DONEZZ
+       PAGE
+*
+*    NAME:  REC
+*
+*
+*
+
+NREC   BL   @PARRE            IS IT A LEFT PAREN ?
+
+* NOW GET NEXT RECORD NOW SEE IF THERE AND GET RECORD
+
+       MOV  @RECNUM(R15),@FAC+SNUM
+NREC07 MOVB @CSIDIN,@FAC+SID   INDICATE INTEGER
+       JMP  NREC$1
+
+       PAGE
+*
+*    NAME:  EOF
+*
+*    IO ROUTINES WRITE TO ARG2
+*
+
+EOF    BL   @PARRE            GET FILE NUMBER
+*                             ON RETURN (IF SO) R1 POINTS TO PAB
+
+* NOW SEE IF FILE NUMBER IS THERE AT ALL
+
+       MOVB *R15,R2           SAVE CURRENT PAB I/O OPERATION
+       MOVB @CBH09,*R15       STATUS OPCODE
+       MOV  R15,R0
+       XOP  @EIGHT,0
+       MOVB R2,*R15           RESTORE PREVIOUS OPCODE
+       MOVB @ECODE(R15),@IOERR IS THERE AN ERROR?
+       JNE  GFNAM1            I/O ERROR
+       MOVB @STATBY(R15),R2    GET STATUS
+       CLR  R0
+       ANDI R2,>0300
+       JEQ  EOF02
+       SETO R0
+       SLA  R2,7              TEST IF END OF MEDIA
+       JOC  EOF02             SET TO -1
+       NEG  R0
+EOF02  MOV  R0,@FAC+SNUM
+       JMP  NREC07            FINISH UP
+       PAGE
+GVOPT  DECT R10               GET OPTIONAL VALUE
+       MOV  R11,*R10          SAVE RETURN
+       MOVB *R12+,R8          GET NEXT CHAR TO PARSE
+       CI   R8,>B300          IS IT A COMMA?
+       JEQ  GVOPT2            IS COMMA
+       BL   @EOSTMT           AT END OF STATEMENT?
+       JEQ  GVOPT2            YES, AT END
+       BL   @CHKPAM           GET THE PARAMETER
+       MOV  *R10+,R11         GET SET FOR THE RETURN
+       B    @MAPFD            MAP IN THE PAB ONCE AGAIN
+
+
+GVOPT2 INCT R10
+       B    @OPTION
+
+       PAGE
+PARRE  DECT R10               PARSE EOF(N) OR REC(N)
+       MOV  R11,*R10
+       CI   R8,LPAR$*256
+       JNE  CLSYN
+       MOVB *R12+,R8
+       BL   @PARSE            PARSE UP TO RIGHT PAREN
+       BYTE RPAR$
+UALPHA BYTE UALPH$
+       CB   @FAC+SID,@CSIDST
+       JEQ  GFSNMI
+       BL   @FTOI
+       MOV  @FAC+SNUM,R0
+       JEQ  GFNBV
+       MOVB R0,R0             CHECK IF <256
+       JNE  GFNBV             BRANCH IF >255
+       CI   R8,RPAR$*256
+       JNE  CLSYN
+       MOVB *R12+,R8
+       SWPB R0
+       MOVB R0,@DEFPAB+FILENO
+       JEQ  GFNBV             DON'T ALLOW CHANNEL 0
+       BL   @FINDFD           MAPS IN AT >6000
+       MOV  R0,R0             R1 POINTS TO IT
+       JEQ  CLOERF            COULDN'T FIND IT, SO THAT IS IT
+       MOV  *R10+,R11
+       RT
+HDID   DATA >4800
+CBH09  BYTE >09
+DASH   TEXT '-'
+CB40   BYTE 40
+DOT    TEXT '.'
+BACKSL BYTE '\'
+COLONC TEXT ':'
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.158.FILEMGR
+*
+*  NAME:    FILE MANAGER
+*
+*  VERSION: 3.0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+CHKPAR DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOVB *R12+,R8
+CHKPA7 BL   @PARSE
+       BYTE COMMA$
+STRTOK BYTE STRIN$
+CHKPA3 CB   @FAC+SID,@CSIDST  TEST IF STRING
+       JEQ  GFSNMI            ERROR IF STRING
+       BL   @FTOI             CONVERT FLOATING POINT TO INT
+       MOV  @FAC+SNUM,R0
+       JLT  GFNBV
+CHKPA4 MOV  *R10+,R11         GET RETURN
+CHKP4A RT
+
+
+GFNBV  BL   @OPNEBV
+
+CHKPA2 DECT R10               MAKE ROOM
+       MOV  R11,*R10
+       JMP  CHKPA3
+
+CHKPAM DECT R10
+       MOV  R11,*R10
+       JMP  CHKPA7
+
+       PAGE
+GFSNMI B    @GFISNM
+
+PARREC DECT R10               SAVE RETURN
+       MOV  R11,*R10
+       CI   R8,>B300          TEST IF ,
+       JNE  PARRE2            RETURN IF NOT
+       MOVB *R12+,R8          ELSE GET NEXT PGM CHAR
+       CI   R8,REC$*256       TEST IF RECORD
+       JNE  PARUSG            IS NOT, BUT MAY BE USING
+
+* NOW TET IF FILE IS RELATIVE OR SEQUENTIAL
+
+       MOVB *R12+,R8
+       MOV  *R15,R0           GET OPCODE AND FLAGS
+       SRL  R0,1
+       JNC  PARRE1            BRANCH IF SEQUENTIAL
+       BL   @OUTEOF           OUT IF ANY TO GO
+       CLR  @INTOFF(R15)
+       BL   @PARSE            GET THE RECORD NUMBER
+       BYTE COLON$
+VALID  BYTE VALID$
+       BL   @CHKPA2           CHECK PARMS
+       BL   @MAPFD
+       MOV  R0,@RECNUM(R15)   R0 CONTAINS NUMBER AFTER CALL
+PARRE2 JMP  CHKPA4            RETURN
+
+PARUSG MOV  *R10+,R11
+PARUGS C    R11,R11           SET EQ BIT FOR RETURN
+       B    *R11
+
+PARRE1 B    @OPERFE
+       PAGE
+TSTSEP DECT R10               SAVE RETURN
+       MOV  R11,*R10
+       LI   R5,EOLEX          RETURN IF AT END OF STATEMENT
+       BL   @EOSTMT
+       JEQ  TSTSE1            YES, AT END
+       CI   R8,COLON$*256
+       JH   CHKPA4            BAD SEPARATOR
+       CI   R8,COMMA$*256
+       JL   CHKPA4
+       LI   R5,PRSEM          MUST BE SEMICOLON
+       MOVB @MFLAG(R15),R0
+       SLA  R0,5
+       JOC  TSTSE1            BRANCH IF INTERNAL
+       CI   R8,SEMIC$*256
+       JEQ  TSTSE1
+       LI   R5,PRCOL
+       CI   R8,COLON$*256
+       JEQ  TSTSE1
+       LI   R5,PRTCOM
+TSTSE1 INCT R10
+       B    *R5
+       PAGE
+DISPLY CLR  @ARG613           HAVE NOT DONE ANY I/O YET
+       SETO @DISFLG           TELL THE ACCDIS ROUTINE DISPLAY (NOT ACCEPT)
+       BL   @ACCDIS           SAVE CURRENT CURSOR POS, SET DISROW/COL
+*                              SET CCPPTR, SET R15, SET LRC
+       BL   @EOSTMT           JUST PUT OUT BLANK IF NO VAR'S
+       JEQ  EOLEX1
+       MOV  @ADFLAG,R0        ANY OPTIONS
+       JEQ  PRIN$1            BRANCH IF NONE
+       CI   R8,COLON$*256
+       JEQ  PRI$1A
+       JMP  USNGSE            SYNTAX ERROR
+       PAGE
+PRINT  CLR  @ARG613           ZERO OUT ANY OUTPUT PERFORMED SO FAR
+       BL   @INITKB           SET DEFAULTS TO SCREEN I/O
+       CI   R8,>FD00          TEST IF FILE I/O
+       JNE  PRIN$1            BRANCH IF NOT
+       BL   @GFILEN           GET FILE NUMBER AND COMPARE
+* NOW MAY BE SCREEN I/O IF THE NUMBER IS ZERO
+       ABS  @FAC+SNUM         TEST FOR ZERO
+       JEQ  PRN$10            IF SCREEN, THEN DO SCREEN I/O
+* NOW TEST IF FOUND IN SYSTEM
+       MOV  R0,R0
+       JEQ  PARRE1            BRANCH TO FILE ERROR IF NOT IN SYS
+*      MOV  R1,R15            FOUND IN SYSTEM AND MAPPED IN AT >6000
+* NOW TEST IF IN OUTPUT, APPEND, OR UPDATE MODE
+       MOVB @MFLAG(R15),R2    INPUT MODE IS XXXXX10X
+       SLA  R2,6
+       JNC  PRN001            BRANCH IF UPDATE OR OUTPUT
+       SLA  R2,1
+       JNC  PARRE1            BRANCH TO FILE ERROR IF INPUT
+PRN001 CB   @OPCODE(R15),@CBH02    TEST IF PREVIOUS READ
+       JNE  PRN002            BRANCH IF NOT
+       CLR  @INTOFF(R15)       IF READ THEN ZERO OUT NUMBER TO WRITE
+PRN002 MOVB @CBH03,*R15       MOVE IN THE WRITE OPCODE
+*      MOV  @CHRCNT(15),@LRC(15)   to corct lrc after a prt to scrn 8-3-98ju
+       BL   @PRINIT           INIT BUFFER, ETC
+
+       BL   @PARREC
+       JEQ  PRIN$0
+
+PRN$10 BL   @EOSTMT           TEST IF AT END OF STATEMENT
+       JEQ  EOLEX1            BRANCH IF YES
+
+*      USING WITH #
+
+       CI   R8,COMMA$*256     IS IT A COMMA
+       JNE  PRIN09            BRNACH IF NOT
+       MOVB *R12+,R8          GET NEXT PRM CHR
+
+PRIN$0 MOVB @MFLAG(R15),R0     TEST IF DISPLAY OR INTERNAL
+       SLA  R0,5
+       JOC  PARRE1            IS INTERNAL, SO FILE ERROR
+
+       PAGE
+USING  BL   @USN10            MOVE IMAGE STRING TO IMAGE BUF
+USNG$3 LI   R1,IMGBM1         MOVE THE IMAGE TO DISPLAY BUFFER
+       MOVB *R1,R3            GET LENGTH
+       SRL  R3,8
+       INC  R3                ONE FOR LENGTH
+       LI   R2,DISBUF         DESTINATION
+       BL   @FASMVB           MOVE IT
+       SETO R14               USE R14 FOR INDEX IN IMAGE BUFFER
+USNG41 INC  R14
+USNG$4 CB   @IMGBUF(R14),@POUND  TEST FOR ANY IMAGE
+       JEQ  USNG02            BRANCH IF FOUND
+       C    R14,@IMGLEN       IS THAT IT?
+       JNE  USNG41            TRY NEXT CHAR
+       CI   R8,>B300          ARE THERE ANY THINGS TO BE PRINTED?
+       JNE  USNG$9            WE HOPE NOT
+USNG$5 MOV  R14,@BYTE#        EXHAUSTED IMAGE, BUT MORE IN LIST TO OUTPUT
+       BL   @CHKRUS           PREPARE OUTPUT
+       BL   @OUTREC           OUTPUT IT
+       JMP  USNG$3            CONTINUE
+
+USNG02 BL   @USN20            FOUND SOMETHING SO TEST CHARACTER BEFORE IT
+       CI   R8,>B300
+       JNE  USNG$9
+       BL   @USN30            IF COMMA, THEN CONVERT IT TO DIS BUF
+       C    R14,@IMGLEN       IS THAT THE END OF THE IMAGE?
+       JL   USNG$4            NOT YET
+       CI   R8,>B300
+       JEQ  USNG$4
+USNG$9 MOV  R14,@BYTE#
+       BL   @CHKRUS           OUTPUT WHAT WE HAVE TO SCREEN, OR
+       BL   @EOSTMT                FILL I/O BUFFER
+       JEQ  EOLEX1
+       CI   R8,SEMIC$*256
+       JNE  USNGSE
+       MOVB *R12+,R8
+       BL   @EOSTMT
+       JNE  USNGSE
+       B    @PREXIT
+
+USNGSE B    @OPNERS           SYNTAX ERROR
+
+EOLEX1 B    @EOLEX
+       PAGE
+PRIN09 CI   R8,COLON$*256
+       JNE  USNGSE
+       MOVB *R12+,R8
+       JMP  PRIN$2
+
+PRI$1A MOVB *R12+,R8
+PRIN$1 CI   R8,>ED00         IS IT USING?
+       JEQ  USING
+
+PRIN$2 BL   @TSTSEP
+       CI   R8,TAB$*256
+       JEQ  PRTAB
+
+OTHER  BL   @PARSE
+       BYTE COLON$
+DELTOK BYTE DELET$
+       BL   @MAPFD            MAKE SURE PAB MAPPED IN
+       MOVB @MFLAG(R15),R0     INTERNAL
+       SLA  R0,5
+       JNC  OTHE$1            NO
+
+* TO BE HERE, WE HAVE INTERNAL TYPE I/O (NOT DISPLAY) TEST DATA TYPE
+
+       MOV  @LRC(R15),R3
+       S    @CCPPTR,R3
+       CB   @FAC+SID,@CSIDST  TEST IF INTEGER
+       JEQ  OTHI01            BRANCH IF STRING
+       LI   R0,2              ASSUME INTEGER
+       CB   @FAC+SID,@CSIDIN
+       JEQ  OTHI02            BRANCH IF INTEGER
+       LI   R0,8              IS FLOAT OR REAL
+OTHI02 C    R0,R3             TEST IF THIS WILL FIT
+       JH   PRTFE             NO, SO FORGET IT
+       LI   R5,FAC+SNUM-1
+       MOV  R0,R3
+       INC  R3                ADD ONE FOR LENGTH
+       SWPB R0
+       MOVB R0,*R5            LENGTH BYTE
+       BL   @OSTRN2           OUTPUT THE STRING
+       JMP  CHKSEP            CONTINUE
+
+OTHI01 MOV  @FAC+SLEN,R0
+       CI   R0,255
+       JH   PRTFE
+       C    R0,R3             TEST IF ENOUGH ROOM
+       JH   PRTFE             FILE ERROR, MUST FIT
+
+* NOW STORE LENGTH BYTE IN DATA BUFFER
+
+       SWPB R0
+       BL   @OSTRN1           BUFFER ADDRESS IN STRING SPACE
+       JMP  OTHE$0            GO TO WRITE STRING
+
+OTHE$1 CB   @FAC+SID,@CSIDST  TEST IF STRING
+       JNE  OTHE20            BRANCH IF NUMBER
+OTHE$0 BL   @OSTRNG           OUTPUT THE STRING
+       JMP  CHKSEP            CONTINUE TO PARSE PRINT STATEMENT
+
+OTHE20
+*
+*    NAME:  CONVERT NUMBER TO STRING
+*
+*    CHECK THE NUMBER TYPE AND CALL THE CORRECT
+*    NUMBER CONVERSION ROUTINE
+*
+*   OUTPUT: IN STRING BUFFER
+
+
+       CB   @FAC+SID,@CSIDIN  IS IT AN INTEGER
+       JEQ  CNUM10            YES
+
+       LI   R0,X$CNS          LOAD OP CODE
+       LI   R1,STRBUF+1       WHERE TO PUT THE STRING
+       LI   R2,FAC+SNUM       WHERE THE FLOAT  IS
+       CLR  R3                FREE FORM
+       XOP  @TEN,0
+
+       SWPB R2
+       MOVB R2,@STRBUF
+       JMP  CNUMS1
+
+CNUM10 MOV  @FAC+SNUM,R1      GET INTEGER IN REGISTER
+       LI   R2,STRBUF+1
+       BLWP @ITOD             CONVERT IT
+
+*   SOLVE THE LEADING BLANK PROBLEM (NON IF A NEGATIVE NUMBER)
+
+       CB   @1(R2),@DASH      IS THERE A "-" OUT FRONT?
+       JNE  CNUM30            NO, SO NORMAL CONTINUE
+       MOV  R2,R5             OUTPUT THE STRING AS IT EXISTS NOW
+       BL   @OSTR22
+       JMP  CNUM31
+
+CNUM30 MOVB *R2,@-1(R2)       NOW ADD A BLANK IN FRONT OF IT
+       AB   @CBH01,@-1(R2)
+       MOVB @BLKBUF,*R2
+
+CNUMS1 BL   @OSTRFC           OUTPUT IT
+
+* NOW, WE WILL ADD A SPACE IF THERE IS ROOM ENOUGH
+
+CNUM31 MOV  @CCPPTR,R0        TEST IF AT BEGINNING OF NEW LINE
+       DEC  R0                MAKE BASE 0
+       JEQ  CHKSEP            YES, AT BEGINNING, SO DON'T WORRY
+       C    @LRC(R15),R0      CAN IT FIT?
+       JLE  CHKSEP            NO
+       LI   R0,>2020          CHARACTER TO BE ADDED
+       BL   @OSTRN1
+
+CHKSEP BL   @TSTSEP
+USNSE  JMP  USNGSE            SYNTAX ERROR
+
+PRTFE  B    @OPERFE
+
+       PAGE
+PRTAB  MOVB @MFLAG(R15),R0
+       SLA  R0,5
+       JOC  PRTFE             FILE ERROR NO TABS IN INTERNAL
+       MOVB *R12+,R8          GET NEXT CHARACTER
+       BL   @GETIP
+       BL   @MAPFD            MAKE SURE MAPPED IN
+       CI   R8,RPAR$*256
+       JNE  USNSE
+       MOVB *R12+,R8
+       MOV  @FAC+SNUM,R3      TEST FOR NEGATIVE OR > 255
+       JEQ  PRTAB1
+       MOVB R3,R3
+       JEQ  CNVD$0
+PRTAB1 LI   R3,1
+CNVD$0 MOV  @LRC(R15),R4
+       CLR  R2
+       DIV  R4,R2
+       MOV  R3,@VAR0
+       JNE  PRTAB2
+       MOV  R4,@VAR0
+PRTAB2 CLR  @FAC+SNUM
+       C    @CCPPTR,@VAR0
+       JLE  PRTAB3
+       BL   @OUTREC
+PRTAB3 C    @CCPPTR,@VAR0
+       JEQ  CHKSEP
+       MOV  @VAR0,@MNUM
+       BL   @FILSPC
+       JMP  CHKSEP
+
+       PAGE
+PRTCOM MOV  @CCPPTR,R3
+       DEC  R3
+       JNE  PRTCO1            NOT AT BEGINNING OF LINE
+       MOV  @ARG613,R2        AT BEGINNING, SO TEST IF OUTPUT DONE BEFORE
+       JNE  PRSEM             YES, DON'T DO ANYTHING
+PRTCO1 CLR  R2
+       DIV  @CW14,R2
+       INC  R2
+       MPY  @CW14,R2
+       MOV  @LRC(R15),R0
+       C    R0,R3
+       JLE  PRCOL
+       INC  R3
+       MOV  R3,@MNUM
+       BL   @FILSPC           FILL WITH BLANKS
+       JMP  PRSEM
+
+PRCOL  BL   @NEWREC
+PRSEM  MOVB *R12+,R8          GET NEXT CHARACTER
+       BL   @EOSTMT           AT END OF STATEMENT
+       JEQ  PREXIT            YES
+       B    @PRIN$2
+
+       PAGE
+EOLEX  BL   @NEWREC
+PREXIT
+PARCON MOVB @ADFLAG,R0        NOW RESET THE X AND Y POINTERS IF
+       SLA  R0,6              AT
+       JNC  CONT00
+ACCPOP MOV  @SAVCOL,R2
+       MOV  @SAVROW,R1
+       BL   @GOTOXY
+CONT00 B    @CONT
+
+       PAGE
+NEWREC DECT R10
+       MOV  R11,*R10
+       MOV  @DSRFLG,R0        TEST IF SCREEN OR DSR I/O
+       JNE  NEWR01            BRANCH IF SCREEN
+
+* NOW, TEST IF THERE ARE 0 CHARS TO OUTPUT
+* IF SO, AND THERE WAS SOME OUTPUT PERFORMED, THEN DON'T OUTPUT
+* ANOTHER LINE
+
+       MOV  @INTOFF(R15),R0      ANY CHARS IN BUFFER?
+       JNE  NEWR02               YES
+NEWR05 MOV  @ARG613,R0        NO CHARS, SO WAS ANY OUTPUT PERFORMED?
+       JNE  NEWR03            YES, THERE WAS, SO CONTINUE
+* NOW CLEAR FROM CURRENT X,Y TO END OF WINDOW
+NEWR04 MOV  @CW01,@MNUM
+       A    @LRC(R15),@MNUM
+       BL   @FILSPC           CLEAR THIS LINE
+NEWR02 BL   @OUTREC
+       CLR  @CCOL             NEW 5/30/89
+NEWR03 CLR  @ARG613
+NEWRRT MOV  *R10+,R11
+       RT
+
+NEWR01 MOV  @CCOL,R0          AT BEGINNING OF LINE?
+       JNE  NEWR04            NO, SO TRY TO FILL WITH BLANKS
+       JMP  NEWR05            AT BEGINNING, SO HAS OUTPUT BEEN PERFORMED?
+       PAGE
+GETIP  DECT R10
+       MOV  R11,*R10
+       CI   R8,LPAR$*256      MUST L PAREN
+       JNE  GETIP1
+       MOVB *R12+,R8
+
+       BL   @PARSE
+       BYTE RPAR$
+CBH07  BYTE 7
+       JMP  CHKCN1
+
+GETIP1 B    @OPNERS           SYNTAX ERROR
+
+       PAGE
+CHKCNV DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+CHKCN1 CB   @FAC+SID,@CSIDST  TEST IF STRING
+       JEQ  CHKSNM            YES - STRING NUMBER MISMATCH
+       BL   @FTOI             CONVERT IT
+       JMP  NEWRRT
+
+CHKSNM B    @GFISNM
+
+ERBADV B    @GFNBV
+*-------------------------------------------------------------------------------
+*
+*  FILE:    WDS1.158.FILESUP
+*
+*  NAME:    ACCEPT AND DISPLAY ROUTINES
+*
+*  VERSION: 3.0 - 10/21/86     BASE LINE
+*
+*-------------------------------------------------------------------------------
+
+*   INITIALIZE THE VARIBLES NEEDED FOR KEYBOARD
+*   OUTPUT
+
+INITKB CLR  @KEYBD            KBD=0, (RKEY=0)
+       CLR  @CLSMOD           ASSUME FILE I/O, NOT CLOSE MODE
+       SETO @DSRFLG           ASSUME SCREEN IO.
+       SETO @SCFLG            ASSUME SCROLLING
+       CLR  @ADFLAG           DON'T USE ANY DISPLAY OPTIONS.
+       MOV  @WWIDTH,@DEFPAB+LRC  SAVE RECORD LENGTH
+       LI   R15,DEFPAB        ASSUME SCREEN I/O
+       CLR  *R15              CLEARS OUT THE FLAGS AND OPCODE
+       MOV  @SCRBOT,@CROW     INITIALIZE SCREEN ADDRESS TO LA BASE 0
+       MOV  @CCOL,R0          USE DISROW AND COL FOR DISPLAY/PRINT
+       MOV  R0,@SAVCOL
+       MOV  R0,@DISCOL
+       MOV  @CROW,R0
+       MOV  R0,@SAVROW
+       MOV  R0,@DISROW
+
+* NOW GET ORIGINAL CCP (CURRENT COLUMN POINTER) DERIVED
+* FROM VARA
+
+GETNCP
+GETCCP MOV  @CCOL,R0
+       INC  R0
+       MOV  R0,@CCPPTR
+       RT
+       PAGE
+*
+*              A C C E P T  /  D I S P L A Y
+*      UTILITIES TO PARSE AT, SIZE, BEEP, & ERASE ALL
+*
+*      ADFLAG:  FLAGS FOR CLAUSES
+*
+*      BIT7:    INVERT
+*      BIT8:    ERASE ALL
+*      BIT9:    BEEP
+*      BIT10:   AT
+*      BIT11:   SIZE
+*      BIT12:   CLIP
+*      BIT13:   BLINK
+*      BIT14:   VALIDATE
+*      BIT15:   NEGATIVE SIZE   (MSB)
+*
+*      FACSAV:  SPECIFIED SIZE
+*
+
+ACCDS  DECT R10               ENTRY FROM ACCEPT SECOND TIME
+       MOV  R11,*R10
+       MOV  @WWIDTH,@DEFPAB+LRC  RESTORE LRC
+       JMP  ACCDSB
+
+ACCDIS DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       CLR  @BOTLIN           NOT PRINT ON LINES 25 OR 26
+       BL   @INITKB           INITIALIZE FOR KEYBOARD OUTPUT.
+       MOV  @CWFF,@FACSAV     ASSUME LARGE SIZE
+       MOV  @CCOL,@DISCOL
+       MOV  @CROW,@DISROW
+
+ACCDSB CI   R8,>E300          IS IT AN EXTENDED TOKEN?
+       JNE  ACCD11            NO
+       MOVB *R12+,R8          YES, SEE IF THE NEXT TOKEN IS ACCEPTABLE
+       CI   R8,BLINK$*256     BLINK?
+       JEQ  BLK000            YES
+       CI   R8,INVRT$*256
+       JEQ  INV000            INVERT
+       CI   R8,CLIP$*256
+       JNE  ERR$4A            SYNTAX ERROR
+       JMP  CLP000
+
+ACCD11 CLR  R5                START WITH ZERO
+       MOVB R8,R5             GET OPTION TO BE PARSED.
+       AI   R5,-SIZE$*256     LOWEST ATOKEN ACCEPTED
+       CI   R5,AT$-SIZE$*256  HIGHEST TOKEN ACCEPTED
+       JH   CLENUP
+       SRL  R5,7              OFFSET*2
+       MOV  @OPTTBL(R5),R5    GET ADDRESS
+       B    *R5
+*
+*   NAME:  CLIP
+*
+CLP000 BL   @CKPAB1           SET OPTION
+CLP001 DATA >1000
+       CLR  @SCFLG            assume no scrolling
+       JMP  ACCDSB            CONTINUE
+*
+*   NAME:   INVERT
+*
+INV000 BL   @CHKPAB
+       DATA >0080
+       C    @SMODE,@CW04      ONLY DO THIS IN GRAPHICS MODES 5-9
+       JH   ACCDSB            OKAY TO INVERT
+       SZC  @CW0080,@ADFLAG   ZERO FLAG
+       JMP  ACCDSB
+*
+*    NAME:   BLINK
+*
+BLK000 BL   @CHKPAB
+       DATA >2000
+       C    @SMODE,@CW01      ARE WE IN 80 COLUMN MODE?
+       JEQ  ACCDSB            YES, CONTINUE
+       C    @SMODE,@TEN
+       JEQ  ACCDSB            YES, CONTINUE
+       SZCB @CW2000,@ADFLAG    NO, SO JUST IGNOR IT
+LAST1  JMP  ACCDSB
+*
+*    NAME:  ERASE ALL
+*
+ACCDS1 BL   @CHKPAB           CHECK IF SELECTED
+CN01   DATA >0100
+       CI   R8,ALL$*256       MUST BE AN ALL
+ERR$4A JNE  ERR$4
+
+       BL   @CLRWIN           CLEAR THE SCREEN.
+*                         IF AN AT NOT FOUND, ZERO DISPLAY COL
+       MOVB @ADFLAG,R5        IF NO AT, MAKE XPT AT LEFT MARGIN
+       SLA  R5,6
+       JOC  LAST3
+       CLR  @DISCOL           WE JUST CLEARED UPPER BYTE
+       JMP  LAST3             TRY NEXT TOKEN.
+*
+*    NAME:  BEEP
+*
+ACCDS2 BL   @CHKPAB           CHECK IF SELECTED
+CB02   DATA >0200
+
+       BL   @TONE1
+       JMP  ACCDSB
+
+*    NAME:  AT(Y,X)
+
+ACCDS3 BL   @CHKPAB           CHECK IF PREVIOUSLY SELECTED.
+ATBIT  DATA >0400
+       BL   @G1IN0            GET ROW
+* TEST IF ACCEPT OR DISPLAY, IF ACCEPT THEN USE NORMAL BASE
+       MOV  @DISFLG,R2
+       JEQ  AT0000            IT IS ACCEPT, SO CONTINUE
+* GET SCREEN LENGTH IN # OF LINES TEST IF LINE 25 OR 26
+       MOV  @FAC+SNUM,R2
+       CI   R2,26
+       JH   AT0000
+       CI   R2,25
+       JL   AT0000
+       C    @SMODE,@SIX       NOW TEST IF IN 26 LINE MODE
+       JL   AT0000            IT IS GRAPHICS 4-7, OR TEXT 2
+       DEC  R2                MAKE BASE 0
+       SOC  @CLP001,@ADFLAG   INVOKE CLIP OPTION TO PROTECT SCROLLING SCREEN
+       SETO @BOTLIN           SET DISPLAY AT LINES 25 OR 26
+       JMP  AT0001            CONTINUE
+
+AT0000 BL   @MODSCL
+AT0001 MOV  R2,@DISROW
+       BL   @GNX0             GET COLUMN.
+       MOV  @LRC(R15),R5      GET COLUMN MOD RIGHT MARGIN.
+       BL   @MOD
+       MOV  R2,@DISCOL
+LAST2  CLR  @SCFLG            NO SCROLLING IF SIZE OR AT
+       CI   R8,RPAR$*256
+       JNE  ERR$4
+LAST3  MOVB *R12+,R8
+       JMP  LAST1
+*
+*    NAME:  SIZE(X)
+*
+ACCDS4 BL   @CHKPAB           CHECK IF PREVIOUSLY SELECTED.
+SIZBIT DATA >0800
+       BL   @G1IN0            GET SIZE
+       MOV  @FAC+SNUM,R0
+       ABS  R0                TEST FOR NEGATIVE RESULTS.
+       JEQ  RANER1            ERROR IF ZERO
+       JGT  POSZER
+       SOC  @BMASK,@ADFLAG    REMEMBER IT FOR ACCEPT
+POSZER MOVB R0,R0             TEST IF >255 (FOR COMPATIBILITY)
+       JNE  RANER1            RANGE ERROR >255
+       MOV  R0,@FACSAV        SAVE IT.
+       JMP  LAST2
+
+*
+*    NAME:  CLEAN UP
+*           MAKE SURE WE LIMIT TO REMAINING
+*           SPACE ON THIS LINE
+*
+
+CLENUP MOV  @DISCOL,R2
+       MOV  @DISROW,R1
+       BL   @GOTOXY
+       BL   @GETCCP           RESET CCPPTR (AND R0) = XPT+1
+       MOVB @ADFLAG,R1
+* NOW TEST IF ACCEPT OR DISPLAY
+       MOV  @DISFLG,R0
+       JNE  CLENU1            IT IS DISPLAY
+       ANDI R1,>1C00          IS IT SIZE, AT OR CLIP IF ACCEPT
+       JMP  CLENU2            CONTINUE
+
+CLENU1 ABS  @BOTLIN           IS IT DISPLAY AT LINES 24 OR 25?
+       JEQ  CLENU3
+       MOV  @SWIDTH,@DEFPAB+LRC  USE ENTIRE WINDOW
+CLENU3 ANDI R1,>1800          SIZE OR CLIP?       (FOR AT ALSO)
+CLENU2 JEQ  GNXRTN            NO, SO ALL DONE
+       S    @DISCOL,@LRC(R15)  OKAY HAVE THE MAX LENGTH ON THE LINE
+       MOV  @CW01,@CCPPTR     ALWAYS FOR SIZE AND CLIP
+       C    @FACSAV,@LRC(R15) SIZE PUTS THE SIZE IN FACSAV
+       JHE  GNXRTN            SO USE SIZE(X) IF IT IS THE SMALLEST
+       MOV  @FACSAV,@LRC(R15) HAVE TO USE IT
+       JMP  GNXRTN            RETURN
+
+ERR$4  B    @OPNERS           LOAD ERROR CODE (SYNTAX)
+
+ERR$3  B    @GFISNM           ERROR STRING NUMBER MISMATCH
+
+*
+*    CHECK FOR MULTIPLE ENTRIES OF THE SAME OPTION.
+*
+CHKPAB MOV  @ADFLAG,R4
+       COC  *R11,R4           PREVIOUSLY SELECTED?
+       JEQ  ERR$4             YES, BONG THEM.
+CKPAB1 SOC  *R11+,@ADFLAG     ELSE, REMEMBER FOR NEXT TIME.
+       MOVB *R12+,R8          GET NEXT PROGRAM CHARACTER
+       RT
+*
+*      BRANCH TABLE FOR OPTION SEARCH.
+*
+OPTTBL EQU  $
+       DATA ACCDS4            SIZE
+       DATA CLENUP            ALL
+       DATA CLENUP            USING
+       DATA ACCDS2            BEEP
+       DATA ACCDS1            ERASE ALL
+       DATA ACCDS3            AT(Y,X)
+*
+*  INT(FAC) =  R2
+*  [ R2 MOD R0 ] + 1 =  R2      IF R2>=R0
+*
+MODSCL MOV  @SCRBOT,R5        GET ROW MOD SCREENBOT.
+       S    @SCRTOP,R5
+       INC  R5
+
+*    CALL MOD(INT ROW)
+*             R5
+
+MOD    CLR  R1                SET UP REGISTER PAIR FOR DIVIDE
+       MOV  @FAC+SNUM,R2      GET ARGUMENT.
+       DEC  R2                MAKE ZERO BASED.
+       JEQ  MOD1              LOOK OUT FOR ZERO.
+       JLT  MOD2              FIX NEGATIVE NUMBERS
+       DIV  R5,R1             (R1,R2)/R5->R1; REM->R2
+MOD1   RT
+
+MOD2   CLR  R2                NEGATIVE ARGUMENTS SET TO 0.
+       RT
+
+*    NAME:  BAD ARGUMENT.
+
+RANER1 LI   R0,ERRBA          LOAD ERROR CODE (BAD ARG)
+       BL   @ERROR            AND REPORT IT !
+
+* NOW FOR SOME SIMPLE PARSING COMMANDS
+
+G1IN0  LI   R0,LPAR$*256
+GNX    DECT R10
+       MOV  R11,*R10
+       CB   R8,R0
+       JNE  ERR$4             SYNTAX ERROR
+       MOVB *R12+,R8
+       BL   @PARSE            GET NUMBER
+       DATA RPAR$*256
+       CB   @FAC+SID,@CSIDST  CHECK FOR STRING
+       JEQ  ERR$3             ERROR
+       BL   @FTOI             CONVERT TO INTEGER
+GNXRTN MOV  *R10+,R11
+       RT                     GO BACK
+
+GNX0   LI   R0,COMMA$*256
+       JMP  GNX
+       PAGE
+
+*
+*    P R I N T / D I S P L A Y  U S I N G  S E C T I O N
+*
+*       ARRIVE HERE AFTER THE KEYWORD "USING" HAS
+*       BEEN RECOGNIZED.
+*
+
+USN10  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       CI   R8,USING$*256
+$USING EQU  $-2
+       JNE  ERR$4
+       MOVB *R12+,R8
+       CI   R8,LN$*256        CHECK FOR A LINE NUMBER.
+       JEQ  USE100            JUMP IF USING A LINE.
+*
+*      USING [ FORMATS AND OR STRINGS ]
+*
+       BL   @PARSE            PARSE UP TO THE ENDING ":"
+       BYTE COLON$
+CBHE5  BYTE >E5
+
+       CB   @FAC+SID,@CSIDST  GOT A STRING
+       JNE  USNG$1
+       MOV  @FAC+SLEN,R3      SAVE THE STRING LENGTH
+       INC  R3                ADD ONE FOR LENGTH BYTE
+       CI   R3,256
+       JH   USNG$1            CAN ONLY BE A 255 BYTE LENGTH STRING
+
+* NOW MOVE THE STRING TO IMGBUF
+
+       MOV  @FAC+STRP,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @FAC+STRA,R1      GET 13 BIT ADDRESS
+       AI   R1,>A000          MAKE IT 16
+       DEC  R1                POINT TO LENGTH BYTE
+       LI   R2,IMGBM1         DESTINATION BUFFER
+       BL   @FASMVB           MOVE IT
+       JMP  USE130
+
+*      USING [ LINE # ]
+
+USE100 MOVB *R12+,@FAC+SNUM   GET HIGH BYTE
+       MOVB *R12+,@FAC+SNUML  GET LOW BYTE
+
+*
+*   NAME:   FINDLN:
+*   CALL:   WITH LINE NUMBER IN R8
+*   RETURN  WITH EQ RESET IF NOT FOUND
+*                EQ SET IF FOUND AND THE ADRESS IN FAC
+*
+*  FOR A PRINT USING THE LINE SHOULD LOOK SOMETHING LIKE:
+*
+*      10 PRINT USING 100:A$
+*
+*  0100                 000A LINE NUMBER
+*  0102                 0105 TEST ADDRESS
+*  0104          LENGTH 0B9C "PRINT"
+*  0106         "USING" EDC9 "LINE NO."
+*  0108                 0064 100
+*  010A         "COLON" B541 A
+*  010C               $ 2400
+*
+*  EVENTUALLY STRING WILL BE MAPPED TO THE PERMANENT STRING,
+*  STRWI2 WILL BE MAPPED TO A WORK COPY OF THE STRING ONTO
+*  WHICH THE INPUT VALUES ARE WRITTEN.
+*
+       MOV  @CLINE,R5         SAVE CLINE
+       BLWP @SRCHLN           SEARCH FOR LINE NUMBER
+       MOV  @CLINE,R0         SAVE CLINE
+       MOV  R5,@CLINE         RESTORE CURRENT LINE NUMBER
+       MOV  R0,R1             COPY LINE ADDRESS
+       JEQ  USNG$1            NO, IMAGE ERROR
+
+*    CALL GETPGM(INT I, CHAR *S1)
+*                R1     R2
+
+       BL   @FASTPG           MAP IN THE LINE # TABLE
+       INCT R1
+       MOV  *R1,R1            GET POINTER TO LINE ITSELF
+       BL   @FASTPG           MAP IN THE LINE ITSELF
+       LI   R2,IMGBM3
+       LI   R3,165            MAXIMUM PROGRAM LENGTH
+       BL   @FASMVB
+
+       CB   @IMGBM3,@IMGTOK   IS IT AN IMAGE STATEMENT?
+       JNE  USNG$1            BRANCH IF NOT
+       MOVB @IMGBM1,R3
+       SRL  R3,8
+       MOV  R3,@FAC+SLEN      SAVE STRING LENGTH
+       MOVB *R12+,R8
+
+*  AT THIS POINT, WE SHOULD HAVE THE TEST OF THE PERMANENT
+*  STRING MAPPED IN AT STRWI2.
+
+USE130 CI   R8,COLON$*256     CHECK FOR VARIABLE LIST.
+       JEQ  USE150
+       BL   @EOSTMT           IF NOT ":" SHOULD BE END
+       JEQ  USE140
+ERRSY1 B    @OPNERS           LOAD ERROR CODE (SYNTAX)
+*
+*
+USE140 MOV  @FAC+SLEN,R0      EMPTY STRING?
+       JNE  USE175            PRINT USING "ABC"
+*********************** WATCH STACK HERE
+       INCT R10
+       B    @EOLEX            BRANCH TO GPL EOLEX ON RETURN.
+********************************************
+*
+USE150 MOV  @FAC+SLEN,R0      COPY STRING LENGTH
+       JEQ  USNG$1            EXCLUDE NULL STRINGS.
+       LI   R1,IMGBUF         TEXT.
+
+USE160 CB   *R1+,@POUND
+       JEQ  USE170
+       DEC  R0
+       JNE  USE160
+
+USNG$1 BL   @BADIM            LOAD ERROR CODE (IMAGE ERROR)
+
+*  NOW WE'RE SURE THAT WE HAVE AT LEAST ONE LEGAL
+*  FORMAT ITEM (ANYTHING WITH A "#" IN IT)
+
+COMMA  EQU  $+2
+USE170 LI   R8,COMMA$*256     FAKE COMMA SEPARATOR FOR PRINTOUT.
+
+*  PUSH ADDRESS OF SOURCH STRING
+
+USE175 MOV  @FAC+SLEN,@IMGLEN     SAVE ITS LENGTH
+US$101 MOV  *R10+,R11         AND GO BACK
+       RT
+       PAGE
+*
+*  FOUND A "#"
+*  POSSIBLY BACK UP FOR '.' AND/OR ('+' OR '-')
+*
+USN20  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  R14,R0            GET INDEX INTO BUFFER
+       AI   R0,DISBUF
+       BL   @CHKUC            '.' ?
+       BYTE '.'
+BYTE6B BYTE >6B
+       JNE  USE210
+       DEC  R0                YES, BACK UP ANOTHER
+USE210 BL   @CHKUC            '+'?
+       BYTE '+'
+ASTER  BYTE '*'               EXTRA BYTE FOR CONSTANT
+       JEQ  USE220
+       BL   @CHKUC            '+'?
+       BYTE '-'
+CB06   BYTE >06               EXTRA BYTE FOR CONSTANT
+       JEQ  USE220
+       INC  R0
+USE220 AI   R0,-DISBUF-1
+       MOV  R0,R14
+       JMP  US$101
+       PAGE
+*
+*      CHECK FOR AVAILABILITY OF VARIABLES
+*      SET UP DESCRIPTION OF FIELD
+*  FAC+9 : TOTAL NUMBER OF DIGITS
+*  FAC+11: FLAGS
+*          BIT0: FIXED FORMAT
+*          BIT1: EXPLICIT SIGN
+*          BIT2: POSITIVE SIGN
+*          BIT3: E-FORMAT
+*          BIT4: EXTENDED E-FORMAT
+*          BIT5:
+*          BIT6:
+*          BIT7:
+*  FAC+12: DIGITS TO LEFT OF DECIMAL
+*  FAC+13: DIGITS TO RIGHT OF DECIMAL (INCLUDES DECIMAL)
+*
+
+USN30  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOVB *R12+,R8          GET NEXT EXPRESSION.
+       BL   @PARSE
+       BYTE COLON$
+CBHC7  BYTE >C7
+       BL   @MAPFD            MAKE SURE WE STILL HAVE THE PAB
+
+*    INITIALIZE CNS PARAMETERS
+
+       LI   R0,CNSPAR         LOAD ADDRESS
+       CLR  *R0+
+       CLR  *R0+
+       CLR  *R0
+
+       MOV  R14,R0
+       AI   R0,DISBUF+1
+       MOV  R0,R2             SAVE STARTING POSITION.
+       BL   @CHKUC
+       BYTE '.'               DECIMAL POINT?
+CB08   BYTE 8                 EXTRA BYTE FOR CONSTANT
+       JEQ  USE315
+       BL   @CHKUC
+       BYTE '-'
+CB0A   BYTE >A                EXTRA BYTE FOR CONSTANT
+       JNE  USE305
+       SOCB @CB02,@CNSPAR+3   SET EXPLICIT SIGN FLAG.
+USE305 BL   @CHKUC
+       BYTE '+'
+CB0E   BYTE >E                EXTRA BYTE FOR CONSTANT
+       JNE  USE310
+       SOCB @CB06,@CNSPAR+3   SET SIGN AND POSITIVE ARG FLAG.
+USE310 BL   @ACCNM            ACCEPT FIRST CHARACTER PLUS "#"'
+       MOVB @CNSPAR+1,@CNSPAR+4   SET UP FOR CNSXB
+       BL   @CHKUC
+       BYTE '.'
+CB01   BYTE >01               EXTRA BYTE FOR CONSTANT
+       JNE  USE325
+USE315 CLR  @CNSPAR
+       BL   @ACCNM
+       MOVB @CNSPAR+1,@CNSPAR+5
+       AB   @CNSPAR+4,@CNSPAR+1
+       DEC  @CNSPAR
+USE325 LI   R4,4              LESS THAN 4 DOESN'T COUNT
+       MOV  R0,R5             SAVE PLACE IN CASE OF PARTIAL M
+USE330 BL   @CHKUC
+       BYTE '^'
+CB20   BYTE >20               EXTRA BYTE FOR CONSTANT
+       JNE  USE335
+       INC  R0
+       DEC  R4
+       JNE  USE330
+       MOV  R0,R5             ACCEPT 4 '^'S
+       SOCB @CB08,@CNSPAR+3      SET E-FORMAT FLAG FOR CNSXB
+       BL   @CHKUC
+       BYTE '^'
+BIT7   BYTE >80               EXTRA BYTE FOR CONSTANT
+HEX80  EQU  BIT7
+       JNE  USE335
+       SOCB @CBH10,@CNSPAR+3  GET EXTENDED E-FORMAT FLAG.
+       INC  R5                ACCEPT ANOTHER '^'
+USE335 MOV  R5,R0
+*
+*   AT THIS POINT, R2 IS POINTING AT THE FIRST
+*   ITEM OF THE FORMAT, R0 IS POINTING AT THE
+*   CHARACTER FOLLOWING THE ITEM
+*
+USE340 CB   @FAC+SID,@CSIDST  TEST FOR NUMERIC ARGUMENT.
+       JEQ  USE375            JUMP IF ITS A STRING.
+       MOVB @CNSPAR+3,R3      FOUND NUMERIC ARG, EXCLUDE SIGN
+       SRL  R3,R10
+       JNC  USE345
+       DEC  @CNSPAR           NUMBER OF SIGNIFICANT DIGITS
+USE345 SRL  R3,2              E-FORMAT?
+       JNC  USE350            NO.
+       CB   @CNSPAR+1,@CB0A   IF MORE THAN 10 SIGNIFICANT
+       JGT  BADIM             DIGITS, THEN IN ERROR IN E-FORMAT
+       JMP  USE355
+USE350 CB   @CNSPAR+1,@CB0E   IF MORE THAN 14 SIG DIGITS
+       JGT  BADIM             IN FLOATING POINT.
+USE355 SOCB @CB01,@CNSPAR+3   SET FIXED FORMAT OUTPUT FOR CNS
+       LI   R0,X$CNS          LOAD OP-CODE
+       MOV  R2,R1             WHERE IT IS TO GO
+       LI   R2,FAC+SNUM       POINT TO NUMBER
+       MOV  @CNSPAR+2,R3
+       MOV  @CNSPAR+4,R4
+       MOV  R4,R5
+       SZCB R5,R5
+       SRL  R4,8
+       XOP  @TEN,0            CONVERT IT
+
+*    FAC11 POINTS TO THE BEGINNING OF THE STRING AFTER
+*    SUPRESSING LEADING 0'S, FAC12 COMTAINS THE LENGTH OF
+*    THE STRING
+
+       MOV  R1,R0             POINTER TO BEGINNING
+USE370 A    R2,R0             ADD THE LENGTH
+       JMP  USE220            CONTINUE AFTER PRINTING
+
+*      STRING VARIABLE.
+*      FAC SHOULD LOOK LIKE:
+*
+*      FAC0 [  LENGTH  ]
+*      FAC2 [  8100    ]
+*      FAC4 [ PHYS ADD ]
+*      FAC6 [ PHYS ADD ]
+*
+USE375 MOV  R0,R1             GET THE LENGTH OF THE FORMAT.
+       S    R2,R1
+       C    R1,@FAC+SLEN      ENSURE ENOUGH ROOM IN FORMAT.
+       JHE  USE385
+       MOV  R2,R1             COMPUTE TOTAL LENGTH
+USE380 MOVB @ASTER,*R1+
+       C    R1,R0
+       JNE  USE380
+       JMP  USE370
+
+USE385 MOV  R0,R5
+       MOV  R2,R1
+       MOV  @FAC+SLEN,R3      GET THE LENGTH OF THE STRING.
+       JEQ  USE390
+
+       MOV  @FAC+STRP,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @FAC+STRA,R1      GET 13 BIT ADDRESS
+       AI   R1,>A000          MAKE IT 16
+       BL   @FASMVB           MOVE IT
+USE390 CLR  R0                FOR ABOVE
+USE395 C    R2,R5             PAD WITH BLANKS.
+       JEQ  USE370            ON WITH NEXT ITEM.
+       MOVB @SPACE,*R2+
+       JMP  USE395
+
+*=========================================================================
+*
+*      COLLECT STRING OF "#"'S
+*
+*=========================================================================
+ACCNM  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+ACCNM1 INC  @CNSPAR            INCREMENT COUNTER
+       INC  R0
+       BL   @CHKUC
+POUND  DATA '##'
+       JEQ  ACCNM1
+ACCNM2 MOV  *R10+,R11
+       RT
+
+*
+*  CHECK CHARACTER POINTED TO BY R0
+*  RETURNS .EQ. IF MATCH
+*
+
+CHKUC  MOV  *R11+,R3          GET PATTERN CHARACTER
+       CI   R0,DISBUF+1
+       JL   CHKUC1            IF BEFORE FIRST CHARACTER
+       CB   *R0,R3
+CHKUC1 RT
+
+
+CB03   EQU  $+3
+BADIM  LI   R0,ERRIM          LOAD ERROR CODE (IMAGE ERROR)
+       BL   @ERROR            AND REPORT IT !
+
+PRINIT CLR  @DSRFLG           DSR I/O
+PR$$0  MOV  @INTOFF(R15),@CCPPTR
+       INC  @CCPPTR
+       RT
+
+       PAGE
+*
+*      OUTPUT ONE CHARACTER, IN R0
+*
+*      IMGBM3 HAS POINTER TO STRING, BYTE# HAS LENGTH
+*
+
+OSTRN1 MOVB R0,@STRBUF+1      MOVE CHARACTER TO BUFFER
+       MOVB @CBH01,@STRBUF    WRITE ITS LENGTH
+
+*    STRING IS IN STRING BUFFER, TRANSFER TO IMAGE BUFFER
+*    SO CODE STILL WORKS
+
+OSTRFC LI   R5,STRBUF         LOAD SOURCE STRING
+OSTR22 MOVB *R5+,R3           GET STRING LENGTH
+       SRL  R3,8
+
+OSTRN2 MOV  R3,@BYTE#         SAVE # OF BYTES TO OUTPUT
+       JEQ  CHKUC1            NO I/O IF ZERO LENGTH STRING
+       DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+OSTRN3 SETO @ARG613           SET FLAG, SOME TYPE OF OUTPUT PERFORMED
+
+       BL   @CHKREC           OUTPUT IT
+       MOV  @BYTE#,R4         UNTIL COMPLETE
+       JNE  OSTRN3
+       JMP  ACCNM2            RETURN TO OS
+
+OSTRNG MOV  @FAC+SLEN,R3      GET LENGTH
+
+*    MAP IN THE STRING
+       MOV  @FAC+STRP,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+       MOV  @FAC+STRA,R5      SOURCE ADDRESS IS 13 BITS
+       AI   R5,>A000          MAKE IT 16
+       JMP  OSTRN2            JOIN COMMON CODE
+       PAGE
+
+OUTEOF CB   *R15,@CBH03       TEST IF WRITE OPCODE
+       JNE  CHKUC1            RETURN IF NOT
+       MOV  @INTOFF(R15),R0   TEST IF ANYTHING IN BUFFER
+       JEQ  CHKUC1            NOTHING
+       DECT R10               SAVE RETURN
+       MOV  R11,*R10
+       BL   @PRINIT           INITIALIZE OUTPUT
+       BL   @OUTREC           OUTPUT IT
+       JMP  ACCNM2            RETURN
+
+       PAGE
+
+CHKRUS MOV  @CW01,@CCPPTR     MAKE SURE THAT PRINTING STARTS HERE
+       LI   R5,DISBUF+1       POINT TO USING STRING
+
+CHKREC DECT R10               SAVE RETURN (ON INPUT R5 POINTS TO STRING)
+       MOV  R11,*R10
+CHKR$3 MOV  @LRC(R15),R4      GET LENGTH
+       INC  R4                MAKE BASE ONE FOR CCPPTR
+       S    @CCPPTR,R4        NOW R4 CONTAINS AMOUNT OF REC LEFT
+       MOV  R4,@MNUM          NUMBER OF BYTES ON LINE
+       C    R4,@BYTE#         WILL THIS FIT?
+       JHE  CHKR$2            YES, WILL FIT IN THIS RECORD
+
+* IT WON'T FIT IN THIS RECORD, SO SEE IF WE ARE AT THE BEGINNING
+
+       C    @CCPPTR,@CW01     TEST IF THIS IS A NEW RECORD
+       JEQ  CHKR$1            YES, AT BEGINNING, SO PUT OUT STARTING HERE
+
+       BL   @OUTREC           NO, SO OUTPUT WHAT WE HAVE AND START AT NEXT REC
+       JEQ  CHKR$5            RETURN IF SIZE OR CLIP
+       JMP  CHKR$3            CONTINUE UNTIL IT FITS
+
+CHKR$2
+CHKR$1 MOV  @DSRFLG,R0
+       JEQ  CHK$01            BRANCH IF DSR I/O
+       MOV  @BYTE#,R2         LENGTH
+       MOV  R5,R1             POINT TO STRING
+* NOW TEST IF SCROLL MODE OR NOT
+
+       MOVB @ADFLAG,R0
+       ANDI R0,>1800          SIZE,CLIP?
+       JNE  CHKR$4            BRANCH IF NO SCROLL MODE
+
+*  MAKE SURE THAT WE ARE ON THE SCREEN, OR ELSE DO A SCROLL
+       C    @CCOL,@WWIDTH
+       JL   INWIN
+       CLR  @CCOL
+       INC  @CROW
+       C    @CROW,@WHIGHT
+       JL   INWIN
+       MOV  R5,@SAVER5        SAVE R5 FOR LATER USE
+       BL   @SROLL
+       MOV  @SAVER5,R1        GET THE LENGTH AND POINTER BACK
+       MOV  @BYTE#,R2
+
+INWIN  BL   @DSTSC3           OUTPUT IT AND UPDATE CURSOR
+       BL   @GETNCP           GET NEW XPT AND CCPPTR
+       CLR  @BYTE#
+CHKR$5 MOV  *R10+,R11         BACK TO CALLER
+       RT
+
+CHKR$4 EQU  $
+       C    R2,R4             TEST IF STRING IS TOO LONG
+       JLE  CHKR$0            OKAY USE THIS ONE
+       MOV  R4,R2             TOO LONG, SO USE THE REST OF THE RECORD
+CHKR$0 CLR  @BYTE#            NO MORE TO WRITE
+       A    R2,@CCPPTR        GET NEW CCPPTR IF SIZE
+CHKR$6 BL   @DSTSC3           OUTPUT THE STRING AND UPDATE THE CCOL AND CROW
+       JMP  CHKR$5            RETURN
+
+
+*CHK$01 BL   @MAPFD            NOW PAB MAPPED IN >6000, STRING AT >A000
+CHK$01 MOV  @PABBUF(R15),R3   NOW MAP IN THE PAB BUFFER
+       MOV  @PABBUF+2(R15),R2
+       A    @INTOFF(R15),R2      ADD IN THE OFFSET
+       A    @BYTE#,@INTOFF(R15)  UPDATE THE INTERNAL OFFSET
+*      MOVB @CBHFF,@IOCONT(R15)   SET I/O NOT REQUIRED
+
+* NOW TEST IF WE ARE GOING TO DO I/O (IE IF THE RECORD GETS FILLED)
+
+       SETO R4                NO I/O FLAG
+       C    @INTOFF(R15),@LRC(R15)
+       JL   CHK$$1                    NO I/O THIS ROUND
+       CLR  R4                     DO I/O AFTER WE MOVE THE STRING INTO THE BUF
+CHK$$1 MOVB @DATBUF(R3),@MAP96   MAP IN THE BUFFER
+       MOVB @DATBUF+1(R3),@MAP98
+       AI   R2,>6000           MAKE A 16 BIT ADDRESS
+       MOV  @BYTE#,R3         LENGTH OF STRING
+       JEQ  CHKR$5            BRANCH IF ZERO
+       MOV  @FAC+STRP,R1      NOW MAP BACK IN THE STRING AT >A000
+       MOVB @DATBUF(R1),@MAP9A
+       MOVB @DATBUF+1(R1),@MAP9C
+       MOV  R5,R1             GET POINTER TO STRING ITSELF
+       BL   @FASMVB
+       CLR  @BYTE#            CLEAR BYTE COUNT
+       BL   @MAPFD            GET THE PAB BACK IN
+       ABS  R4
+       JEQ  OUTD01            GO TO OUTPUT IT
+       MOV  *R10+,R11
+       B    @PR$$0            DO OUTPUT IF NEC
+       PAGE
+*    NAME:  FILSPC
+*
+*    WHAT: ON INPUT MNUM CONTAINS THE SIZE OF THE RECORD TO FILL (+1)
+*
+
+FILSPC DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  @MNUM,R2
+       C    R2,@CCPPTR        TEST IF ANY TO OUTPUT
+       JLE  FILS$3            RETURN IF RECORD ALREADY FULL
+       S    @CCPPTR,R2        THIS MANY TO FILL
+       A    R2,@CCPPTR        UPDATE CCPPTR
+       MOV  @DSRFLG,R1        DSR OR SCREEN I/O?
+       JNE  FILS$6            SCREEN
+       BL   @FILPBF           FILL THE BUFFER WITH MNUM BLANKS
+       MOV  *R10+,R11         MAY WANT TO DO I/O HERE
+       B    @PR$$0            RETURN
+
+FILS$6
+* FIX BUG AT END OF SCREEN BLANK
+       C    @CCOL,@WWIDTH     ARE WE PAST THE END?
+       JHE  FILS$3            YES, SO JUST RETURN, ALL DONE
+       LI   R1,BLKBUF         POINTER TO STRING
+       JMP  CHKR$6
+       PAGE
+OUTREC DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  @LRC(R15),@MNUM   THIS MANY BLANKS
+*       INC  @MNUM             MAKE BASE 1
+       MOV  @DSRFLG,R0        TEST IF SCREEN OR DSR I/O
+       JEQ  OUTD00            IS DSR I/O
+       INC  @MNUM             chg'd to scrn only ju 8-5-98
+       MOV  @SCFLG,R0         TEST IF IN SCROLL MODE
+       JEQ  OUTS01            BRANCH IF NO SCROLL MODE
+       C    @CCPPTR,@CW01     TEST IF AT START
+       JEQ  OUTS02            BRANCH IF AT ZERO, THEREFORE DON'T SCROLL
+       BL   @FILSPC
+       MOV  R5,@SAVER5
+       BL   @SROLL
+       MOV  @SAVER5,R5
+OUTS02 BL   @INITKB
+       JMP  FILS$3
+
+* NOW TEST IF WE NEED TO GO TO A NEW RECORD OR WHAT?
+
+OUTS01 MOV  @CCOL,R1
+       JEQ  OUTS03            BRANCH IF AT BEGINNING OF NEW
+       BL   @FILSPC           BLANK MNUM SPACES
+       MOVB @ADFLAG,R0        TEST IF SIZE OR CLIP
+       ANDI R0,>1800
+       JEQ  OUTS03            NOT SIZE, SO UPDATE RECORD
+* IS SIZE, SO RETURN WITH CONDITION "EQ" AND BYTE CLEARED
+       CLR  @BYTE#
+       MOV  *R10+,R11
+       C    R11,R11           SET EQ ON RETURN
+       RT
+
+OUTS03 MOV  @CW01,@CCPPTR     RESTORE CCPPTR AND LRC
+       MOV  @WWIDTH,@LRC(R15)
+FILS$3 MOV  *R10+,R11
+       RT
+
+OUTD00
+* DSR I/O
+       BL   @MAPFD
+OUTD01 MOVB @MFLAG(R15),R2       SEE IF WE NEED TO FILL THE PAB BUFFER WITH FILL
+       SLA  R2,4              IS IT FIXED?
+       JOC  OUTD03            NO, SO JUST OUTPUT WHAT WE HAVE
+       MOV  @LRC(R15),R2       NOW GET NUMBER TO FILL
+       S    @INTOFF(R15),R2
+       JEQ  OUTD03             NONE TO FILL
+       JLT  OUTD03             CERTAINLY NONE TO FILL
+       BL   @FILPBF           FILL R2 BYTES WORTH
+
+OUTD03 LI   R0,$WRITE
+       BL   @FILIOO
+       JEQ  OUTD05            GOOD I/O, SO CONTINUE
+       ABS  @CLSMOD           SHOULD WE CONTINUE HERE, OR ERROR OUT
+       JEQ  OUTD04            BOMB OUT, NOT IN CLOSE ALL MODE
+OUTD05 MOV  *R10+,R11
+       B    @PR$$0
+
+OUTD04 BL   @ERROR
+       PAGE
+FILIOO MOVB R0,*R15           USE THIS OPCODE
+FILEIO MOV  @PABBUF(R15),R2   NOW GET CULATE THE BUFFER ADDRESS
+       MOV  @PABBUF+2(R15),R3
+       AI   R2,16             FOR THE 8 PGM PAGES AND 8 INTERPRETOR PAGES
+       SRC  R2,3
+       SOCB R2,R3             NOW HAVE LOW ORDER 16 BIT ADDRESS
+       SZCB R2,R2
+       MOV  R3,@BALOW(R15)
+       MOV  R2,@ECODE(R15)    SETS HIGH ORDER ADDRESS AND CLEARS ERROR FLAG
+       MOV  @INTOFF(R15),@CHRCNT(R15)
+       MOV  R15,R0
+       MOVB *R0,@IOERR+1      STORE OPCODE IN CASE OF ERROR
+       XOP  @EIGHT,0          DO THE I/O
+       S    @CHRCNT(R15),@INTOFF(R15)    UPDATE INTOFF
+       LI   R0,ERRIO              SET I/O ERROR JUST IN CASE
+       MOVB @ECODE(R15),@IOERR    SET STATUS ON RETURN
+       RT
+
+*  FILPBF  FILL THE PAB BUFFER WITH R2 BLANKS  (>20 OR >00)
+FILPBF DECT R10
+       MOV  R11,*R10
+       BL   @MAPFD            MAKE SURE PAB IS MAPPED IN
+       CLR  R0                ASSUME INTERNAL TYPE
+       MOVB @MFLAG(R15),R3
+       SLA  R3,5
+       JOC  FILS$1            BRANCH IF INTERNAL
+       LI   R0,>2020          DISPLAY TYPE BLANK
+FILS$1 MOV  @PABBUF(R15),R3
+       MOV  @PABBUF+2(R15),R4
+       A    @INTOFF(R15),R4   POINT TO WHERE TO START IN BUFFER
+       AI   R4,>A000          MAKE IT 16 BIT
+       CLR  @MNUM             EMPTIED THE THING
+       A    R2,@INTOFF(R15)   UPDATE THE INTERNAL OFFSET
+       MOVB @DATBUF(R3),@MAP9A
+       MOVB @DATBUF+1(R3),@MAP9C
+FIL$$0 MOVB R0,*R4+
+       DEC  R2
+       JNE  FIL$$0
+       MOV  *R10+,R11
+       RT
+       PAGE
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.158.IOSRC1
+*
+*  NAME:    I/O SOUCRE 1
+*
+*  VERSION: 3.0 - 11/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*
+*    NAME:  FINDFD
+*
+*    WHAT:  FIND A PREVIOUS FILE DESC
+*
+
+FINDFD DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       MOV  @PABLST+2,@PABPTR
+       BL   @MAPFD            MAP IT IN
+       LI   R2,MAXPAB
+       CLR  @PABPTR           PUT THE MAPPED PAB POINTER IN PABPTR
+
+$F10   MOVB @FILENO(R1),R0
+       JNE  $F11
+       MOV  R1,@PABPTR        THIS IS AN AVAILABLE BUFFER
+       JMP  $F12
+
+$F11   CB   @DEFPAB+FILENO,R0
+       JEQ  $F20              MATCH
+$F12   AI   R1,64             POINT TO NEXT PAB
+       DEC  R2                MORE TO DO
+       JNE  $F10              YES
+       CLR  R0                RETURN - FALSE  DIDN'T FIND IT
+
+$F13   MOV  *R10+,R11
+       RT
+
+$F20   MOV  R1,@PABPTR        THIS IS WHERE IT WAS FOUND
+       MOV  R1,R15            PABPTR
+       SETO R0                RETURN TRUE
+       JMP  $F13
+       PAGE
+*
+*
+*    NAME:  MAPFD
+*
+*    WHAT:  MAPS IN FILE DESC MEMORY
+*
+
+MAPFD  MOV  @PABLST,R1        GET THE PAGE
+       ANDI R1,>00FF          MASK IT OUT
+       MOVB @DATBUF(R1),@MAP96
+       MOVB @DATBUF+1(R1),@MAP98
+
+       MOV  @PABPTR,R1        GET 13 BUT ADDRESS
+       ORI  R1,>6000          MAKE IT 16
+       RT                     AND RETURN
+       PAGE
+CLSONE DECT R10
+       MOV  R11,*R10
+       CLR  @IOERR            ZERO OUT ERROR CODE
+       SETO @CLSMOD           IN CLOSE MODE
+       BL   @OUTEOF           WRITE THE LAST RECORD IF NEC
+       MOVB @IOERR,R0         ERROR?
+       JNE  CLOSE4            YES, ERROR
+       LI   R0,$CLOSE         CLOSE OPCODE
+       BL   @FILIOO           CLOSE IT
+CLOSE4 MOV  *R10+,R11
+CLOSE9 CLR  @FILENO(R15)      FREE UP PAB
+
+* NOW RELEASE THE PAB BUFFER STRING IN STRING SPACE
+
+       MOV  @PABBUF(R15),R2    PAGE INDEX
+       MOV  @PABBUF+2(R15),R3  13 BIT ADDRESS
+       MOVB @DATBUF(R2),@MAP9A
+       MOVB @DATBUF+1(R2),@MAP9C
+       AI   R3,>A000-6        LENGTH AND 2 WORD BACK POINTER
+       CLR  *R3+              CLEAR THE BACK POINTER ONLY
+       CLR  *R3
+       LI   R0,ERRIO
+       MOVB @ECODE(R15),@IOERR
+       RT
+
+
+CLOSAL DECT R10
+       MOV  R11,*R10
+       MOV  @PABLST+2,R15     GET START OF PAB'S
+       MOV  R15,@PABPTR       SAVE FOR LATER USE
+       MOV  @PABLST,R4        MAP THE PAB'S IN
+       MOVB @DATBUF(R4),@MAP96
+       AI   R15,>6000         MAKE 16 BIT
+       LI   R14,MAXPAB
+CLOSA2 MOVB @FILENO(R15),R0   IS THIS PAB IN USE?
+       JEQ  CLOSA1            NO, SO TRY NEXT
+       BL   @CLSONE           SO GO TO CLOSE IT
+CLOSA1 LI   R0,64
+       A    R0,@PABPTR
+       A    R0,R15
+       DEC  R14
+       JNE  CLOSA2
+       MOV  *R10+,R11
+       RT
+       PAGE
+
+DSTSC3 MOV  @BOTLIN,R0        IS IT DISPLAY AT THE BOTTOM LINE?
+       JEQ  DSTSC4            NO, SO CONTINUE
+       LWPI UREG2+16          LOAD PARMS IN UREG2 R8-R11
+       LI   R0,X$GM
+       XOP  @SIX,0
+       LWPI UREG2             USE THE UREG2 WORKSPACE
+       LI   R0,X$SM           IT IS, SO OPEN UP THE WINDOW COMPLETELY
+       CLR  R1                TOP MARGIN
+       CLR  R2                LEFT MARGIN
+       LI   R3,25             BOTTOM ROW
+       MOV  @SWIDTH,R4            RIGHT MARGIN
+       DEC  R4
+       XOP  @SIX,0
+       MOV  @DISCOL,R2
+       MOV  @DISROW,R1
+       BL   @GOTOXY
+       LWPI UREG1
+       A    R2,@DISCOL        UPDATE THE DISPLAY COLUMN
+
+DSTSC4 MOV  @ADFLAG,R0
+       ANDI R0,>2080          ANY BLINK OR INVERSE OPTIONS?
+       JEQ  DISTO1
+       CI   R1,BLKBUF         ARE WE IN THE BLANKING BUSINESS?
+       JEQ  DISTO1            YES, SO JUST BLANK, NO NONSENSE
+       MOV  R1,@WSM           SAVE R1 FOR LATER
+       MOV  @FB,R1
+       SWPB R1                ASSUME INVERSE
+       MOVB R0,R0             IS IT BLINK?
+       JEQ  DISTO3            IT IS INVERSE
+       SWPB R1
+       ORI  R1,>8080          SET THE MSB OF EACH COLOR
+DISTO3 LI   R0,X$SFB
+       XOP  @SIX,0
+       MOV  @WSM,R1           GET R1 BACK
+DISTO1 LI   R0,X$WCS          OUTPUT THE STRING
+       CLR  R3                UPDATE CURSOR
+       XOP  @SIX,0
+       LI   R0,X$GCP          UPDATE THE POINTERS
+       XOP  @SIX,0
+       MOV  R0,@CROW
+       MOV  R1,@CCOL
+       MOV  @ADFLAG,R2        TEST IF WE NEED TO RESET THE COLORS
+       ANDI R2,>2080          BLINK OR INVERSE?
+       JEQ  DISTO2
+       CI   R1,BLKBUF
+       JEQ  DISTO2
+       MOV  @FB,R1
+       LI   R0,X$SFB
+       XOP  @SIX,0
+DISTO2 MOV  @BOTLIN,R0        DID WE JUST DO I/O TO BOTTOM LINES?
+       JEQ  DISTO4            NO, SO JUST RETURN
+* RESTORE THE CURRENT WINDOW
+       LWPI UREG2+14          WATCH HERE FOR TRICKY MOVE
+       LI   R0,X$SM
+       XOP  @SIX,0
+       LWPI UREG1
+
+DISTO4 RT
+
+BLKBUF DATA >2020,>2020,>2020,>2020,>2020
+       DATA >2020,>2020,>2020,>2020,>2020
+       DATA >2020,>2020,>2020,>2020,>2020
+       DATA >2020,>2020,>2020,>2020,>2020
+       DATA >2020,>2020,>2020,>2020,>2020
+       DATA >2020,>2020,>2020,>2020,>2020
+       DATA >2020,>2020,>2020,>2020,>2020
+       DATA >2020,>2020,>2020,>2020,>2020
+
+IOTKTB BYTE VARTOK-TIRANG/2
+       BYTE RELTOK-TIRANG/2
+       BYTE INTTOK-TIRANG/2
+       BYTE SEQTOK-TIRANG/2
+       BYTE OUTTOK-TIRANG/2
+       BYTE UPDTOK-TIRANG/2
+       BYTE APDTOK-TIRANG/2
+       BYTE FIXTOK-TIRANG/2
+*DON1   CB   @DEFPAB+16,@HDID
+*      JNE  DOND
+*      MOV  @DEFPAB,@HDID1
+*      MOV  @CHRCNT,@DEFPAB
+*      LI   R0,DEFPAB
+*      XOP  @EIGHT,0
+*      MOVB @DEFPAB+ECODE,@IOERR
+*      JNE  DONEZX
+*      MOV  @HDID1,@DEFPAB
+*      MOVB @CHRCNT,@HDID
+*      B    @DON2
+*HDID1B DATA >0000     *DOND   B    @DONA
+*HDID1A DATA >FE28     *DONEZX B    @DONEZZ
+*HDID1  DATA >FE2A

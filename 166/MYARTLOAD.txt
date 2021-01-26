@@ -1,0 +1,179 @@
+ECOLOR BL   @PARONE           GET FOREGROUND COLOR
+       JEQ  MYAR98            JUMP IF STRING NUMBER MISMATCH
+       BL   @FTOI             CONVERT IT
+       MOV  @FAC+SNUM,R1      MAKE SURE IT IS BETWEEN 1 AND 256
+       DEC  R1
+       MOVB R1,R1
+       JNE  ECOLBV            BAD VALUE
+       MOV  @SMODE,R0
+       CI   R0,5
+       JLE  SCR06             CAN'T DO IT, SO CONTINUE
+       CI   R0,10             IS IT TEXT 2 MODE (26 ROWS?)
+       JHE  SCR06             YES, SO ERROR OUT
+
+       LI   R0,X$SEDG         SET EDGE OPCODE
+
+       XOP  @SIX,0            SET THE COLOR
+SCR06  B    @CONT             ALL DONE
+********************************************************************************
+*                                     BYTE
+*   CALL MYART("PATHNAME")   FORMAT    0    BACKGROUND COLOR
+*                                      1    FLAG 0=256 MODE  0<>=512 MODE
+*                                      2-33 IF 512=COLOR PALETTE EXACT COPIES OF
+*                                                         REGISTER
+*                                      34-  IF 512 /XXXX 000Y / YYYYYYYY/
+*                                                   X=COLOR CODE Y=LENGTH
+*
+*                                      2-   IF 256 /XXXXXXXX / YYYYYYYY/
+*                                                   X=COLOR   Y=LENGTH
+*                                      MUST END ON LINE BOUNDARIES
+*
+********************************************************************************
+MYAPAB DATA >0004             OPEN, FIXED-DISPLAY-INPUT
+       DATA 0                 CLEAR ERROR CODE AND HIGH BYTE OF BUF ADD
+       DATA EDITB             USE THE EDIT BUFFER
+       DATA 0                 LOGICAL RECORD NUMBER
+       DATA 128               LOGICAL RECORD LENGTH
+
+ECOLBV BL   @RPTE30
+
+MYAR96 LI   R1,$CLOSE         CLOSE AND REPORT GRAPHICS MODE ERROR
+       LI   R0,DEFPAB
+       MOVB R1,*R0
+       XOP  @EIGHT,0          CAN NOT CAUSE AN ERROR
+
+MYAR99 LI   R0,ERRGRM         GRAPHICS MODE ERROR
+       B    @ERROR
+
+MYAR98 B    @RPTE07           STRING NUMBER MISMATCH
+
+MYART  LI   R1,512            ASSUME 512 MODE
+       C    @SMODE,@CW08      MUST ONLY BE GRAPHICS MODE 8 OR 9
+       JL   MYAR99            GRAPHICS MODE ERROR
+       JEQ  MYAR10
+       C    @SMODE,@TEN       26 LINE TEXT MODE?
+       JEQ  MYAR99            YES
+       SRL  R1,1              IS IN THE 256 MODE
+MYAR10 MOV  R1,@TMP1          USE TMP1 FOR # OF PIXELS
+       BL   @PARONE           GET JUST ONE ARGUMENT FOR SURE
+       JNE  MYAR98            IS NUMBER, MUST BE A STRING S-N-M
+       BL   @INITPB           INITIALIZE THE DEFAULT PAB
+       BL   @STTODP           STRING PATHNAME TO DEFAULT BUFFER
+       LI   R1,MYAPAB         NOW GET THE OPEN FILE CHARACTERISTICS
+       LI   R2,DEFPAB
+       MOV  R2,R0
+       MOVB *R1,@IOERR+1      SAVE OPCODE IN CASE OF ERROR
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+
+* NOW JUST OPEN
+
+       XOP  @EIGHT,0          PERFORM AN OPEN
+       MOVB @DEFPAB+ECODE,@IOERR  ERROR?
+       JNE  MYAR97                I/O ERROR, SO JUST BOMB, FILE NOT OPEN
+
+       LI   R1,$READ          NOW READ THE FIRST RECORD
+       MOVB R1,@IOERR+1       SET THE ERROR CODE
+       MOVB R1,*R0            AND OPCODE
+       XOP  @EIGHT,0          NOW READ THE RECORD
+       MOVB @DEFPAB+ECODE,@IOERR
+       JNE  MYAR97              I/O ERROR, SO JUST BOMB, FILE SHOULD BE CLOSED
+
+* NOW TEST IF 512 OR 256 MODE
+
+       LI   R15,EDITB
+*      LI   R3,8              ASSUME 512 MODE
+*      MOVB @1(R15),R4         MODE?
+*      JNE  MYAR00            IT THINKS IT IS 512 MODE
+*      INC  R3
+*MYAR00 C    R3,@SMODE         ARE WE COMPATIBLE?
+*      JNE  MYAR99            NO, BUT FIRST MUST CLOSE THE FILE
+
+* NOW SET THE BACKDROP/BORDER COLOR
+
+       LI   R14,126           126 MORE BYTES TO BE PROCESSED
+       MOV  *R15+,R1
+       SRL  R1,8
+*      MOV  R1,@TMP2
+       LI   R0,X$SBC
+       XOP  @SIX,0            SET THE BORDER COLOR
+       C    @SMODE,@CW08      512 OR 256 MODE
+       JNE  MYAR01            IS IN THE 256 MODE, SO DON'T HAVE TO SET PALETTE
+       LI   R0,X$SCPL         SET THE COLOR PALETTE
+       CLR  R1                INIT COLOR CODE
+MYAR02 MOV  *R15+,R2          SET PALETTE REG FOR XOP
+       SWPB R2
+       XOP  @SIX,0
+       INC  R1
+       DECT R14               ONE LESS WORD IN RECORD
+       CI   R14,126-32        DONE?
+       JNE  MYAR02
+
+* NOW SET UP SCREEN AND PUT THE IMAGE ON SCREEN
+
+MYAR01 CLR  R1                X COORDINATE OF START PIXEL
+       CLR  R2                Y COORDINATE OF START PIXEL
+       CLR  R4                Y COORDINATE OF END PIXEL
+
+*  R3=X COORDINATE OF END, R4=Y COORDINATE OF END, R5(MSB)=COLOR TO RENDER VECTR
+
+MYAR06 CLR  R3                INIT R3 FOR LATER
+       MOVB *R15+,R5          GET COLOR
+       C    @SMODE,@CW08      512, OR 256 MODE?
+       JNE  MYAR03            256
+       MOVB R5,R3             GET MS BIT IN R3
+       SRL  R5,4
+       ANDI R3,>0100          MASK OFF BAD STOUFF
+       SWPB R3
+MYAR03 MOVB *R15+,R3
+       SRC  R3,8              SET THE NUMBER CORRECTLY
+       JNE  MYAR04            IS NON ZERO
+       LI   R3,512
+       C    @SMODE,@CW08
+       JEQ  MYAR04
+       SRL  R3,1
+MYAR04 DEC  R3                MAKE IT BASE 0
+       A    R1,R3
+       LI   R0,X$SVC
+       CLR  R6
+       XOP  @SIX,0            DO IT
+       MOV  R3,R1
+       INC  R1                ADD ONE FOR THIS POINT
+       C    R1,@TMP1
+       JH   MYAR96            BAD MODE HERE
+       JL   MYAR05            CONTINUE ON THIS LINE
+       INC  R2                UP TO NEXT LINE
+       INC  R4
+       CLR  R1
+       CI   R2,212            ARE WE DONE?
+       JHE  MYAR07            YES
+MYAR05 DECT R14               2 LESS TO GO
+       JNE  MYAR06
+       LI   R14,128
+       LI   R15,EDITB
+       LI   R0,DEFPAB         GET NEXT RECORD
+       XOP  @EIGHT,0
+       MOVB @DEFPAB+ECODE,@IOERR
+       JEQ  MYAR06
+
+MYAR97 MOVB *R0,@IOERR+1
+       B    @CF101            IO ERROR
+
+MYAR07 LI   R1,$CLOSE         NOW SET FOREGRROUND AND BACKGROUND OF TEXT
+       LI   R0,DEFPAB
+       MOVB R1,*R0
+       XOP  @EIGHT,0          CAN NOT CAUSE AN ERROR
+
+*      LI   R0,X$WCC          WRITE CHAR COLOR
+*      MOV  @TMP2,R1
+*      MOVB @TMP2+1,R1        GET 2 COPIES OF THE COLOR
+*      MOV  @FB,R1
+*      CLR  R2
+*      SETO R3
+*      XOP  @SIX,0
+
+       B    @CONT             AND CLOSE THE FILE
+

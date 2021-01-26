@@ -1,0 +1,821 @@
+*    NAME:  GRAPHICS
+*
+* FORMAT1:  CALL GRAPHICS(NV)
+*       2:       GRAPHICS(NV, NV)
+*
+*          SET ALL THE PARMS INCLUDING MAXPC AND MAXPR (THESE ARE BASE 0)
+*
+
+THIRTY DATA 30
+MSBOFF DATA >040C             MOUSE BITS OFF SMS
+
+GTBL1  DATA GRAP05            1, ...
+       DATA GRAP07            2, ...
+       DATA GRAP06            3, ...     (26 ROWS)
+       DATA GRAP23            ERROR
+
+GTBL2  DATA GRAP11            1,1
+       DATA GRAP12            2,1
+       DATA GRAP09            1,2
+       DATA GRAP13            TEXT 2 (ONLY 24 ROWS)
+
+GRAP23 BL   @RPTE30
+
+GRAFIC MOV  @MAXX,@MAXPC
+       MOV  @MAXY,@MAXPR
+       SETO @SPINDX           * SET SPRITE MODE FLAG
+       BL   @PARFST
+       JEQ  GRAP22            BRANCH IF STRING
+       BL   @FTOI
+
+       MOV  @FAC+SNUM,R1
+       DEC  R1                MAKE BASE 0
+       CI   R1,3              CAN ONLY BE 0-3
+       JH   GRAP23            BAD VALUE
+
+       MOV  R1,@TLM           SAVE IT FOR LATER USE
+
+       CI   R8,>B600          IS IT A RIGHT PAREN?
+       JEQ  GRAP10            YES, SO USE OLD INDICES
+
+       BL   @PARLST           PARSE LAST ARG
+       JEQ  GRAP22            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @FAC+SNUM,R1
+       DEC  R1
+       CI   R1,2              CAN ONLY BE 0-2
+       JH   GRAP23
+
+       LI   R2,GTBL1          USE THE DOUBLE INDEX TABLE
+GRAP01 SZC  @MSBOFF,@XFLAG    NOW RESET THE MOUSE BITS ON X FLAG
+       LI   R0,X$SETM         TURN OFF MOUSE INTS' TO OS
+       SETO R3
+       XOP  @SIX,0
+       MOV  @TLM,R3
+       SLA  R3,1
+       A    R2,R3             GET ADDRESS
+       MOV  *R3,R3
+       B    *R3               AND GO TO IT
+
+*    OLD FORMAT
+
+GRAP10 MOVB *R12+,R8          GET NEXT CHAR
+       LI   R2,GTBL2          SINGLE INDEX BRANCH TABLE
+       JMP  GRAP01
+
+*    CALL GRAPHICS(1,1
+*                  1,2
+*                  1,3
+
+GRAP05 AI   R1,3              SET MODE
+       CI   R1,4              IS IT (1,3) (IE SPRITE 2 MODE?)
+       JEQ  GRAP34            (1,2)
+       JL   GRAP11            (1,1)
+
+GRAP61 INCT @SPINDX           SPRITE 2 MODE (1,3)
+       JMP  GRAP34
+
+*    CALL GRAPHICS(1)
+
+GRAP11 LI   R1,3              GRAPHICS(1) OR GRAPHICS(1,1)
+       MOV  @ANBIT,@FB        SET TEXT COLOR   >0100
+       CLR  @SFB              SET BACK DROP COLOR (TRANSPARENT FOR NOW)
+       JMP  GRAP32                           CHANGE AFTER GRAPHICS CALL
+
+*    CALL GRAPHICS(3)
+
+GRAP09 LI   R1,4              GRAPH 2 MODE
+
+GRAP34 BL   @S16CLR           SET FOR 16 COLOR MODES
+
+GRAP32 LI   R2,2              LEFT MARGIN BASE 0
+       LI   R4,29             RIGHT MARGIN BASE 0
+       LI   R5,32             SCREEN WIDTH
+GRA14B MOVB @CBH00,@KFLAG     ALWAYS RESET KEY LIST FLAG IF (1 OR (2 MODES
+
+GRAP14 BLWP @SCOLUR           SET THE NEW TEXT AND BACK DROP COLOR
+       MOV  R1,@SMODE         * SET NEW MODE
+       CLR  R0                * SELECT SET VIDEO MODE
+       XOP  @SIX,0
+
+       MOV  @SFB,R1
+       C    @SMODE,@CW03      * IS IT STANDARD GRAPHICS MODE?
+       JNE  GRA14C            * NO, SO CONTINUE
+
+       LI   R1,7              * SET BACK DROP COLOR FOR STANDARD GRAPHICS MODE
+       MOV  R1,@SFB
+GRA14C LI   R0,X$SBC
+       XOP  @SIX,0
+
+       MOV  R5,@SWIDTH        SET SCREEN WIDTH
+
+       CLR  R1                TOP LINE
+       LI   R3,23             BOTTOM LINE
+
+       CLR  @LPR              LAST PIXEL ROW
+       CLR  @LPC              LAST PIXEL COLUMN
+
+       B    @GRAP29           USE SAME CODE AS MARGINS
+
+*    CALL GRAPHICS(3,
+
+GRAP06 MOV  R1,R1             IS TEXT 80 MODE (26 ROW)?
+       JEQ  GRAP15            JUMP IF YES
+
+       INCT @SPINDX           SPRITE MODE 2
+       AI   R1,6
+       CI   R1,7
+       JNE  GRAP33
+       MOV  @CH0300,@FB       SET THE FOREGROUND TO
+       CLR  @SFB
+       JMP  GRAP31
+
+GRAP22 BL   @RPTE07
+
+*    CALL GRAPHICS(3,3)
+*      6 + 2 = 8              GRAPHICS 6 MODE
+*
+*    CALL GRAPHICS(3,2)
+*      6 + 1 = 7              GRAPHICS 5 MODE
+*
+*    CALL GRAPHICS(3,1)
+*              10
+
+GRAP15 LI   R1,10             26 ROW 80 COL TEXT
+       JMP  GRAP16            CONTINUE
+
+GRAP13 LI   R1,1              TEXT 2 MODE   24 ROW
+GRAP16 CLR  @SPINDX           NO SPRITES
+
+       MOVB @FB+1,@SFB+1      IF TEXT THEN TEXT BACKGROUND IS BACKDROP
+
+GRAP33 BL   @S16CLR
+
+GRAP31 LI   R5,80             SCREEN WIDTH
+       LI   R4,79             RIGHT MARGIN
+       CLR  R2                LEFT MARGIN
+       MOV  @MAXX+8,@MAXPC
+       MOV  @MAXY+8,@MAXPR
+       JMP  GRAP14
+
+       PAGE
+*
+*    CALL GRAPHICS(2,
+*
+
+GRAP07 CI   R1,1              IS IT (2,2)
+       JH   GRAP18            NO, IT IS (2,3)
+       JEQ  GRAP19            YES, IT IS (2,2)
+
+*    CALL GRAPHICS(2,1) OR GRAPHICS(2)
+
+GRAP12 CLR  R1                TEXT 1 MODE
+       CLR  @SPINDX           NO SPRITES
+       MOVB @FB+1,@SFB+1      MAKE SURE BACK DROP IS THE BACKGND OF TEXT
+       BL   @S16CLR           SET TO 16 COLOR MODE
+GRAP30 LI   R5,40             SCREEN WIDTH
+       LI   R4,39             RIGHT COL
+       CLR  R2                LEFT COL
+       JMP  GRA14B
+
+*    CALL GRAPHICS(2,3)
+
+GRAP18 LI   R1,9              GRAPHIC 7 MODE
+       MOV  @CHFF00,@FB       SET WHITE ON BLUE
+       MOV  @THREE,@SFB       SET BD TO BLUE
+GRAP52 INCT @SPINDX
+       MOV  @MAXY+4,@MAXPR
+       JMP  GRAP30
+
+*    CALL GRAPHICS(2,2)
+
+GRAP19 LI   R1,6              GRAPHIC 4 MODE
+       BL   @S16CLR           SET CORRECT COLOR
+       JMP  GRAP52
+
+       PAGE
+*
+*    NAME:  MARGIN
+*
+*  FORMAT:  CALL MARGINS(LEFT, RIGHT, TOP, BOTTOM)
+*                        NV    NV     NV   NV
+
+MARGIN BL   @PARFST
+       JEQ  GRAP22
+       BL   @FTOI
+       MOV  @SNUM+FAC,@TLM
+       JEQ  MARG00
+
+       BL   @PARMID
+       JEQ  GRAP22
+       BL   @FTOI
+       MOV  @SNUM+FAC,@TRM
+       JEQ  MARG00
+
+       BL   @PARMID
+       JEQ  GRAP22
+       BL   @FTOI
+       MOV  @SNUM+FAC,@TTL
+       JEQ  MARG00
+
+       BL   @PARLST
+       JEQ  GRAP22
+       BL   @FTOI
+* NOW SEE IF THIS ALL MAKES SENSE
+       MOV  @TLM,R2
+       MOV  @TRM,R4
+       C    R2,R4             IS LEFT MARGIN>RIGHT MARGIN?
+       JHE  MARG00            YES, SO BOMB
+       MOV  @TTL,R1
+       MOV  @SNUM+FAC,R3
+       JEQ  MARG00
+       C    R1,R3             IS TOP MARGIN>BOT MARGIN?
+       JHE  MARG00            BAD VALUE, TOP MARING BELOW BOTTOM MARGIN
+* NOW ADJUST VALUES FOR BASE 0
+       DEC  R1
+       DEC  R2
+       DEC  R3
+       DEC  R4
+       C    R4,@SWIDTH        IS IT A VIABLE NUMBER?
+       JHE  MARG00            NO, TOO LARGE
+       CI   R3,24
+       JHE  MARG00            SCREEN LENGTH TOO LONG
+GRAP29 BL   @GRAP24
+       B    @CONT
+
+GRAP24 LI   R0,X$SM           SET MARGINS
+       MOV  R2,@LMARGN
+       MOV  R1,@SCRTOP
+       MOV  R3,@SCRBOT
+       XOP  @SIX,0
+       MOV  @SWIDTH,R5        GET RIGHT MARGIN
+       S    R4,R5
+       DEC  R5
+       MOV  R5,@RMARGN
+       S    R2,R4             GET MARGIN/WINDOW WIDTH
+       INC  R4
+       MOV  R4,@WWIDTH
+       S    R1,R3             GET WINDOW HEIGHT
+       INC  R3
+       MOV  R3,@WHIGHT
+
+*  NOW SET WINDOW SIZE
+
+       MPY  R3,R4             WINDOW HEIGHT x WINDOW WIDTH
+       MOV  R5,@WINSIZ        RESULT IN R5
+
+*  LASTLY SET CURSOR POSITION AT BOTTOM LEFT
+
+       B    @STCBOT           USE COMMON CODE (AND ITS RETURN)
+
+
+MARG00 BL   @RPTE30           BAD VALUE
+
+       PAGE
+*
+*    NAME:  COLOR
+*
+* FORMAT1:  CALL COLOR (CS, FC, BC
+*       2:             (#SN, FC,
+
+
+COLOR  BL   @CKLPAR           CHECK IF LEFT PAREN
+
+       CI   R8,>FD00          CHECK IF NEXT CHARAACTER IS A "#"
+       JEQ  COL20             JUMP IF YES
+       LI   R8,COMMA$*256     FAKE OUT THE PARSOR
+       DEC  R12               MOVE BACK TO POINT TO THE FIRST ITEM
+COL05  BL   @PARMID           PARSE CHAR NUMBER
+       JEQ  COL11             JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       BL   @RANGE            * RANGE CHECK
+       DATA 0,31
+
+       MOV  @SNUM+FAC,R1
+       AI   R1,3
+       ANDI R1,>001F
+       MOV  R1,@CC
+
+       BL   @GETID
+       SLA  R1,8
+       MOVB R1,@TLM
+
+       BL   @GETID
+
+       C    @SMODE,@CW03      ONLY VALID FOR OLD STANDARD GRAPHICS MODE
+       JNE  COL288
+
+       LI   R0,X$WCC          * LOAD OP-CODE
+       MOV  @CC,R2            * GET STARTING CHAR NUMBER
+       MOVB @TLM,R1           * FOR/BACK
+       CLR  R3                * INDICATE CHAR SET
+       XOP  @SIX,0
+
+COL288 CI   R8,>B300          AT A COMMA
+       JEQ  COL05             JUMP IF YES
+
+       B    @COL08            MUST BE AT RIGHT PAREN AND CONTINUE
+
+
+COL09  BL   @RPTE03           (ERRSN)
+
+COL11  BL   @RPTE07           (ERRSNM)
+
+
+COL20  LI   R8,COMMA$*256
+       BL   @PARMID           PARSE SPRITE NUMBER
+       JEQ  COL11             JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @SNUM+FAC,@SPTBL  SAVE IT
+*      DEC  @SPTBL
+
+SMOU10 BL   @GETID            CONTINUE THE SPRITE COLOR HERE
+       LI   R2,SPTBL+2
+       MOV  R1,*R2+
+
+* NOW COMPARE THE SPRITE MODE
+
+       MOV  @SPINDX,R0
+       JEQ  DRAW40            GRAPHICS MODE ERROR
+       JLT  COLS00            IS MODE I
+* TO BE HERE, IN MODE II, SO SET UP THE INPUT POINTER
+       MOV  @THIRTY,@TLM      MAX COUNTER
+COLS02 MOV  R2,@MCNTR
+       CI   R8,>B300          IS IT A COMMA?
+       JNE  COLS01            NO, SO FILL UP THE REST OF THE VALUES
+       CB   *R12,@CBHFD       IS IT #?
+       JEQ  COLS01            YES, SO FILL UP THE REST OF THE VALUES
+       BL   @GETID            GET THE SPRITE COLOR
+       MOV  @MCNTR,R2
+       MOV  R1,*R2+
+       DECT @TLM              ONE LESS TO DO
+       JEQ  COLS00            ALL DONE WITH THIS SPRITE
+       JMP  COLS02
+
+COLS01 MOV  R2,R1
+       DECT R1
+       MOV  @TLM,R3           THE NUMBER TO GO
+       BL   @FASMVW
+
+COLS00 LI   R0,X$SCOL         SPRITE DEFINE
+       LI   R1,SPTBL          TABLE TO DATA
+       LI   R2,1              DEFINE ONE SPRITE
+       XOP  @SIX,0
+
+       CI   R8,>B300          COMMA?
+       JNE  COL08             NO, MUST BE A RIGHT PAREN
+       CB   *R12+,@CBHFD      IS IT A "#"
+       JNE  COL09             NO, SO MUST BE A SYNTAX ERROR
+       JMP  COL20             AT DO IT AGAIN
+       PAGE
+*
+*    NAME:  SCREEN
+*
+* FORMAT1:  CALL SCREEN(NV)
+*                       BORDER COLOR
+*
+SCREEN BL   @PARONE           GET FOREGROUND COLOR
+       JEQ  COL11             JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @FAC+SNUM,R1      MAKE SURE IT IS BETWEEN 1 AND 256
+       DEC  R1
+       MOVB R1,R1
+       JNE  MARG00            IT IS TOO LARGE
+
+       MOV  R1,@SFB           SET BORDER COLOR
+
+       MOV  @SPINDX,@SPINDX   TEST SPRITE MODE
+       JNE  SCR06
+
+       MOV  R1,R3             IF SPRITE MODE IS 0 THEN WE KNOW IN TEXT MODE
+       SWPB R3
+       MOVB R3,@FB+1          SET TEXT BACKGROUND COLOR
+
+SCR06  LI   R0,X$SBC          * LOAD OP-CODE
+BCOM05 XOP  @SIX,0
+RSTPL1 B    @CONT
+       PAGE
+*
+*    RESET PALETTE    (CALL RESETPLT)
+*
+*
+RSTPLT BL   @EOSTMT           MUST BE AT END OF STATEMENT
+       JNE  COL09             SYNTAX ERROR
+       LI   R0,X$SCPL
+       LI   R1,15
+       LI   R4,DEFPLT         DEFAULT PALETTE TABLE
+
+RSTPL0 MOV  *R4+,R2
+       XOP  @SIX,0
+       DEC  R1
+       JLT  RSTPL1            ALL DONE BACK TO BASIC INT
+       JMP  RSTPL0            SET NEXT PALETTE COLOR
+
+
+       PAGE
+*
+*    NAME:  DRAW
+*
+*  FORMAT:  CALL DRAW(LT, PR1, PC1, PR2, PC2
+*
+
+DRAW   BL   @GETLT            * GET LINE TYPE
+
+DRAW05 BL   @GETROW           * GET ROW
+       MOV  R1,@LPR
+
+       BL   @GETCOL           * GET COL
+       MOV  R1,@LPC
+
+       BL   @GETROW           PARSE PIXEL ROW 2
+       MOV  R1,@PR1
+
+       BL   @GETCOL           PARSE PIXEL COL 2
+       MOV  R1,@PC1
+
+       C    @SMODE,@CW04      TEST IF IN BIT MAPPED MODE
+       JL   DRAW40
+       C    @SMODE,@TEN
+       JHE  DRAW40
+
+       BLWP @DRAWIT
+
+       CI   R8,>B300          AT A COMMA
+       JEQ  DRAW05            YES MORE TO DRAW
+COL08  BL   @CKRPAR           ENSURE RIGHT PAREN
+       B    @CONT             AND CONTINUE
+
+DRAW40 BL   @RPTE37
+
+       PAGE
+*
+*    NAME:  DRAWTO
+*
+*  FORMAT:  CALL DRAWTO(LT, PR1, PC1
+*
+
+DRAWTO BL   @GETLT
+
+DRAT05 BL   @GETROW           * GET ROW
+       MOV  R1,@PR1
+
+       BL   @GETCOL           * GET COL
+       MOV  R1,@PC1
+
+       C    @SMODE,@CW04
+       JL   DRAW40
+       C    @SMODE,@TEN
+       JHE  DRAW40
+
+       BLWP @DRAWIT
+
+       CI   R8,>B300          AT A COMMA
+       JEQ  DRAT05            JUMP IF YES
+
+       B    @COL08            ENSURE RIGHT PAREN
+
+       PAGE
+*
+*    NAME:  TCOLOR   (TEXT COLOR)
+*
+*  FORMAT:  CALL TCOLOR(FC, BC)
+*
+
+TCOLOR BL   @GETCLR           GET THE COLOR
+
+       MOV  @TLM,@FB          SET FORE GROUND AND BACKGROPUND COLORS
+
+       MOV  @SPINDX,@SPINDX   TEST IF WE NEED TO SET BACK DROP COLOR (IF TEXTMO)
+       JNE  TCOL00
+       MOVB @FB+1,@SFB+1      SET THE BACKDROP COLOR
+
+TCOL00 BLWP @SCOLUR           SET BACK DROP AND FOREGND/BACKGND COMPUTERS
+       B    @CONT
+
+       PAGE
+*
+*    NAME:  DCOLOR
+*
+*  FORMAT:  CALL DCOLOR(FC, BC)
+*
+
+DCOLOR BL   @GETCLR           PARSE THE THING
+
+       MOV  @TLM,R1
+
+       MOV  R1,@DRAWC
+       MOV  R1,R2
+       MOV  R2,R3
+       SLA  R1,4
+       SLA  R2,4
+       SWPB R3
+       SOC  R2,R3
+       SLA  R2,4
+       SOC  R2,R1
+       ANDI R3,>00FF
+       SOC  R3,R1
+       MOV  R1,@DRWCLR
+       B    @CONT
+
+       PAGE
+*
+*    NAME:  BLINK COLOR
+*
+*  FORMAT:  CALL BCOLOR(FC, BC)
+*
+
+BCOLOR BL   @GETCLR
+
+       LI   R3,FBB            POINTER TO DATA LOCATION
+       LI   R1,12             VDP REGISTER NUMBER
+
+BCOM   MOV  @TLM,R4           MAKE SURE THE CORRECT RANGE
+       MOV  R4,R2             SAVE FOR LATER USE
+       ANDI R4,>F0F0
+       JNE  BCOM00            BAD VALUE
+       MOV  R2,*R3            STORE THE VALUE
+       MOV  R2,R3             * COPY FOR ALIGNMENT
+       SRL  R3,4              * MOVE TEXT COLOR
+       SOC  R3,R2             * MOVE BACK
+       SZCB R2,R2             * ZERO OUT MSB
+       LI   R0,X$VWTR
+       B    @BCOM05           * PERFOMR XOP AND CONTINUE
+
+BCOM00 BL   @RPTE30           * BAD VALUE
+       PAGE
+*
+*    NAME:  BLINK TIME
+*
+*  FORMAT:  CALL BTIME(RATE ON, RATE OFF)
+*                      NE       NE
+
+BTIME  BL   @GETCLR
+       LI   R3,BON            LOCATION TO PUT BLINK TIME IN RAM
+       LI   R1,13             TO REGISTER 13
+       JMP  BCOM
+
+       PAGE
+*
+*    NAME:  POINT
+*
+*  FORMAT:  CALL POINT(LT, PR1, PC1 [,PR2,RC2] )
+*
+
+POINT  BL   @GETLT            * GET LINE TYPE
+
+POIN05 BL   @GETROW           * GET ROW
+       MOV  R1,@PR1
+
+       BL   @GETCOL           * GET COL
+       MOV  R1,@PC1
+
+       C    @SMODE,@CW04      MUST BE IN BIT MAPPED GRAPHICS MODE
+       JL   DRAW40
+       C    @SMODE,@TEN
+       JEQ  DRAW40
+
+       LWPI UREG2
+       LI   R0,X$SPC          SET PIXEL COLOR
+       MOV  @PC1,R1           COL - X
+       MOV  @PR1,R2           ROW - Y
+       CLR  R4
+       MOV  @LT,R7
+       JEQ  POIN20
+       SRL  R7,1
+       JNE  POIN30
+       MOV  @DRAWC,R3
+POIN10 XOP  @SIX,0
+       LWPI UREG1
+
+       CI   R8,>B300          AT A COMMA
+       JEQ  POIN05            YES - MORE TO DO
+
+       MOV  @PR1,@LPR         SAVE LAST USED
+       MOV  @PC1,@LPC
+       B    @COL08            ENSURE RIGHT PAREN AND CONTINUE
+
+
+POIN20 MOV  @DRAWC,R3
+       SWPB R3
+       JMP  POIN10
+
+POIN30 LI   R4,>0300
+       JMP  POIN10
+
+       PAGE
+*
+*    PALETTE(CS#, R, G, B, ...)
+*
+*
+*
+PALETE BL   @PARFST           * PARSE COLOR SET NUMBER
+       JEQ  PT100
+PAL21  BL   @FTOI
+       BL   @RANGE
+       DATA 1,16
+       DEC  @SNUM+FAC
+       MOV  @SNUM+FAC,@CC
+
+PAL10  BL   @GETID            PARSE RED
+       CI   R1,7
+       JH   BCOM00
+       SLA  R1,4
+       MOV  R1,@PR1
+
+       BL   @GETID            PARSE GREEN
+       CI   R1,7
+       JH   BCOM00
+       SLA  R1,8
+       MOVB R1,@PR1
+
+       BL   @GETID            PARSE BLUE
+       CI   R1,7
+       JH   BCOM00
+       MOV  R1,R2
+
+       A    @PR1,R2
+
+       LI   R0,X$SCPL
+       MOV  @CC,R1
+       XOP  @SIX,0
+
+       CI   R8,COMMA$*256
+       JEQ  PAL20
+       B    @COL08            ENSURE RIGHT PAREN AND CONTINUE
+
+PAL20  BL   @PARMID           * PARSE COLOR SET NUMBER
+       JNE  PAL21             * IT IS A NUMBER
+
+PT100  BL   @RPTE07           * STRING NUMBER MISMATCH
+       PAGE
+
+GETROW DECT R10
+       MOV  R11,*R10
+       BL   @PARMID
+       JEQ  PT100
+       BL   @FTOI
+       LI   R0,ERRBVR
+       MOV  @SNUM+FAC,R1
+       DEC  R1
+       C    R1,@MAXPR         CHECK HIGH
+       JH   RANERR
+PCOM   MOV  *R10+,R11
+       RT
+
+GETCOL DECT R10
+       MOV  R11,*R10
+       BL   @PARMID
+       JEQ  PT100
+       BL   @FTOI
+       LI   R0,ERRBVC         BAD COLUMN
+       MOV  @SNUM+FAC,R1
+       DEC  R1
+       C    R1,@MAXPC         CHECK HIGH
+       JLE  PCOM              OKAY, GO FORTH
+       JMP  RANERR            NOT, FORGET IT
+
+GETLT  DECT R10
+       MOV  R11,*R10
+       BL   @PARFST
+       JEQ  PT100
+       BL   @FTOI
+       MOV  @SNUM+FAC,R1
+       LI   R0,ERRBVL
+       CI   R1,0              CHECK LOW
+       JL   RANERR
+       CI   R1,2              CHECK HIGH
+       JH   RANERR
+       MOV  R1,@LT
+       JMP  PCOM
+
+RANERR BL   @ERROR
+
+********************************************************************************
+*
+*      THIS ROUTINE DETERMINES WHETHER TO CHANGE THE TEXT COLOR AND
+*           THE BACKDROP COLOR DURING A NAME CHANGE BY THE FOLLOWING RULES
+*      1) WHENEVER GOING TO (1,1)(3) SET TEXT TO  1/0  AND BD=7       (BASE 0)
+*      2) WHENEVER GOING TO (2,3)(9) SET TEXT TO  255/3  AND BD=3
+*      3) WHENEVER GOING TO (3,2)(7) SET TEXT TO  3/0  AND BD=0
+*      4) WHENEVER GOING TO (1,2) (1,3) (2,1) (2,2) (3,1) (3,3) (4)
+*           A) IF COMING FROM A COMPATIBLE MODE USE THE SAME COLOR
+*           B) IF COMING FROM A NON COMPATIBLE SET TEXT F/5 AND BD=5
+*
+********************************************************************************
+S16CLR MOV  @SMODE,R0
+       CI   R0,3              SET TEXT AND BORDER COLOR IN 16 COLOR MODES
+       JEQ  S16CL1            IS IT A NON SIMILAR MODE?
+       CI   R0,9
+       JEQ  S16CL1
+       CI   R0,7
+       JNE  S16CL2
+S16CL1 MOV  @CH0F05,@FB
+       MOV  @FIVE,@SFB
+S16CL2 RT
+
+
+SCOLUR DATA UREG2,$SETC
+
+$SETC  LI   R0,X$SBC          * LOAD OP-CODE SET BACKDROP COLOR
+       MOV  @SFB,R1           * SET BORDER
+       XOP  @SIX,0
+
+       LI   R0,X$SFB          * SET TEXT FOREGROUND AND BACKGROUND COLOR
+       MOV  @FB,R1            * GET THE CHARACTER SET COLOR
+       XOP  @SIX,0
+
+       RTWP
+
+GETCLR DECT R10
+       MOV  R11,*R10
+       BL   @PARFST           PARSE FORGROUND COLOR
+       JEQ  PT100
+       BL   @FTOI
+       DEC  @SNUM+FAC
+       MOVB @SNUML+FAC,@TLM
+
+       BL   @PARLST           PARSE BACKGROUND COLOR
+       JEQ  PT100
+       BL   @FTOI
+       DEC  @SNUM+FAC
+       MOVB @SNUML+FAC,@TLM+1
+GETID1 MOV  *R10+,R11
+       RT
+
+GETID  DECT R10
+       MOV  R11,*R10
+       BL   @PARMID           PARSE BACKGROUND COLOR
+       JEQ  PT100             JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @SNUM+FAC,R1
+       DEC  R1
+       CI   R1,15             WITHIN RANGE?
+       JLE  GETID1            YES, ALL IS WELL
+
+       BL   @RPTE30           ERROR BAD VALUE
+
+CH0300 DATA >0300
+CHFF00 DATA >FF00
+CH0F05 DATA >0F05
+
+       PAGE
+
+*
+*    NAME:  GPOINT
+*
+*  FORMAT:  CALL GPOINT(PR1, PC1, NVAL1 [,PRN,RCN,NVALN] )
+*
+GPOI02 BL   @RPTE03           SYNTAX ERROR
+
+GPOINT C    @SMODE,@FOUR
+       JL   GPOI01            GRAPHICS MODE ERROR
+       C    @SMODE,@TEN
+       JEQ  GPOI01
+
+       CI   R8,>B700
+       JNE  GPOI02            SYNTAX ERROR
+
+       LI   R8,>B300          FORCE A COMMA
+
+       BL   @GETROW
+       MOV  R1,@PR1
+
+       BL   @GETCOL
+       MOV  @PR1,R2
+       LI   R0,X$GPC
+       XOP  @SIX,0
+       SRL  R0,8              USE ONLY FOREGROUND COLOR
+       MOV  R0,@SPTBL+6
+       B    @GPOI00           USE COMMON ROUTINE
+
+GPOI01 BL   @RPTE37           GRAPHICS MODE ERROR
+       PAGE
+DRAWIT DATA UREG2,DRAW00
+
+DRAW00 LI   R0,X$SVC          LOAD OP-CODE
+       MOV  @PC1,R1           Y = ROW
+       MOV  @PR1,R2           X = COL
+       MOV  @LPC,R3           Y = ROW
+       MOV  @LPR,R4           X = COL
+       MOV  @FB,R5            * SET BACK = SCREEN
+       MOVB @DRAWC,R5         * SET FOR
+       CLR  R6
+       MOV  @LT,R7            GET LINE TYPE
+       JEQ  DRAW20            LOAD BACK
+       SRL  R7,1
+       JNE  DRAW30            LOGICAL
+
+DRAW10 XOP  @SIX,0
+       MOV  @PC1,@LPC         UPDATE THE LAST ROW AND COLUMN
+       MOV  @PR1,@LPR
+       RTWP
+
+DRAW20 SWPB R5
+       JMP  DRAW10
+
+DRAW30 LI   R6,>0300          XOR OP-CODE
+       JMP  DRAW10
+
+DEFPLT DATA >777,>555,>265,>411,>664,>661,>373,>171
+       DATA >627,>151,>327,>117,>733,>611,0,0
+

@@ -1,0 +1,377 @@
+*
+*    NAME:  FILL
+*
+*  FORMAT:  CALL FILL(PR1, PC1, CC)
+*                    (PR1, PC1)
+
+FILL   BL   @PARFST
+       JEQ  FILL10
+       BL   @FTOI
+       MOV  @SNUM+FAC,R1
+       DEC  R1
+       C    R1,@MAXPR
+       JH   FILL08
+       MOV  R1,@PR1
+
+       BL   @GETCOL
+       MOV  R1,@PC1
+
+*      CI   R8,>B600
+*      JNE  FILL15
+
+       BL   @CKRPAR
+
+FILL5  MOV  @SMODE,R5
+       SLA  R5,1
+       B    @VFMODE(R5)
+
+FILL08 LI   R0,ERRBVR
+       BL   @ERROR
+FILL11 BL   @RPTE37
+
+FILL13 BL   @FILLIN
+       JMP  FILL20
+
+FILL14 MOV  @FB,R3
+       MOVB @DRAWC,R3
+       MOV  @PR1,R2
+       MOV  @PC1,R1
+       BLWP @FILLS
+       JMP  FILL20
+
+VFMODE JMP  FILL11            0 - TEXT 1
+       JMP  FILL11            1 - TEXT 2
+       JMP  FILL11            2 - NOT USED
+       JMP  FILL11            3 - 1,1
+       JMP  FILL13            4   1,2
+       JMP  FILL13            5   1,3
+       JMP  FILL14            6
+       JMP  FILL14            7
+       JMP  FILL14            8
+       JMP  FILL14            9
+       JMP  FILL11            10
+
+FILL20 B    @CONT
+
+FILL09 BL   @RPTE03
+FILL10 BL   @RPTE07
+
+FILL15 BL   @PARLST
+       JEQ  FILL10
+       BL   @FTOI
+       MOV  @SNUM+FAC,R3
+       JMP  FILL5
+
+EFILL  CLR  @YBAS
+       CLR  @XBAS
+       MOV  @02(R13),R1
+       SWPB R1
+       MOV  R1,@SPRITX
+       MOV  R1,@OXBAS
+       MOV  @04(R13),R2
+       SWPB R2
+       MOV  R2,@SPRITY
+       MOV  R2,@OYBAS
+       LI   R2,>F000
+       MOVB R2,@SPRITY+1
+       MOVB @06(R13),@COLR
+       MOVB @PNT,@CMDR
+       BL   @DOCMD
+       BL   @READ7
+       MOVB R1,@BACKCL
+       CB   @BACKCL,@COLR
+       JNE  EFILLB
+       B    @EFILLE
+
+*      SPRITE X AND Y ALREADY IN RIGHT PLACE
+
+EFILLB MOVB @COLR,@CSAVE
+       MOVB @BACKCL,@COLR     * COLOR TO SEARCH FOR
+       MOVB @LZR,@FLGS        * SET FLAG - SEARCH RIGHT
+       MOVB @SRCH,@CMDR       * SEARCH COMMAND
+       CLR  R5                * SET DEFAULT XSTART
+       MOV  @SZOFSC,R6        * SET DEFAULT XEND
+       BL   @DOCMD            * SEARCH RIGHT
+EFILLW BL   @READ2            * READ STATUS REGISTER
+       COC  @L0100,R1         * END OF COMMAND
+       JEQ  EFILLW            * JUMP IF NO
+*      ANDI R1,>1000          * CHECK IF WE FOUND COLOR
+*      JEQ  EFILLF            * JUMP IF NO - SET FIRST X COORD TO 0
+       BL   @READ8            * READ X COORDINATE
+       SWPB R1                * SAVE LOW BYTE
+       BL   @READ9            * READ X COORDINATE
+       DEC  R1                * BACK UP FOR ZERO ADDRESS
+       MOV  R1,R6             * R6 HAS END POINT
+EFILLF MOVB @L04,@FLGS        * SET FLAG - SEARCH LEFT
+       BL   @DOCMD            * SEARCH TO THE LEFT FOR FIRST ENDPOINT
+EFLLW2 BL   @READ2            * READ STATUS REGISTER
+       COC  @L0100,R1         * CHECK IF DONE
+       JEQ  EFLLW2            * JUMP IF NO
+*      ANDI R1,>1000          * FOUND COLOR
+*      JEQ EFILLG             * JUMP IF NO
+       BL   @READ8            * READ X COORDINATE
+       SWPB R1                * SAVE LOW BYTE
+       BL   @READ9            * READ X - COORDINATE HIGH
+       INC  R1                *
+       MOV  R1,R5             * R5 HAS START POINT
+EFILLG MOV  @SPRITY,R4        * Y START POINT
+       LI   R3,FSTACK         * LOAD STACK ADDRESS
+*
+* FORMAT OF STACK - FST WORD, XST, XEN
+*                 - 2ND WORD, Y, AND SEARCH FLAG - F0 IS UP
+*                 - AND 0F IS SEARCH DOWN (JUST TIMESAVER)
+*
+       ANDI R5,>01FF
+       ANDI R6,>01FF
+
+EFILLH MOV  R6,*R3+           * END
+       MOV  R5,*R3+           * START
+       MOV  R4,*R3+           * YCOR
+EFRECU CI  R3,FSTACK
+       JGT EFRE00
+       B   @EFILLE
+EFRE00 DECT R3
+       MOV  *R3,R4
+       DECT R3
+       MOV  *R3,R5            * POP Y AND FLAGS, XEND, YEND RESPECITVLY
+       DECT R3
+       MOV  *R3,R6
+       SWPB R5
+       MOV  R5,@XBAS
+       SWPB R5
+       MOV  R4,@YBAS
+       MOV  R6,R1
+       S    R5,R1
+       ABS  R1
+       SWPB R1
+       MOV  R1,@LNG
+       MOVB @LZR,@FLGS
+       CLR  @SHRT
+       MOVB @LABS,@CMDR
+       MOVB @CSAVE,@COLR
+       BL   @DOCMD            * COLOR IN THE LINE
+       MOVB @BACKCL,@COLR
+       MOVB @SRCH,@CMDR
+       MOV  R4,R7             * SAVE COPY OF Y
+       CB   R7,@HD3           * CHECK IF END OF ROPE
+       JHE  EFRE01
+       AI   R7,>0100
+       MOVB R7,@OYBAS
+       BL   @SERLIN
+EFRE01 MOVB R4,R7
+       JEQ  EFRECU            * DONT SEARCH UP, WE'RE AT TOP LINE
+       AI   R7,->0100
+       MOVB R7,@OYBAS
+       BL   @SERLIN
+       JMP  EFRECU
+
+SERLIN MOV  R11,@SERRET       * SAVE RETURN ADDRESS
+
+       MOV  R5,R1
+       JEQ  WHAM1
+*
+       SWPB R1
+       MOV  R1,@OXBAS
+       MOVB @L06,@FLGS
+       BL   @DOCMD
+*
+WHAM2  BL   @READ2
+       COC  @L0100,R1
+       JEQ  WHAM2
+*
+       ANDI R1,>1000
+       JEQ  WHAM1
+*
+       BL   @READ8
+*
+       SWPB R1
+       BL   @READ9
+
+WHAM1  SWPB R1
+       MOV  R1,@OXBAS
+SERLN2 MOVB @LZR,@FLGS
+       BL   @DOCMD
+SERLNW BL   @READ2
+       COC  @L0100,R1
+       JEQ  SERLNW
+       ANDI R1,>1000
+       JEQ  SEREND            * NO MORE ON PIXELS
+       BL   @READ8
+       SWPB R1
+       BL   @READ9
+*
+       MOV  R1,R9
+       SWPB R1
+       MOV  R1,@OXBAS
+       MOVB @LTWO,@FLGS       * SEARCH FOR NON BORDER COLOR
+       BL   @DOCMD
+SRLNW2 BL   @READ2
+       COC  @L0100,R1
+       JEQ  SRLNW2
+       ANDI R1,>1000
+       JNE  EFIL01
+       MOV  @SZOFSC,R1
+       INC  R1
+       JMP  EFIL00
+EFIL01 BL   @READ8
+       SWPB R1
+       BL   @READ9
+EFIL00 SWPB R1
+       MOV  R1,@OXBAS         * NEXT TIME THROUGH, WE'LL SEARCH WITH THIS COORDI
+       SWPB R1
+       DEC  R1
+       MOV  R1,R10
+       BL   @CHECKB           * CHECK IF LINE SEGMENT RETURNED IS VALID
+       C    R10,@SZOFSC
+       JEQ  SEREND
+       ABS  R2
+       JNE  SERLN2
+SEREND MOV  @SERRET,R11
+       RT
+*
+* IS SEGMENT ADJACENT OR PAST END?
+*
+* RETURN: R2=0 STOP, WE'VE PASSED THE SEGMENT
+*         R2<>0 KEEP SEARCHING
+*
+*      HERE, R9 HAS XSTART, R10 HAS XEND, R5 HAS XST/XEN
+*
+CHECKB SETO R2
+       ANDI R9,>01FF
+       ANDI R10,>01FF
+       C    R10,R5            * END < START ?
+       JL   CHEND             * IF SO, RETURN BUT KEEP LOOKING
+       CLR  R2                * WE'RE DONE IF THE NEXT LINE IS TRUE
+       C    R9,R6             * NEW START > OLD END ?
+       JH   CHEND             * RETURN AND STOP LOOKING
+*
+* LINE IS VALID, STACK IT OFF FOR LATER PROCESSING
+*
+       CI   R3,FSTCKE
+       JL   FPUSH
+       RT
+*      END OF FILL
+EFILLE MOVB @CSAVE,@COLR
+       RTWP
+*
+FPUSH  MOV  R10,*R3+
+       MOV  R9,*R3+
+       MOV  @OYBAS,*R3+
+       SETO R2
+CHEND  RT
+*
+*
+*      READ THE STATUS REGISTERS
+*
+READS0 LI   R0,>008F
+       JMP  READ8A
+READ9  LI   R0,>098F
+       JMP  READ8A
+READ8  LI   R0,>088F
+       JMP  READ8A
+READ7  LI   R0,>078F
+       JMP  READ8A
+READ2  LI   R0,>028F
+
+READ8A LIMI 0
+       MOVB R0,@PORT1W
+       SWPB R0
+       MOVB R0,@PORT1W
+       MOVB @PORT1R,R1
+       LIMI 2
+       RT
+
+DOCMD  LIMI 0
+
+WAIT2  LI   R0,>028F
+       MOVB R0,@PORT1W
+       SWPB R0
+       MOVB R0,@PORT1W
+       MOVB @PORT1R,R1
+       COC  @L0100,R1
+       JEQ  WAIT2
+
+       LI   R1,LDATA
+       MOVB *R1+,@PORT1W
+       MOVB *R1+,@PORT1W
+L03    MOVB *R1+,@PORT3W
+       CI   R1,LDATAE
+       JLT  L03
+       LIMI 2
+       RT
+
+DCSAVE DATA >0000
+FIRFLG DATA >0000
+
+LDATA  DATA >2091
+OXBAS  DATA >0000             * R32/R33 X SRC COORD
+OYBAS  DATA >0000             * R34/R35 Y SRC COORD
+XBAS   DATA >0000             * R36/R37 X DST COORD
+YBAS   DATA >0000             * R38/R39 Y DST COORD
+LNG    BSS  1                 * R40/R41 # OF DOTS IN LONG SIDE
+       BSS  1
+SHRT   BSS  1                 * R42/R43 # OF DOTS IN SHORT SIDE
+       BSS  1
+COLR   BYTE >FF               * R44 COLOR
+FLGS   BYTE >00               * R45 ARG REGISTER
+CMDR   BYTE >73               * R46 COMMAND REGISTER
+LDATAE
+
+READS2 EQU  >028F
+READS7 EQU  >078F
+READS8 EQU  >088F
+
+LABS   BYTE >70
+LEOR   BYTE >73
+BEOR   BYTE >83
+BABS   BYTE >80
+SRCH   BYTE >60
+PNT    BYTE >40
+PABS   BYTE >50
+PEOR   BYTE >53
+HA5    BYTE >A5
+XSTART DATA >0000
+YSTART DATA >0000
+SPRTXL DATA >0000
+SPRTYL DATA >0000
+BACKCL BYTE >00
+CSAVE  BYTE >00
+DRAWBX BYTE >83
+DCOL   BYTE >FF
+L0100  DATA >0100
+LFF00  DATA >FF00
+FF00   DATA >FF00
+SETUP  DATA >0091
+*
+
+SETUPE
+BUTREA EQU  >018F
+MXREAD EQU  >038F
+MYREAD EQU  >058F
+CHGSP  EQU  >027A
+CSET   EQU  >0078
+MPAGE  EQU  >038E
+
+       EVEN
+BFLG   DATA >0000
+SPRITX DATA >0000
+SPRITY DATA >0000
+YEND   DATA >0000
+XEND   DATA >0000
+CMND   DATA >0000
+YLIM   DATA >00D3
+L192   DATA >00BF
+L212   DATA >00D3
+L06    BYTE >06
+LTWO   BYTE >02
+L04    BYTE >04
+LZR    BYTE >00
+LBF    BYTE >BF
+HD3    BYTE >D3
+
+       EVEN
+SERRET DATA >0000
+SZOFSC DATA >01FF
+
+FILLS  DATA FREG,EFILL
+

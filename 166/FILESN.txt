@@ -1,0 +1,427 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.156.FILES
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  FILES
+*
+*  FORMAT:  CALL FILES       IF DEFAULT DIR
+*                FILES(NV)   DSK(NV).
+*                FILES(SV)   (SV).
+*
+
+FITYPE DATA 0
+FIOPT  DATA 0
+HRPT   DATA 0
+SAVTYP DATA 0
+SAVPT  DATA 0
+FORMAT DATA 0
+
+
+FERR   LI   R0,ERRWTS
+       BL   @ERROR
+
+FILES  CLR  @FORMAT           * SET FORMAT FLAG
+       MOV  @WWIDTH,R0        * GET WINDOW WIDTH
+       CI   R0,28             * LESS THAN 28
+       JL   FERR              * YEP
+       CI   R0,80             * TEST SCREEN WIDTH
+       JL   F10               * LESS GO WITH SHORTER
+       INCT @FORMAT           * USE LONGER
+F10    BL   @INITPB           * INITIALIZE PAB
+       BL   @EOSTMT           * IS IT JUST "CALL FILES" IF SO USE DEFAULT DIR
+       JNE  CF000
+*      CI   R8,>B700          * TEST FOR LEFT PAREN
+*      JEQ  CF000             * YES, SO GET PATH NAME
+F11    LI   R4,DDIR           * USE DEFAULT DIR
+       MOV  @DDIR,R4          * GET THE PAGE
+       MOVB @DATBUF(R4),@MAP96
+       MOV  @DDIR+2,R1
+       AI   R1,>6000
+       MOV  *R1+,R3           * GET LENGTH
+       JEQ  CF100             * REPORT ERROR
+       A    R1,R3             NOW PUT NULL AT END
+       MOVB @CBH00,*R3
+       BL   @GTMDPN           * GET THE MDOS PATHNAME
+       JMP  CFIL99
+
+
+CF000  BL   @PARONE           * PARSE ONE ARG
+       JEQ  CFILE1            * JUMP IF STRING
+
+       BL   @FTOI
+       LI   R2,DEFPAB+NAMEL   * DEST ADDRESS
+       LI   R1,DNAME          * SOURCE
+       MOVB *R1+,*R2+         * GET LENGTH
+       MOVB *R1+,*R2+         * GET LENGTH
+       MOVB *R1+,*R2+         * GET LENGTH
+       MOVB *R1,*R2+          * GET LENGTH
+       MOVB @FAC+SNUM+1,R1
+       ANDI R1,>0F00
+       ORI  R1,>3000
+       MOVB R1,*R2+
+       MOVB @DPT,*R2
+       JMP  CFIL99
+
+CF100  BL   @RPTE03
+
+CF101  LI   R0,ERRIO
+       BL   @ERROR
+
+
+STTODP DECT R10
+       MOV  R11,*R10
+       MOV  @STRP+FAC,R4      * GET STRING PAGE
+
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+FAC,R1      * GET 13 BIT ADDRESS
+       AI   R1,>5FFE          * MAKE IT 16   (BUT POINT TO LENGTH)
+       MOV  *R1+,R3           * READ LENGTH
+       JEQ  F11               * JUMP IF ZERO
+       CI   R3,40             * GREATER THAN MAX
+       JH   CF100             * JUMP IF YES
+       LI   R2,STRBUF         * MOVE TO STRING BUFFER
+       BL   @FASMVB
+       MOVB @CBH00,*R2        * NULL TERMINATE
+       LI   R1,STRBUF
+       MOV  *R10+,R11
+       B    @GTMDPN           LET THIS DO THE RETURN
+
+
+DOIOCF LI   R0,DEFPAB
+       MOVB *R0,@IOERR+1
+       XOP  @EIGHT,0
+CF106  MOVB @DEFPAB+ECODE,@IOERR
+       JNE  CF101
+       RT
+
+CFILE1 BL   @STTODP
+
+CFIL99 LI   R1,EDITB
+       MOV  R1,@DEFPAB+BALOW
+       MOV  @TWLVE,@DEFPAB
+
+*    NOW TRY AND OPEN THE FILE
+
+       BL   @DOIOCF
+
+*    READ THE FIRST RECORD
+
+       MOVB @CBH02,*R0        * LOAD OP-CODE READ
+       BL   @DOIOCF
+       MOV  @DEFPAB+BALOW,@SAVPT  INITIALIZE THE BUFFER POINTER
+
+* PRINT THE FIRST LINE (DIRECTORY="dir name")
+
+       BL   @SROLL            * make sure we are at the beginning of next line
+       LI   R1,L11            * print DIRECTORY =
+       BL   @DOPRT
+       BL   @PNUPBF           * print the entry and update the buffer pointer
+       BL   @SROLL
+       LI   R1,L20            * NOW print "used="
+       BL   @DOPRT
+
+* NOW BECAUSE THE NUMBERS ARE ASSUMED TO BE AT WORD BOUNDARIES
+*  WE MUST MOVE THESE NUMBERS TO FAC AND ARG
+
+       MOV  @SAVPT,R1         * get the number used
+       AI   R1,10             * go by the dir type
+       LI   R2,FAC
+       LI   R3,8
+       BL   @FASMVB           MOVE THE NUMBER TO FAC
+       MOV  @SAVPT,R1
+       AI   R1,19
+       LI   R2,ARG
+       LI   R3,8
+       BL   @FASMVB
+       LI   R1,FAC
+       MOV  R1,R2
+       LI   R3,ARG
+       LI   R0,X$FSUB
+       XOP  @TEN,0            * okay, used now being pointed to
+
+       NEG  *R2               * MAKE IT POSITIVE
+       LI   R4,6*256          * now print the amount used (6 places)
+       BL   @OUTNUM
+
+       LI   R1,L21            * now print " AVAILABLE="
+       BL   @DOPRT
+
+       LI   R2,ARG
+       LI   R4,6*256
+       BL   @OUTNUM           * NOW FOR THE NUMBER ACTUALLY AVAILABLE
+
+*  NOW FOR THE PROMPT
+       BL   @SROLL            * NOW PRINT THE COLUMN LABELS
+       LI   R1,L301
+       BL   @DOPRT
+       MOV  @FORMAT,R0
+       JEQ  CF200
+
+       LI   R1,L302
+       BL   @DOPRT
+
+CF200  BL   @SROLL
+       LI   R1,L401
+       BL   @DOPRT
+       MOV  @FORMAT,R0
+       JEQ  CFILE2
+
+       LI   R1,L402
+       BL   @DOPRT
+
+CFILE2 MOVB @PFLAG,R0         SEE IF IN A PROGRAM
+       JLT  CFILE9            YES, SO DON'T CHECK FOR BREAK KEY
+       MOV  @KEYBD,R0
+       XOP  @FIVE,0           SCAN KEYBOARD
+       JEQ  CFILE8            FOUND A KEY
+CFILE9 LI   R0,DEFPAB         * READ A RECORD
+       XOP  @EIGHT,0          * PERFORM I/O
+       MOVB @DEFPAB+ECODE,R0  * CHECK IF ERROR
+       JEQ  CFILE5            * JUMP IF NO
+       CB   R0,@CBHA0         * IT IS AN ERROR, SO FILE DOES AN AUTO CLOSE
+       JEQ  CFILE4            * IT IS TRYING TO READ PAST END OF FILE
+       JMP  CF106             * JUMP OTHER IO ERROR
+
+CFILE8 CB   R1,@CBH02         IS IT BREAK?
+       JEQ  CFILE7            YES, SO DONE
+CFIL77 MOV  @KEYBD,R0
+       XOP  @FIVE,0
+       JNE  CFIL77
+       CB   R1,@CBH02         BREAK?
+       JNE  CFILE9            YES
+
+CFILE7 MOVB @CBH01,@DEFPAB   * CLOSE FILE
+       BL   @DOIOCF
+
+CFILE4 BL   @SROLL
+       B    @CONT
+
+
+CFILE5 MOVB @EDITB,R0         DONE?
+       JEQ  CFILE7            YES
+
+CFILE3 BL   @SROLL
+       MOV  @DEFPAB+BALOW,@SAVPT  * INIT THE BUFFER POINTER
+       LI   R1,OUTTBL         * INIT THE OUTPUT TABLE POINTER
+       MOV  R1,@FIOPT         * SAVE IT
+       LI   R2,STRBUF
+       LI   R1,INTSTR
+       MOVB @CB28,*R2+        *  THE FIRST PART IS 28 CHARS LONG
+       LI   R3,80             *  DO WHOLE LINE
+       BL   @FASMVB
+*      MOV  @SAVPT,R1      XXX
+*      LI   R2,>FE30          XXX
+*      LI   R3,66                XXX
+*      BL   @FASMVB                 XXX  TEST 1-25-96
+       MOV  @SAVPT,R1
+       LI   R2,STRBUF+1
+       MOVB *R1+,R3
+       SRL  R3,8
+       A    R3,@SAVPT
+       INC  @SAVPT
+       BL   @FASMVB           MOVE THE FILE NAME
+* NOW FOR TYPE
+
+       BL   @GETNUM           PUT NUMBER IN FAC AND UPDATE SAVPT
+       LI   R2,FAC
+       LI   R0,X$CFI
+       XOP  @TEN,0
+       MOV  R1,R1             IS IT PROTECTED?
+       JGT  CF201
+       MOVB @CHRP,@STRBUF+28  YES, SO SAY SO
+       ABS  R1
+CF201  MOV  R1,@FITYPE        SAVE TYPE FOR LATER USE
+       DEC  R1                MAKE 1 A ZERO
+       MOV  R1,R2
+       SLA  R1,1              MULT BY 2
+       A    R2,R1             ADD 1 FOR MULT BY 3 (3 CHARS PER STRING)
+       AI   R1,TYPETB         NOW POINT TO TABLE
+       LI   R2,STRBUF+18
+       MOVB *R1+,*R2+         NOW MOVE THE TYPE
+       MOVB *R1+,*R2+
+       MOVB *R1+,*R2+
+
+       BL   @PUTNUM           NOW PUT NUM IN FAC AND CNS TO POINTER
+
+       MOV  @FORMAT,R1        IS IT 28 COLUMN FORMAT?
+       JEQ  CF202             YES, THROUGH
+
+       MOVB @CB47,@STRBUF    IT MUST BE AT LEAST SO LONG IN CASE OF DIR
+       BL   @PUTNUM
+       BL   @PUTYR
+
+       MOV  @FITYPE,R0
+       CI   R0,6              IS IT A DIR?
+       JEQ  CF202             YES, SO JUST FINISH FROM HERE
+
+       BL   @PUTNUM
+       BL   @PUTYR
+       MOVB @CB66,@STRBUF
+
+CF202  LI   R1,STRBUF
+       BL   @DOPRT
+
+       B    @CFILE2
+       PAGE
+
+PUTNUM DECT R10
+       MOV  R11,*R10
+
+PUTNU2 BL   @GETNUM           MOVE NUM TO FAC AND UPDATE POINTER
+PUTYR2 MOV  @FIOPT,R0         NOW GET CNS LENGTH AND DESTINATION
+       MOV  *R0+,R4
+       JEQ  PUTNU1            ALL DONE WITH THIS SERIES
+       MOV  *R0+,R1
+       MOV  R0,@FIOPT         SAVE FOR LATER USE
+       LI   R2,FAC
+       CLR  R5
+       LI   R3,1              FIXED POINT
+       LI   R0,X$CNS
+       XOP  @TEN,0
+       JMP  PUTNU2
+
+PUTNU1 S    @NINE,@SAVPT      READJUST SAVPT
+       MOV  R0,@FIOPT         ALL DONE SO UPDATE THE POINTER
+       MOV  *R10+,R11
+       RT
+
+
+GETNUM MOV  @SAVPT,R1         PUT NUMBER IN FAC AND UPDATE SAVPT
+       A    @NINE,@SAVPT
+       INC  R1
+       LI   R2,FAC
+       LI   R3,8
+       B    @FASMVB
+
+
+PUTYR  DECT R10
+       MOV  R11,*R10
+       BL   @GETNUM           PUT NUMBER IN FAC
+       LI   R2,FAC
+       LI   R0,X$CFI
+       XOP  @TEN,0            CONVERT IT TO INTEGER
+       MOV  R1,R1
+       JLT  PUTYR3            NEGATIVE, SO DON'T USE IT
+       CI   R1,1900
+       JL   PUTYR3            TOO LOW
+       CI   R1,2100
+       JH   PUTYR3            TOO HIGH
+*      CI   R1,2000
+*      JL   PUTYR1
+*      AI   R1,-100
+*PUTYR1 AI   R1,-1900
+       MOV  R1,R2
+       LI   R1,FAC
+       LI   R0,X$CIF
+       XOP  @TEN,0            PUT IT BACK
+       JMP  PUTYR2
+
+PUTYR3 CLR  @FAC
+       JMP  PUTYR2
+
+
+PNUPBF MOV  @SAVPT,R1         get pointer to buffer
+       MOVB *R1,R2            get length
+       SRL  R2,8
+       INC  R2
+       A    R2,@SAVPT         update the pointer to next entry
+       B    @DOPRT            go to the print routine
+
+
+OUTNUM LI   R1,STRBUF         USE STRING BUF
+       MOVB R4,*R1+           PUT IN LENGTH
+       LI   R3,1              FIXED POINT CONVERSION
+       SRL  R4,8              ADJUST R4
+       CLR  R5
+       LI   R0,X$CNS
+       XOP  @TEN,0
+       DEC  R1                POINT TO LENGTH BYTE
+       B    @DOPRT            PRINT IT AND DONE
+       PAGE
+
+OUTTBL DATA 6,STRBUF+11       SIZE
+       DATA 6,STRBUF+21       REC/PGM LENGTH
+       DATA 0                 STOP FOR NOW
+
+       DATA 2,STRBUF+48  46       SECOND
+       DATA 2,STRBUF+45  43       MINUTE
+       DATA 2,STRBUF+42  40       HOUR
+       DATA 2,STRBUF+34       DAY OF MONTH
+       DATA 2,STRBUF+31       MONTH
+       DATA 0
+       DATA 4,STRBUF+37       YEAR    2
+       DATA 0
+
+       DATA 2,STRBUF+69  65
+       DATA 2,STRBUF+66  62
+       DATA 2,STRBUF+63  59
+       DATA 2,STRBUF+55  53
+       DATA 2,STRBUF+52  50
+       DATA 0
+       DATA 4,STRBUF+58  56   2
+       DATA 0
+
+
+CHRP   TEXT 'P'
+
+CBHA0  BYTE >A0
+CB47   BYTE 47
+CB66   BYTE 71           66
+CB28   BYTE 28
+
+L11    BYTE 10
+       TEXT 'DIRECTORY='
+
+L20    BYTE 5
+       TEXT 'USED='
+
+L21    BYTE 11
+       TEXT ' AVAILABLE='
+
+L301   BYTE 28
+       TEXT 'FILENAME   SIZE  TYPE  LEN P'
+
+L302   BYTE 30     28
+       TEXT '  CREATED              UPDATED'
+
+L401   BYTE 28
+       TEXT '---------- ----- --------- -'
+
+L402   BYTE 42     38
+       TEXT '  ---------- --------  ---------- --------'
+
+INTSTR TEXT '                            '
+       TEXT '    /  /       :  :      /  /       :  :  '
+       TEXT '              '
+
+TYPETB TEXT 'D/F'
+
+       TEXT 'D/V'
+
+       TEXT 'I/F'
+
+       TEXT 'I/V'
+
+       TEXT 'PGM'
+
+       TEXT 'DIR'
+
+       TEXT 'EMU'
+
+       PAGE
+
+DNAME  BYTE 5                 * 5 "DSK" X "."
+       TEXT 'DSK'
+DPT    TEXT '.'
+CB40   BYTE 40
+
+GTMDPN LI   R2,DEFPAB+NAMEL
+       MOVB @CB40,*R2
+       CLR  R3
+       LI   R0,X$PRFN
+       XOP  @NINE,0
+       RT

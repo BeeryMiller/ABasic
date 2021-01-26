@@ -1,0 +1,237 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.156.MEMSET
+*
+*    WHAT:  STRC
+*           LDCR
+*           TIME
+*           DATE
+*           IN
+*           OUT
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  STCR
+*
+*    WHAT:  STORE COMMUNICATIONS REGISTER
+*
+*  FORMAT:  CALL STCR(ADDRESS, LENGTH, INPUT VALUE TO ASSIGN)
+*
+STCR   BL   @PAR2
+
+       BL   @CKCOMA           * ENSURE COMMA
+       BL   @PSYM             * GET SYMBOL
+       BL   @CKRPAR           * ENSURE RIGHT PAREN
+
+       BL   @GETINS           * GET THE INSTRUCTION  COUNT, CRU BASE, WSP, INT 0
+       ORI  R1,>0400          * MAKE INTO AN STCR
+       CLR  R0
+       X    R1                DO THE STCR TO R0
+
+       DEC  R2                DEC R2 MAKE CASE OF 0 LARGE
+       CI   R2,7              0 TO 7 IS BYTE
+       JH   STCR00
+       SWPB R0
+STCR00 LWPI UREG1
+       MOVB @UREG2,R1         * GET THE DATA
+       LIMI 2                 * GET THE SYSTEM GOING AGAIN
+       BL   @BLDINT           * BUILD AN INTEGER
+       BL   @ASSG             * ASSIGN IT
+       B    @CONT
+
+STCR10 BL   @RPTE07
+STCR15 BL   @RPTE03
+
+       PAGE
+*
+*
+*    NAME:  LDCR
+*
+*    WHAT:  LOAD COMMUNICATIONS REGISTER
+*
+*  FORMAT:  CALL LDCR(ADDRESS, LENGTH, VALUE TO BE OUTPUT)
+*
+
+LDCR   BL   @PAR2             * PARSE CRU ADDRESS AND LENGTH
+
+       BL   @PARLST           * PARSE VALUE
+       JEQ  STCR15            * JUMP IF STRING
+       BL   @FTOI             * CONVERT IT
+       MOV  @FAC+SNUM,R0
+       BL   @GETINS
+       CI   R2,8
+       JH   LDCR01
+       SWPB R2
+LDCR01 X    R1
+       LWPI UREG1
+       LIMI 2                 * ENABLE THOSE INTS AGAIN
+       B    @CONT
+
+
+GETINS LWPI UREG2             * USE SOMETHING THAT WE CAN WIPE OUT
+       LIMI 0                 * HALT FOR A MOMENT
+       MOV  @PKVAL,R1         * LDCR= 0 0 1 1 0 0 C C C C TS TS S S S S
+       ANDI R1,>000F
+       JNE  LDCR00            * IS NON ZERO, SO OKAY
+       SWPB R0                * IS 0 SO WATCH HER FOR DOUBLE BYTE SHIFT
+LDCR00 MOV  R1,R2             * SAVE THE COUNT
+       SLA  R1,6              * SET THE COUNT
+       ANDI R1,>03C0
+       ORI  R1,>3000          * THE INSTRUCTION IS CORRECT
+       MOV  @PKADD,R12        * SET CRU ADDRESS
+       RT
+
+PAR2   DECT R10               PARSE THE FIRST 2 ARGS OF LCDR AND STCR
+       MOV  R11,*R10
+       BL   @PARFST           PARSE FIRST
+       JEQ  STCR10            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @SNUM+FAC,@PKADD  SAVE THE ADDRESS
+       BL   @PARMID           GET THE VALUE
+       JEQ  STCR10            STRING, SO ERROR
+       MOV  @SNUM+FAC,@PKVAL
+       MOV  *R10+,R11
+       RT
+
+       PAGE
+*
+*    NAME:  DATE
+*
+*    WHAT:  SET THE DATE
+*
+*  FORMAT:  CALL DATE(STRING)
+*
+
+DATE   BL   @PARONE           PARSE ONE PARAMETER
+       JNE  CD11              JUMP IF NUMERIC
+       LI   R0,X$CSD          * LOAD OPCODE
+
+TIME00 MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+FAC,R1      * GET 13 BIT ADDRESS
+       AI   R1,>6000          * MAKE IT 16
+       XOP  @NINE,0
+       JNE  CD09              * JUMP IF NO ERROR
+       B    @CONT             * CONTINUE TO DO IT
+
+CD09   LI   R0,ERRBV          * BAD VALUE
+       BL   @ERROR
+
+CD11   BL   @RPTE07           * STRING NUMBER MISMATCH
+
+*
+*    NAME:  TIME
+*
+*    WHAT:  SET THE TIME
+*
+
+TIME   BL   @PARONE           PARSE ONE ARG
+       JNE  CD11              JUMP IF NUMERIC
+       LI   R0,X$CST
+       JMP  TIME00
+
+       PAGE
+PARPRT DECT R10
+       MOV  R11,*R10
+       BL   @PARFST           PARSE PORT
+       JEQ  CIN20             JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @CH1300,@PKADD    ASSUME PORT 1
+       C    @FAC+SNUM,@ONE
+       JEQ  COUT01            WE HAVE IT
+       MOV  @CH1500,@PKADD    IF NOT PORT 1 THEN IT MUST BE PORT 2
+       C    @FAC+SNUM,@TWO
+       JNE  CD09              NOT PORT 2 SO ERROR OUT
+COUT01 MOV  *R10+,R11
+       RT
+
+CIO    MOV  R12,R0            SAVE R12 (PGM PTR)
+       MOV  @PKADD,R12        GET THE I/O CARD ADDRESS
+       STST R2                SAVE STATUS
+       LIMI 0                 LOCK OUT INTS
+       SBO  0
+       MOVB @CBHBA,@MAP9C     MAP IN THE CARD
+       RT
+*
+*    NAME:  IN
+*
+*  FORMAT:  CALL IN(PORT ADDRESS, NV, NV, NV ...)
+
+CIN    BL   @PARPRT           * GET THE PORT NUMBER
+
+CIN05  BL   @CKCOMA           * ENSURE COMMA
+       BL   @PSYM             * GET VARIABLE
+
+       BL   @PSHFAC           PUSH SYMBOL
+       CLR  R1
+       BL   @BLDINT           PUSH VALUE SPACE
+
+       BL   @CIO              MAP IN CARD, ETC
+
+       MOVB @>DA00,@FAC+SNUML GET THE BYTE
+       SBZ  0                 TURN THE CARD OFF
+       DATA >0082             LOAD STATUS R2
+       MOV  R0,R12            RESTORE R12
+       BL   @ASSG             DO THE ASSIGNMENT
+
+       CI   R8,>B300          AT COMMA
+       JEQ  CIN05             YES MORE TO DO
+       JMP  CIN07
+
+
+CIN20  BL   @RPTE07           SNM
+
+CH1300 DATA >1300
+CH1500 DATA >1500
+CBHBA  BYTE >BA
+       BYTE 0
+       PAGE
+*
+*    NAME:  OUT
+*
+*  FORMAT:  CALL OUT(PORT ADDRESS, NV, NV, NV ...)
+*
+COUT   BL   @PARPRT           PARSE PORT
+
+       BL   @PARMID           PARSE THE VALUE
+       JEQ  CIN20             JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+
+       BL   @CIO
+
+COUT02 TB   2                 TEST IF PORT IS READY
+       JEQ  COUT02            IS A 1 SO IT IS BUSY
+
+       MOVB @FAC+SNUML,@>DA00 MOVE OUT THE BYTE
+       MOV  @>C00C,R1         GET THE TYPE OF CARD
+       SBZ  0                 TURN OFF THE CARD AGAIN
+       CI   R1,>406C          TEST IF TI OR MYARC CARD
+       JEQ  TIRSCO            IT IS A TI RS232
+       SBZ  2                 TURN ON THE OUTPUT OF THE CARD
+       SBZ  1                 STROBE LOW
+       SRC  R1,15             WAIT A BIT
+       SRC  R1,15
+       SRC  R1,15
+       SBO  1                 STROBE HIGH
+       SBO  2                 DISABLE OUTPUT
+       JMP  COUT03
+
+TIRSCO SBZ  1                 TURN ON THE OUTPUT OF THE CARD
+       SBZ  2                 STROBE LOW
+       SRC  R1,15
+       SRC  R1,15
+       SRC  R1,15
+       SBO  2
+       SBO  1
+
+COUT03 DATA >0082             LOAD STATUS AGAIN
+       MOV  R0,R12            RESTORE R12 AGAIN
+       CI   R8,>B300          AT COMMA
+       JEQ  COUT01            YES MORE TO DO
+
+CIN07  BL   @CKRPAR           ENSURE LEFT PAREN
+
+       B    @CONT             AND CONTINUE
+

@@ -1,0 +1,56 @@
+*===============================================================================
+*
+*      THESE ROUTINES BELONG IN FAST PAD RAM
+*           THEY ARE:
+*              1. MOVE WORDS  R1, FROM R2, TOO, R3 NUMBER OF BYTES
+*              2. MOVE BYTES
+*              3. MAP A PROGRAM PAGE IN AT >6000
+*              4. MOVE TO OR FROM STACK
+*
+*
+*      THE TOTAL NUMBER OF BYTES AVAILABLE IN THIS RAM TO PERFORM THIS IS 64
+*===============================================================================
+MEM1   EQU  $
+*
+*   8 BYTES
+*      FAST MOVE BYTE ROUTINE
+*
+LOOP1  MOVB *R1+,*R2+
+       DEC  R3
+       JNE  LOOP1
+       RT
+*
+*   8 BYTES
+*      FAST MOVE WORDS ROUTINE
+*
+LOOP2  MOV  *R1+,*R2+
+       DECT R3
+       JGT  LOOP2
+       RT
+*
+*  18 BYTES
+*      FAST MOVE TO OR FROM STACK
+*           ALWAYS WORD BOUNDARY R1, FROM R9 STACK POINTER
+*
+       MOV  *R1+,*R0+    DO ALL 8 WORDS
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1,*R0      ONLY UPDATE VALUE STACK POINTER
+       RT
+*
+*    CONTINUE TO NEXT ROUTINE 28 BYTES
+*
+*
+       MOV  @LTAB(R8),R5      4
+       CLR  R8                2
+       MOVB *R12+,R8          2
+       MOVB @MEMTBL+2,@MAP92  6
+       CI   R5,>4000          4
+       JL   P11A              2
+       MOVB @MEMTBL+3,@MAP94  6
+P11A   B    *R5               2    28 BYTES
+MEM2   EQU  $

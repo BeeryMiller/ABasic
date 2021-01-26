@@ -1,0 +1,121 @@
+*
+*    NAME:  CHAR
+*
+*    WHAT:  DEFINE THE CHARACTER PATTERN
+*
+*  FORMAT:  CALL CHAR(CC, SE)
+*                CHAR(CC, SE, CC, SE ...
+*
+*    NAME:  SCHAR
+*
+*    WHAT:  DEFINE THE SPRITE PATTERN
+*
+*  FORMAT:  CALL SCHAR(CC, SE)
+*                SCHAR(CC, SE, CC, SE ...
+
+CHAR4O BL   @RPTE07           * STRING NUMBER MIS-MATCH
+
+SCHAR  LI   R0,X$SPD          * DEFINE SPRITE CHAR SET
+       JMP  CHAR0
+
+CHAR   LI   R0,X$CPD          * DEFINE CHARACTER SETS
+CHAR0  MOV  R0,@SDEF
+
+CHR1   BL   @PARFST           * PARSE CHAR CODE
+       JEQ  CHAR4O            * JUMP IF STRING
+       BL   @FTOI             * CONVERT IT
+       MOVB @SNUM+FAC,R0
+       JNE  CHR$11            * CAN ONLY BE 0 TO 255
+       MOV  @SNUM+FAC,@CC     * SAVE IT
+
+       BL   @PARMID           * PARSE STRING
+       JNE  CHAR4O            * JUMP IF NUMERIC
+
+*    MAP IN STRING ADDRESS
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+*    GET THE STRING LENGTH, AND DIVIDE BY THE NUMBER
+*    OF CHARS TO MAKE A PATTERN.
+*    R2 = NUMBER OF CHARACTERS TO DEFINE
+
+       MOV  @SLEN+FAC,R4      * GET THE NUMBER OF CHARACTERS TO DEFINE
+       CI   R4,4*16           * ONLY 4 CHARS AT A TIME (16 CHARS PER CHAR)
+       JLE  CHR5
+       LI   R4,4*16
+
+CHR5   MOV  @STRA+FAC,R1      * GET 13 BIT ADDRESS
+       AI   R1,>6000          * MAKE IT 16
+
+       LI   R2,1              * DEFINE AT LEAST ONE CHAR
+
+       LI   R5,CDATA          * THE OUTPUT LIST
+
+CHR3   CLR  *R5+              * ZERO OUT THE BITS IN CASE OF THE DANGLE
+       CLR  *R5+
+       CLR  *R5+
+       CLR  *R5
+       AI   R5,-6             * RESET R5
+       MOV  R4,R4
+       JEQ  CHR2              * ALL DONE
+
+       LI   R3,8              * DO THE LOOP 8 TIMES
+
+       CLR  R0
+CHR4   BL   @STOB             * CONVERT STRING
+       SLA  R0,4              * DEFINE NEXT NIBBLE
+       MOVB R0,*R5            * PUT IN LIST
+       DEC  R4                * ONE LESS TO GO
+       JEQ  CHR2
+
+       BL   @STOB             * CONVERT IT
+       AB   R0,*R5+           * PUT IN LIST
+       DEC  R4                * ONE LESS CHAR TO GO
+       JEQ  CHR2
+       DEC  R3                * TWO LESS BYTES TO GO
+       JNE  CHR4
+       INC  R2                * START NEXT CHAR
+       JMP  CHR3
+
+
+CHR2   LI   R1,CDATA          * USE CHAR DATA REGION
+       MOV  @CC,R3            * GET THE STARTING CHAR NUMBER
+       MOV  @SPINDX,R0        * IS IT A TEXT MODE?
+       JEQ  CHR$80            * YES, SO DON'T DO SPRITES
+       LI   R0,X$SPD          * DEFINE SPRITE PAT (IF NOT IN TEXT MODE)
+       XOP  @SIX,0            * R4 IS ALREADY A ZERO
+
+CHR$80 MOV  @SDEF,R0          * THIS IS WHAT WE ARE TO DO
+       CI   R0,X$SPD          * IS IT ONLY SPRITE DEFINE?
+       JEQ  CHR$9             * YES, ONLY SPRITES
+       XOP  @SIX,0            * NO, DID SPRS, SO NOW DO CHARS
+CHR$9  CI   R8,COMMA$*256     * CHECK IF COMMA
+       JEQ  CHR$12
+       BL   @CKRPAR
+       C    @TEMP2,@BMASK
+       JEQ  SET2
+CHR$10 B    @CONT
+SET2   RT
+CHR$12 LI   R8,LPAR$*256      * FAKE OUT ROUTINE
+       JMP  CHR1
+
+CHR$11 BL   @RPTE30           * BAD VALUE
+
+       PAGE
+*
+*    MAME:  STRING TO BINARY
+*
+*
+STOB   MOVB *R1+,R0
+       AI   R0,->3000         MAKE "0" TO 0
+       CI   R0,>0900          IS IT 9 OR LESS
+       JLE  STOB00
+       AI   R0,->0700         FINISH CONVERSION OF "A-F" TO 10 TO 15
+       CI   R0,>0900
+       JLE  CHR$11
+       CI   R0,>1000
+       JHE  CHR$11
+STOB00 RT
+

@@ -1,0 +1,299 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.158.RTCMDS
+*
+*  NAME:    RUN-TIME COMMANDS
+*
+*  VERSION: 3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*
+*    NAME:  THIS ROUTINE IS ENTERED UPON DETECTION OF
+*           THE BREAK KEY, OR BREAK BIT BEING SET
+*
+
+EXECBK BL   @CHKPGM           * CHECK IF WE ARE IN A PROGRAM
+       JNE  EXEC6E            * JUMP IF NO
+
+       MOV  @CLINE,R1         * GET CURRENT LINE
+       BL   @FASTPG           * MAP IN LINE NUMBER TABLE
+       MOV  *R1,R2            * READ THE LINE NUMBER
+       ANDI R2,>7FFF          * RE-SET THE BREAK FLAG
+       MOV  R2,*R1            * WRITE IT BACK
+
+EXEC6C MOV  R12,@SVPGM        * SAVE PROGRAM PTR
+       MOV  @CLINE,@SVCLIN    * SAVE CURRENT LINE
+       MOV  R9,@SVSTAC        * SAVE THE VALUE STACK
+       SZC  @BBIT,@XFLAG      * RESET BREAK BITS IN XFLAG
+       MOV  @PFLAG,@SVFLAG    * SAVE PROGRAM/ERROR FLAGS
+
+EXEC6E BL   @TONE2            EMIT TONE
+
+       MOV  @PGMLN,R1         GET THE LINE NUMBER
+       JEQ  EXEC6F
+       ANDI R1,>7FFF
+       LI   R2,TMPBUF         LOAD STRING ADDRESS
+       BLWP @ITOD
+
+*      LI   R1,DISBUF         LOAD DEST ADDRESS
+*      CLR  *R1               WRITE A ZERO
+*      LI   R2,BRKMSG         LOAD SRC ADDRESS
+*      BLWP @STRCAT           CONCATENATE THE STRINGS
+*
+*      LI   R2,TMPBUF         GET THE STRING ADDRESS
+*      BLWP @STRCAT           CONCATENATE
+
+       BL   @SROLL
+
+*      LI   R1,DISBUF
+*      BL   @DOPRT            AND PRINT IT
+
+       LI   R1,BRKMSG
+       BL   @DOPRT
+       LI   R1,TMPBUF
+       BL   @DOPRT
+
+EXEC6F BL   @SROLL            SCROLL THE SCREEN
+
+       SZCB @RNBIT,@PFLAG     * RESET THE RUN BIT
+
+       BL   @STOPSD           * STOP SOUND
+       LI   R0,X$SDEL         * DELETE SPRITES
+       SETO R2
+       XOP  @SIX,0
+
+       LI   R0,X$SMAG         * SET SPRITE MAG FACTOR
+       LI   R1,1
+       XOP  @SIX,0
+
+       LI   R0,TOPL35         LOAD THE INDEX
+       MOV  R0,@ERRCOD
+       B    @EXEC$9           RESTORE CHARSET
+
+BRKMSG BYTE 14
+       TEXT 'BREAKPOINT IN '
+
+       PAGE
+*
+*    NAME:  NBREAK
+*
+*    WHAT:  BREAK STATEMENT
+*
+*  SYNTAX:  BREAK
+*           BREAK LINE,LINE,LINE
+*
+
+NBREAK MOV  @CLINE,@06+FAC    SAVE THE CURRENT LINE PTR
+       SETO @02+FAC           SET THE FLAG TO BREAK
+       BL   @EOSTMT           * TEST IF EOL
+       JNE  LINEGP            * JUMP IF NO
+
+       BL   @CHKPGM           * TEST IF WE ARE IN A PROGRAM
+       JNE  NBRK09            * JUMP IF NO
+
+       DEC  R12               * BACK UP PROGRAM POINTER
+       JMP  EXEC6C            * ENTER BREAK CODE
+
+NBRK09 BL   @RPTE03           BREAK POINT NOT ALLOWED
+
+*
+*    NAME:  UNBREAK
+*
+*    WHAT:  UNBREAK STATEMENT
+*
+*  SYNTAX:  UNBREAK
+*           UNBREAK LINE,LINE,LINE
+
+NUNBRK MOV  @CLINE,@06+FAC    SAVE CLINE
+       CLR  @02+FAC           SET THE UNBREAK FLAG
+       BL   @EOSTMT           CHECK IF END OF STATEMEMNT
+       JEQ  UNBK01            YES - CLEAR ALL BREAK POINTS
+
+LINEGP CI   R8,LN$*256        * GOT A LINE NUMBER
+       JNE  NBRK09            * JUMP IF NO
+       MOVB *R12+,@SNUM+FAC   GET THE LINE NUMBER
+       MOVB *R12+,@SNUML+FAC
+       MOVB *R12+,R8          * GET THE NEXT CHARACTER
+       BLWP @SRCHLN           * SEARCH THE LINE NUMBER TABLE
+       MOV  @CLINE,R1         * CHECK IF FOUND
+       JEQ  ERR92             * NOT FOUND ITS AN ERROR
+
+       BL   @FASTPG           * MAP IN THE LINE NUMBER TBL
+       MOV  *R1,R2            * READ THE LINE NUMBER
+       MOV  @02+FAC,R3        * CHECK IF UN-BREAK
+       JEQ  LNGP3             * YES - RESET THE BREAK POINT
+       SOC  @BMASK,R2         * SET THE BREAK-POINT BIT
+       JMP  LNGP5
+
+LNGP3  ANDI R2,>7FFF          * RESET THE BIT
+LNGP5  MOV  R2,*R1            * WRITE IT BACK
+
+LNGP2B BL   @EOSTMT           CHECK IF AT THE END
+       JEQ  LNGP4             YES - CONTINUE
+
+       BL   @CKCOMA           * ENSURE A COMMA
+       JMP  LINEGP            * SCAN SOME MORE
+
+WRNLF  LI   R0,WRNLNF
+       BL   @WARN
+       JMP  LNGP2B
+
+UNBK01 BL   @CLRABK           CLEAR ALL BREAK-POINTS
+
+LNGP4  MOV  @06+FAC,@CLINE    RESTORE CLINE
+       B    @CONT             CONTINUE WITH PARSE
+
+ERR92  LI   R0,ERRLNF         LOAD ERROR CODE
+       BL   @ERROR            AND REPORT IT
+
+       PAGE
+*
+*    NAME:  CLRABK
+*
+*    WHAT:  CLEAR ALL BREAKPOINTS
+*
+CLRABK DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       MOV  @ELINE,R3         GET THE ADDRESS
+       MOV  @LNECNT,R0
+ABK03  MOV  R3,R1
+       BL   @FASTPG           MAP IN AT >6000->9FFF  USES R1,R2
+
+ABK01  SZC  @BMASK,*R1+       ZERO OUT THE BREAK BIT
+       INCT R1                POINT TO NEXT ONE
+       DEC  R0                ONE LESS LINE # TO DO
+       JEQ  ABK02             ALL DONE
+       AI   R3,4              UPDATE ABSOLUTE LINE # POINTER
+       CI   R1,>A000          AT THE END OF DOUBLE PAGE?
+       JL   ABK01             NO
+       JMP  ABK03             YES, SO REMAP
+
+ABK02  MOV  *R10+,R11         YES - GET THE RETURN ADDRESS
+       RT                     AND RETURN TO THE CALLER
+
+       PAGE
+*
+*    NAME:  NUD FOR RUN STATEMENT
+*
+*  SYNTAX:  RUN
+*           RUN LINE NO [,CONTINUE]
+*           RUN FILE NAME [,CONTINUE]
+*
+NRUN   MOVB R8,R8             END OF THE LINE
+       JEQ  RUN5
+
+NRUN5  CI   R8,LN$*256        * CHECK IF LINE NUMBER
+       JEQ  NRUN2             * JUMP IF YES
+
+       BL   @PARSE            * PARSE FILE NAME
+       BYTE >FF
+CBH93  BYTE >93
+
+       CB   @SID+FAC,@CSIDST  * CHECK IF STRING
+       JEQ  NRUN3             * JUMP IF YES
+
+       LI   R0,ERRSNM         * STRING NUMBER MISMATCH
+NRUN99 BL   @ERROR
+
+NRUN1  BL   @RPTE03
+
+*    RUN WITH A LINE NUMBER. GET THE LINE NUMBER
+*    AND SEARCH THE LINE TABLE. IF FOUND CHECK FOR
+*    CONTINUE FLAG.
+
+NRUN2  MOVB *R12+,@SNUM+FAC   GET THE HIGH BYTE
+       MOVB *R12+,@SNUML+FAC          LOW  BYTE
+       MOVB *R12+,R8          * GET NEXT CHARACTER
+       BLWP @SRCHLN           SEARCH LINE NUMBER TABLE
+       MOV  @CLINE,@BLINE     CHECK IF FOUND
+       JNE  NRUN10            JUMP IF FOUND
+
+       LI   R0,ERRLNF         REPORT ERROR
+       JMP  NRUN99
+
+NRUN10 BL   @EOSTMT           AT THE END
+       JEQ  RUN3R
+
+       BL   @CKCOMA           * ENSURE COMMA
+       CI   R8,>F200          * CHECK IF CONTINUE
+       JNE  NRUN1             * JUMP IF NO
+
+NRUN12 MOV  @CLINE,@BLINE     INITIALIZE START
+       LI   R10,PSTACK        RESET THE PROGRAM STACK
+       MOV  @VSLOW,R9         RESET THE DATA STACK
+
+       CLR  @ERRLN            CLEAR THE ON ERROR LINE NUMBER
+       B    @EXEC
+
+RUN5   MOV  @LNECNT,R0        IS THERE A PROGRAM
+       JEQ  ILLST             NO PROGRAM PRESENT
+
+RUN6   MOV  @SLINE,@CLINE     GET START LINE NUMBER
+       JEQ  RUN3R
+
+*    LINE NUMBER RUN
+
+       MOV  @LNECNT,R0        * CHCEK IF THERE IS A PROGRAM
+       JEQ  ILLST             * JUMP IF NO
+       BLWP @SRCHLN           * SEARCH THE LINE TABLE
+       MOV  @CLINE,R0         * CHECK IF WE FOUND IT
+       JNE  RUN3R              * JUMP IF FOUND
+       LI   R0,ERRLNF         * LINE NOT FOUND
+       JMP  RUNERR
+
+RUN3R  MOVB @MEMTBL+1,@MAP92  * GET INDEX INTO PG2
+       BL   @RUN3
+
+RUN4R  MOVB @MEMTBL+1,@MAP92  LOAD PG2 RUN4
+       BL   @RUN4             AND GO TO IT
+
+ILLST  MOV  @PFLAG,R1         CLEAR RUN BIT
+       ANDI R1,>0200
+       MOV  R1,@PFLAG
+
+       LI   R0,ERRNPP
+RUNERR BL   @ERROR
+*RUNE1  LI   R0,ERRIFN
+*      JMP  RUNERR
+
+       PAGE
+
+*    RUN WITH A FILE NAME. GET THE FILE NAME.
+*    AND TRY AND LOAD THE FILE.
+*    THEN CHECK IF A CONTINUE FLAG WAS SET
+
+NRUN3  LI   R1,DEFPAB         * DEF PAB
+       BL   @INITPB           * INITIALIZE PAB
+
+       BL   @GETPTN           GET THE CORRECT PATHNAME
+
+       BL   @EOSTMT           * AT THE END
+       JEQ  NRUN21            * YES RESET CONTINUE FLAG
+
+       BL   @CKCOMA           * ENSURE COMMA
+       SETO R0                * GET A MINUS ONE
+       CI   R8,>F200          * CHECK IF CONTINUE ?
+       JEQ  NRUN23            * JUMP IF YES
+
+       BL   @RPTE03           * REPORT ERROR
+
+NRUN20 BL   @ERROR
+
+NRUN21 CLR  R0                * GET A ZERO
+NRUN23 MOVB R0,@CNFLG         * CLEAR CONTINUE FLAG
+
+NRUN24 MOVB @MEMTBL+1,@MAP92
+       BL   @LDRSET
+
+       MOV  R0,R0             * CHECK IF LOAD WAS SUCCESSFUL
+       JNE  NRUN20            * JUMP IF NOT
+
+       MOV  @SLINE,@CLINE     GET START LINE NUMBER
+
+       MOVB @CNFLG,R0         * CHECK IF CONTINUE IS SET
+       JEQ  RUN3R              * JUMP IF YES
+
+       B    @NRUN12           * NO
+

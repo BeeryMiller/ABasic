@@ -1,0 +1,171 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.157.CPT
+*
+*  NAME:    CHARACTER PROPERTY TABLE
+*
+* VERSION: 3.0 - 10/30/86     BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*      THE CHARACTER PROPERTY TABLE CONTAINS ONE BYTE
+*      ENTRY FOR EACH CHARACTER IN THE RANGE FROM THE
+*      LOWEST LEGAL CHARACTER LLC TO THE HIGHEST
+*
+*
+*
+LLC    EQU  >20
+*
+*
+CPNIL  EQU  >00
+CPDIG  EQU  >02
+CPNUM  EQU  >04
+CPOP   EQU  >08
+CPMO   EQU  >10
+CPALPH EQU  >20
+CPBRK  EQU  >40
+CPSEP  EQU  >80
+CPALNM EQU  CPALPH+CPDIG
+*
+*
+*
+       EVEN
+CPTBL  BYTE CPNIL             0
+       BYTE CPNIL             1
+       BYTE CPNIL             2
+       BYTE CPNIL             3
+       BYTE CPNIL             4
+       BYTE CPNIL             5
+       BYTE CPNIL             6
+       BYTE CPNIL             7
+       BYTE CPNIL             8
+       BYTE CPNIL             9
+       BYTE CPNIL             10
+       BYTE CPNIL             11
+       BYTE CPNIL             12
+       BYTE CPNIL             13
+       BYTE CPNIL             14
+       BYTE CPNIL             15
+       BYTE CPNIL             16
+       BYTE CPNIL             17
+       BYTE CPNIL             18
+       BYTE CPNIL             19
+
+       BYTE CPNIL             20
+       BYTE CPNIL             21
+       BYTE CPNIL             22
+       BYTE CPNIL             23
+       BYTE CPNIL             24
+       BYTE CPNIL             25
+       BYTE CPNIL             26
+       BYTE CPNIL             27
+       BYTE CPNIL             28
+       BYTE CPNIL             29
+
+       BYTE CPNIL             30
+       BYTE CPNIL             31
+
+       BYTE CPSEP             SPACE
+       BYTE CPOP              EXCLAMATION POINT
+       BYTE CPNIL             QUOTATION MARKS
+       BYTE CPOP              NUMBER SIGN
+       BYTE CPNIL             DOLLAR SIGN
+       BYTE CPNIL             PERCENT
+       BYTE CPOP              AMPERSAND
+       BYTE CPNIL             APOSTROPHE
+       BYTE CPBRK             LEFT PAREN
+       BYTE CPBRK             RIGHT PAREN
+       BYTE CPOP              ASTRICK
+       BYTE CPOP+CPNUM        PLUS
+       BYTE CPBRK             COMMA
+       BYTE CPOP+CPNUM        MINUS
+       BYTE CPNUM             PERIOD
+       BYTE CPOP              SLANT
+       BYTE CPNUM+CPDIG       ZERO
+       BYTE CPNUM+CPDIG       ONE
+       BYTE CPNUM+CPDIG       TWO
+       BYTE CPNUM+CPDIG       THREE
+       BYTE CPNUM+CPDIG       FOUR
+       BYTE CPNUM+CPDIG       FIVE
+       BYTE CPNUM+CPDIG       SIX
+       BYTE CPNUM+CPDIG       SEVEN
+       BYTE CPNUM+CPDIG       EIGHT
+       BYTE CPNUM+CPDIG       NINE
+LBCPMO BYTE CPMO              COLON
+       BYTE CPBRK             SEMI-COLON
+       BYTE CPOP              LESS THAN
+       BYTE CPOP              EQUALS
+       BYTE CPOP              GREATER THAN
+       BYTE CPNIL             QUESTION MARK
+       BYTE CPALPH            COMMERCIAL AT
+       BYTE CPALPH            A
+       BYTE CPALPH            B
+       BYTE CPALPH            C
+       BYTE CPALPH            D
+       BYTE CPALPH+CPNUM      E
+       BYTE CPALPH            F
+       BYTE CPALPH            G
+       BYTE CPALPH            H
+       BYTE CPALPH            I
+       BYTE CPALPH            J
+       BYTE CPALPH            K
+       BYTE CPALPH            L
+       BYTE CPALPH            M
+       BYTE CPALPH            N
+       BYTE CPALPH            O
+       BYTE CPALPH            P
+       BYTE CPALPH            Q
+       BYTE CPALPH            R
+       BYTE CPALPH            S
+       BYTE CPALPH            T
+       BYTE CPALPH            U
+       BYTE CPALPH            V
+       BYTE CPALPH            W
+       BYTE CPALPH            X
+       BYTE CPALPH            Y
+       BYTE CPALPH            Z
+       BYTE CPALPH            LEFT SQ
+       BYTE CPALPH            REVERSE SLANT
+       BYTE CPALPH            RIGHT SQUARE
+       BYTE CPOP              CIRCUMFLEX
+       BYTE CPALPH            UNDERLINE
+       BYTE CPNIL             ` RIGHT ACCENT
+
+*    NOW COMES THE LOWER CASE CHARACTERS
+
+       BYTE CPALPH            A
+       BYTE CPALPH            B
+       BYTE CPALPH            C
+       BYTE CPALPH            D
+       BYTE CPALPH+CPNUM      E
+       BYTE CPALPH            F
+       BYTE CPALPH            G
+       BYTE CPALPH            H
+       BYTE CPALPH            I
+       BYTE CPALPH            J
+       BYTE CPALPH            K
+       BYTE CPALPH            L
+       BYTE CPALPH            M
+       BYTE CPALPH            N
+       BYTE CPALPH            O
+       BYTE CPALPH            P
+       BYTE CPALPH            Q
+       BYTE CPALPH            R
+       BYTE CPALPH            S
+       BYTE CPALPH            T
+       BYTE CPALPH            U
+       BYTE CPALPH            V
+       BYTE CPALPH            W
+       BYTE CPALPH            X
+       BYTE CPALPH            Y
+       BYTE CPALPH            Z
+       BYTE CPALPH            LEFT SQ
+       BYTE CPALPH            REVERSE SLANT
+       BYTE CPALPH            RIGHT SQUARE
+       BYTE CPOP              CIRCUMFLEX
+       BYTE CPALPH            UNDERLINE
+       BYTE CPNIL             ` RIGHT ACCENT
+       EVEN
+*
+*
+*

@@ -1,0 +1,43 @@
+       REF  FASMVB
+       REF  FASMVW
+
+       REF  PARONE
+       REF  PARFST
+       REF  PARMID
+       REF  PARLST
+
+       REF  EOSTMT
+       REF  CONT
+
+       REF  CKLPAR
+       REF  CKRPAR
+       REF  CKCOMA
+
+       REF  PARSE
+       REF  ERROR
+       REF  WARN
+       REF  BLDMRK
+       REF  SRCHLN
+
+       REF  PSHFAC
+       REF  POPFAC
+       REF  PSHPRS
+       REF  POPARG
+
+       REF  PSYM
+       REF  GETVS
+
+       REF  STCBOT
+
+       REF  GETSTR
+
+       REF  FTOI
+       REF  ITOF
+
+       REF  ASSGN
+       REF  ASSGS
+       REF  ASSG
+
+       REF  RANGE
+*      REF  ERROR          ALREADY DEF'D  11-22-94 JU
+

@@ -1,0 +1,502 @@
+CSUP1  DATA CREGS,$CUP10
+
+CSUP2  DATA CREGS,$CUP20
+
+CSUP3  DATA CREGS,$CUP30
+
+CLIP   DATA CREGS,$CLIP
+
+CRBMG  DATA UREG2,$CRSBM
+
+CRHRG  DATA CREGS,$CRHR
+
+SQRT   DATA PREGS,ROOT
+
+P1     DATA PREGS,$P2
+
+       PAGE
+*
+*   FORMAT: CALL CIRCLE (LT,X,Y,R)
+*
+*  X IS THE COORD OF THE CENTER  1 - 256
+*  Y IS THE COORD OF THE CENTER  1 - 192
+*  R IS RADIUS OF THE CIRCLE     1 - 320
+*
+
+CCIR   BL   @GETLT
+       MOV  @SMODE,R1
+       AI   R1,-4
+       JLT  CIRC11
+       A    R1,R1
+       MOV  R1,@GMINDX
+
+CIRC05 BL   @GETROW
+       MOV  R1,@PR1
+
+       BL   @GETCOL
+       MOV  R1,@PC1
+
+       BL   @PARMID
+       JEQ  CIRC10
+       BL   @FTOI
+       MOV  @SNUM+FAC,@RAD
+       JEQ  CIRC12
+
+       MOV  @SMODE,R5
+       SLA  R5,1
+       B    @VCMODE(R5)
+
+CIRC13 BLWP @CSUP1
+CIRC16 BLWP @CRBMG
+
+CIRC18 MOV  @PR1,@LPR
+       MOV  @PC1,@LPC
+       CI   R8,>B300
+       JEQ  CIRC05
+       BL   @CKRPAR
+
+       B    @CONT
+
+CIRC10 BL   @RPTE07
+
+CIRC11 BL   @RPTE37
+
+CIRC12 BL   @RPTE30
+
+CIRC17 BLWP @CSUP3
+       MOV  @RAD,R4
+*      SRL  R4,1
+*      JEQ  CIRC18
+       MOV  @PC1,R0
+*      S    R4,R0
+       MOV  R0,R2
+*      S    R4,R2
+
+       MOV  @PR1,R1
+*      S    R4,R1
+       MOV  R1,R3
+       S    R4,R3
+       BLWP @CRHRG
+       JMP  CIRC18
+
+CIRC14 BLWP @CSUP2
+       JMP  CIRC16
+
+VCMODE JMP  CIRC11            0 - TEXT 1
+       JMP  CIRC11            1 - TEXT 2
+       JMP  CIRC11            2 - NOT USED
+       JMP  CIRC11            3 - 1,1
+       JMP  CIRC13            4   1,2
+       JMP  CIRC13            5   1,3
+       JMP  CIRC14            6   2,2
+       JMP  CIRC17            7   3,2
+       JMP  CIRC17            8   3,3
+       JMP  CIRC14            9   2,3
+       JMP  CIRC11            10 TEXT 2
+
+       PAGE
+*
+*    SET UP CODE
+*
+*    CALLED ONCE AT THE START TO INITIALIZE THE REGISTERS
+*
+
+$CUP10 MOV  @DRWCLR,R8
+       MOV  @LT,R12
+       A    R12,R12
+       MOV  @POINTS(R12),R12
+       LI   R9,PORT0W
+       LI   R10,PORT1W
+
+$CUP99 MOV  @GMINDX,R5
+       MOV  R5,R6
+*      MOV  @MAXX,@SZOFSC
+       MOV  @MAXX(R5),R5
+       MOV  @MAXY(R6),R6
+       RTWP
+
+$CUP20 MOV  @LT,R4
+       A    R4,R4
+       MOV  @LOGOP(R4),R4
+       MOV  @DRAWC,R3
+       JMP  $CUP99
+
+$CUP30 CLR  @CIRTYP
+       MOV  @LT,R1
+       MOVB @LTYPE(R1),@CMDR
+       MOV  R1,R1
+       JEQ  $CUP31
+       MOVB @DRAWC,@COLR
+       JMP  $CUP99
+
+$CUP31 MOVB @DRAWC+1,@COLR
+       JMP  $CUP99
+
+MAXX   DATA 255,255,255,511,511,255
+MAXY   DATA 191,191,211,211,211,211
+
+LOGOP  DATA >0000,>0000,>0300
+
+POINTS DATA CLRPNT,PLTPNT,REVPNT
+
+       PAGE
+*------------------------------------------------------------------------
+*
+*  X IS X COORD OF CENTER  1 - 256 / 1 - 512
+*  Y IS Y COORD OF CENTER  1 - 192 / 1 - 192
+*  R IS RADIUS IN PIXELS   1 - 320 / 1 - 640
+*
+*  X AND Y ARE CLIPPED IF REQUIRED
+*  R5 =X /R6 =Y /R8=X1 /R10=Y1
+*
+*  CIRCLE IN BIT MAP GRAPHICS
+*
+*------------------------------------------------------------------------
+PHI    EQU  7
+PHIY   EQU  9
+PHIXY  EQU  12
+
+$CRSBM MOV  @PR1,R4
+       MOV  @PC1,R3
+       MOV  @RAD,R8
+       MOV  R3,R5
+       MOV  R4,R6
+
+       CLR  PHI
+       CLR  R10
+CIRCL2 MOV  PHI,PHIY
+       A    R10,PHIY
+       A    R10,PHIY
+       INC  PHIY
+       MOV  PHIY,PHIXY
+       S    R8,PHIXY
+       S    R8,PHIXY
+       INC  PHIXY
+       MOV  R5,R3
+       A    R8,R3
+       MOV  R6,R4
+       A    R10,R4
+       BLWP @CLIP
+
+       MOV  R5,R3
+       S    R8,R3
+       BLWP @CLIP
+
+       MOV  R5,R3
+       A    R8,R3
+       MOV  R6,R4
+       S    R10,R4
+       BLWP @CLIP
+
+       MOV  R5,R3
+       S    R8,R3
+       BLWP @CLIP
+
+       MOV  R5,R3
+       A    R10,R3
+       MOV  R6,R4
+       A    R8,R4
+       BLWP @CLIP
+
+       MOV  R5,R3
+       S    R10,R3
+       BLWP @CLIP
+
+       MOV  R5,R3
+       A    R10,R3
+       MOV  R6,R4
+       S    R8,R4
+       BLWP @CLIP
+
+       MOV  R5,R3
+       S    R10,R3
+       BLWP @CLIP
+
+       MOV  PHIY,PHI
+       INC  R10
+       MOV  PHIXY,R3
+       MOV  PHIY,R4
+       ABS  R3
+       ABS  R4
+       C    R3,R4
+       JLT  CIRCL3
+       JMP  CIRCL4
+
+CIRCL3 MOV  PHIXY,PHI
+       DEC  R8
+CIRCL4 C    R8,R10
+       JHE  CIRCL2
+       RTWP
+
+       PAGE
+*------------------------------------------------------------------------
+*
+*    GENERAL PLOTTING ROUTINE
+*
+*------------------------------------------------------------------------
+
+
+REVPNT XOR  *R7,R1
+       JMP  VSBW
+
+CLRPNT SZCB *R7,R1
+       JMP  VSBW
+
+PLTPNT SOCB *R7,R1
+
+       LIMI 0
+       SWPB R0
+       MOVB R0,*R10
+       SWPB R0
+       ORI  R0,>4000
+       MOVB R0,*R10
+       AI   R0,>2000
+       MOVB R1,*R9
+
+       SWPB R0
+       MOVB R0,*R10
+       SWPB R0
+       MOVB R0,*R10
+       SWPB R0
+       MOVB R8,*R9
+       LIMI 2
+       RTWP
+
+VSBW   LIMI 0
+       SWPB R0
+       MOVB R0,*R10
+       SWPB R0
+       ORI  R0,>4000
+       MOVB R0,*R10
+       SWPB R0
+       MOVB R1,*R9
+       LIMI 2
+       RTWP
+
+$CLIP  MOV  @06(R13),R1
+       MOV  @08(R13),R2
+       C    R1,R5
+       JH   CLIPRT
+       C    R2,R6
+       JH   CLIPRT
+       MOV  @GMINDX,R7
+       CI   R7,4
+       JL   $C20
+
+       LI   R0,X$SPC
+       XOP  @SIX,0
+CLIPRT RTWP
+
+$C20   MOV  @06(R13),R3
+       MOV  @08(R13),R4
+       MOV  R3,R2
+       MOV  R4,R1
+       SLA  R1,5
+       SOC  R4,R1
+       ANDI R1,>FF07
+       ANDI R2,7
+       A    R3,R1
+       S    R2,R1
+       MOV  R1,R0
+
+       LIMI 0
+       SWPB R0
+       MOVB R0,*R10
+       SWPB R0
+       MOVB R0,*R10
+       LI   R7,BITS
+       CLR  R1
+       MOVB *R9,R1
+       A    R2,R7
+       B    *R12
+
+LTYPE  BYTE >50               * 0
+       BYTE >50               * 1
+       BYTE >53               * XOR 2
+
+       PAGE
+*
+*
+CIRX   EQU  0
+CIRY   EQU  1
+CURX   EQU  4
+CURY   EQU  5
+BEGX   EQU  6
+BEGY   EQU  7
+
+$CRHR  MOV  *R13,BEGX
+       MOV  @2(R13),BEGY
+       MOV  @4(R13),CURX
+       MOV  @6(R13),CURY
+
+       MOV  @CIRTYP,@CIRTYP
+       JEQ  CIRZ1
+       A    CURX,BEGX
+       A    CURY,BEGY
+       SRL  BEGX,1
+       SRL  BEGY,1
+
+CIRZ1  S    BEGX,CURX
+       ABS  CURX
+       S    BEGY,CURY
+       ABS  CURY
+
+       MOV  CURY,R8
+CIRZ2  MPY  R8,R8
+       MOV  CURX,R0
+       MPY  R0,R0
+
+       A    R8,R0
+       A    R9,R1
+       JNC  CR2
+       INC  R0
+
+CR2    CI   R0,1
+       JL   CR3
+       JGT  CR4
+       CI   R1,44500
+       JL   CR3
+CR4    LI   R0,1
+       LI   R1,44500
+CR3    BLWP @SQRT
+       MOV  R0,CURX
+       CLR  CURY
+       MPY  R0,R0
+       MOV  R0,@RSQ1
+       MOV  R1,@RSQ2
+
+CIRL1  BL   @PP
+       CI   CURX,>0000
+       JL   CIRDON
+       JEQ  CIRDON
+
+       DEC  CURX
+       BL   @CRDIST
+       MOV  R9,@LEFT1
+       MOV  R8,@LEFT2
+       INC  CURY
+
+CIRL2  BL   @CRDIST
+
+       MOV  R9,R3
+       MOV  R8,R2
+
+       INC  CURX
+       BL   @CRDIST
+       C    R8,R2
+       JH   CIRJ2
+       JNE  CIRL1
+       C    R9,R3
+       JLE  CIRL1
+CIRJ2  DEC  CURX
+       C    R2,@LEFT2
+       JH   CIRJ3
+       JNE  CIRL1
+       C    R3,@LEFT1
+       JLE  CIRL1
+CIRJ3  DEC  CURY
+       JMP  CIRL1
+CIRDON RTWP
+
+       PAGE
+*
+*
+*
+CRDIST MOV  CURX,R0
+       MPY  R0,R0
+       MOV  CURY,R8
+       MPY  R8,R8
+       A    R0,R8
+       A    R1,R9
+       JNC  CRD1
+       INC  R8
+CRD1   S    @RSQ2,R9
+       JNO  CRD2
+       DEC  R8
+CRD2   S    @RSQ1,R8
+       JGT  CRD3
+       JEQ  CRD3
+       INV  R9
+       INV  R8
+       INC  R9
+       JNE  CRD3
+       INC  R8
+CRD3   RT
+
+       PAGE
+*
+*
+*
+*
+PP     MOV  CURY,@WHYWHY
+       MOVB @SZOFSC,@SZOFSC
+       JEQ  PP1
+       SRA  CURY,1
+PP1    MOV  BEGX,CIRX
+       MOV  BEGY,CIRY
+       A    CURX,CIRX
+       A    CURY,CIRY
+       BLWP @P1
+       S    CURX,CIRX
+       S    CURX,CIRX
+       BLWP @P1
+       MOV  CURY,CURY
+       JEQ  PPRET
+
+       S    CURY,CIRY
+       S    CURY,CIRY
+       BLWP @P1
+       A    CURX,CIRX
+       A    CURX,CIRX
+       BLWP @P1
+
+PPRET  MOV  @WHYWHY,CURY
+       B    *11
+
+
+       PAGE
+
+$P2    MOV  *R13,R0
+       C    R0,@SZOFSC
+       JH   RRET
+       MOV  @2(13),R1
+       CI   R1,>00D3
+       JH   RRET
+       SWPB R0
+       SWPB R1
+       MOV  R0,@XBAS
+       MOV  R1,@YBAS
+       BL   @DOCMD
+RRET   RTWP
+
+ROOT   MOV  *R13,R0
+       MOV  @2(R13),R1
+       MOV  R0,R2
+       JNE  NUMBIG
+       CI   R1,1
+       JLE  REXIT
+
+NUMBIG MOV  R1,R3
+       JNE  DODIV
+       MOV  R0,R0
+       JEQ  RDONE
+
+DODIV  DIV  @CW02,R0
+       MOV  R0,R4
+ROOTS  MOV  R2,R0
+       MOV  R3,R1
+       DIV  R4,R0
+       MOV  R4,R5
+       S    R0,R5
+       ABS  R5
+       CI   R5,1
+       JLE  RDONE
+
+       A    R0,R4
+       SRL  R4,1
+       JMP  ROOTS
+
+REXIT  MOV  R1,R0
+RDONE  MOV  R0,*R13
+       RTWP
+

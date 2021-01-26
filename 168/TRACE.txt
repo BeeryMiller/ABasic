@@ -1,0 +1,225 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.158.TRACE
+*
+*  NAME:    TRACE NUDS
+*
+*  VERSION: 3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  TRACE MODE TURNED ON.
+*           DISPLAY THE LINE NUMBER
+*
+
+ETRACE MOV  @PFLAG,R0         TEST IF IN IMPERATIVE MODE
+       JLT  ETR$10            NO, IN PROGRAM MODE
+       RT                     IN IMPER, SO JUST RETURN
+
+ETR$10 DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+*
+*   NAME:   TNUM
+*
+*   WHAT:   GETS THE PROGRAM NUMBER IN ASCII IN THE
+*           BUFFER
+*
+*
+
+       CLR  @DISBUF
+       MOV  @PGMLN,R1         COPY FOR CONVERT
+       JEQ  TN20              IF ZERO NOTHING
+       ANDI R1,>7FFF          TAKE OFF TRACE BIT
+       LI   R2,DISBUF+1       LENGTH RETURNED IN DISBUF+1
+       BLWP @ITOD             AND CONVERT IT
+
+       LI   R1,DISBUF         ^S1
+       MOVB @1(R1),R2         GET LENGTH OF NUMBER
+       AI   R2,>0200          ADD 2 TO LENGTH "<" AND ">"
+       MOVB R2,*R1+
+       MOVB @OBRAC,*R1             "<"
+       SRL  R2,8
+       A    R2,R1             POINT TO END
+       MOVB @CBRAC,@-1(R1)         ">"
+
+TN20   MOV  @XFLAG,R0
+       COC  @PBIT,R0          TEST IF TRACE BIT SET
+       JNE  EXTR$4            NO
+
+       LI   R1,DISBUF         STRING ADDRESS
+       MOVB *R1,R2            GET LENGTH
+       SRL  R2,8
+       MOV  @WWIDTH,R3        IS WINDOW WIDE ENOUGH TO SUPPORT THIS?
+       MOV  @CCOL,R4          IS THE CURRENT COLUMN AT THE BEGINNING?
+       JEQ  ETR$00            THEN DO IT FOR SURE
+       S    R4,R3
+       C    R2,R3             WILL IT FIT?
+       JLE  ETR$00            YES
+       BL   @SROLL
+       LI   R1,DISBUF
+
+ETR$00 BL   @DOPRT            PRINT IT
+       MOV  @XFLAG,R0         NOW IS THERE ALSO AN LTRACE?
+EXTR$4 COC  @LTBIT,R0
+       JEQ  EXTR$3            YES, DO THE LTRACE
+EXTR$2 MOV  *R10+,R11         GET THE RETURN
+       RT                     AND RETURN
+
+*
+*    NAME:  LTRACE
+*
+*    WHAT:  WITH THE LTRACE FUNCTION ON, PRINT THE
+*           LINE NUMBER
+*
+
+EXTR$3 MOV  @DPRINT,R1        MAP IN THE PAB
+       MOVB @DATBUF(R1),@MAP96
+       MOV  @LTPAB,R15
+       AI   R15,>6000         NOW POINT TO PAB
+ETR$02 MOV  @INTOFF(R15),R2
+       LI   R1,DISBUF
+       MOVB *R1+,R3
+       SRL  R3,8
+       MOV  R3,R4
+       A    R2,R4             THE NEW LENGTH IF POSSIBLE
+       C    R4,@LRC(R15)      WILL IT FIT?
+       JH   ETR$01            NO, IT WON'T, SO GO OUTPUT WHAT WE HAVE
+       MOV  R4,@INTOFF(R15)
+       A    @PABBUF+2(R15),R2    POINT TO BUFFER
+       AI   R2,>6000          MAKE 16 BIT
+       MOV  *R10+,R11
+       B    @FASMVB           ALL DONE
+
+ETR$01 BL   @FILEIO           DO THE I/O
+       JEQ  ETR$02            JUST CONTINUE
+       JMP  LTON1             IF ERROR
+
+
+CBH91  BYTE >91
+CBHF2  BYTE >F2
+
+OBRAC  BYTE >3C
+CBRAC  BYTE >3E
+
+       PAGE
+*
+*    NAME:  TRACE STATMENT
+*
+*  SYNTAX:  TRACE ON
+*           TRACE OFF
+*
+
+NTRACE CI   R8,>E300          CHECK FOR EXTENDED NUD
+       JEQ  NT10              YES
+
+*    AT THIS POINT IT MUST BE A 'ON' TOKEN ...
+
+       CI   R8,>9B00          * CHECK FOR 'ON'
+       JNE  RPTE03            * JUMP IF NO
+*      MOV  @XFLAG,R0         * GET THE FLAG
+*      COC  @LTBIT,R0         * TEST IF LTRACE IS ON
+*      JEQ  NT21              * JUMP IF NON ZERO
+       SOC  @PBIT,@XFLAG      * SET THE FLAG BIT
+       JMP  NTONA
+
+CBHE3  BYTE >E3
+CBH9B  BYTE >9B
+H0092  DATA >0092
+H0050  DATA >0050
+
+*    AT THIS POINT IT HAS TO BE AN OFF TOKEN
+
+NT10   CB   @CBH91,*R12+      CHECK IF OFF TOKEN
+       JNE  RPTE03            JUMP IF NO
+       SZC  @PBIT,@XFLAG      CLEAR THE BIT
+NTONA  MOVB *R12+,R8          GET NEXT CHAR
+       B    @CONT             YES CONTINUE
+
+RPTE03 LI   R0,ERRSN          LOAD ERROR CODE
+LTON1  BL   @ERROR
+
+       PAGE
+*
+*    NAME:  LTRACE STATEMENT
+*
+*  SYNTAX:  LTRACE ON
+*           LTRACE OFF
+
+       XREF FILIOO
+LTRACE DATA >2C40
+       MOV  @XFLAG,R0
+       CI   R8,>E300          * CHECK FOR EXTENDED
+       JNE  LT10              * JUMP IF YES (IE IF LTRACE ON)
+
+       CB   @CBH91,*R12+      CHECK IF OFF
+       JNE  RPTE03            JUMP IF NO
+
+       COC  @LTBIT,R0
+       JNE  NTONA             NOT SET, SO JUST IGNOR
+       BL   @TREND            CLOSE IT IF POSSIBLE
+       JNE  LTON1             ERROR IN THE CLOSE
+
+       JMP  NTONA             USE COMMON CODE
+
+*    LTRACE ON
+
+LT10   CI   R8,>9B00          * CHECK IF ON
+       JNE  RPTE03            * JUMP IF NO
+
+       COC  @LTBIT,R0         * IS IT ON ALREADY?
+       JEQ  NTONA             * YES, SO JUST IGNOR
+
+*    SET UP THE BUFFER POINTER
+
+       MOV  @LTPAB,R15
+       AI   R15,>6000         MAP IT IN AT >6000
+       MOV  @DPRINT,R1        DO THE MAPPING
+       MOVB @DATBUF(R1),@MAP96
+       MOV  @H0092,*R15       OPCODE OPEN: PARMS OUTPUT, VARIABLE
+       CLR  @2(R15)           ZERO OUT ERROR CODE
+       MOV  @DPRINT+2,R1      GET 13 BIT ADDRESS OF DEFAULT PRINTER
+       AI   R1,>6000
+       MOV  *R1,R3            GET LENGTH
+       INC  R1                POINT TO LSB OF LENGTH WORD
+       INC  R3                ONE MORE FOR THE WORD ITSELF
+       MOV  R15,R2            THIS IS WHERE IT IS TO GO
+       AI   R2,NAMEL
+       BL   @FASMVB
+
+       MOV  @H0050,@CHRCNT(R15)    MUST BE RECORD LENGTH 80
+
+       CLR  @IOERR            * INDICATE OPEN
+       BL   @FILEIO           * PERFORM IO
+       JNE  LTON1             CONTINUE
+
+       LI   R0,$WRITE         LOAD OP-CODE
+       MOVB R0,@IOERR+1
+
+       CLR  @INTOFF(R15)      moved here 10/29/90 -pc
+
+       BL   @FILIOO           PERFORM THE I/O
+       JNE  LTON1
+       SOC  @LTBIT,@XFLAG     * FINALLY, SINCE ALL IS WELL, SET THE LTRACE BIT
+       JMP  NTONA             ALL DONE
+       PAGE
+TREND  MOV  @XFLAG,R0         * GET FLAG
+       COC  @LTBIT,R0         * CHECK IF SET
+       JNE  LTGONE            * JUMP IF NO
+       DECT R10
+       MOV  R11,*R10          SAVE RETURN
+       MOV  @DPRINT,R1
+       MOVB @DATBUF(R1),@MAP96  MAP IN THE PAB AND PAB DATA BUFFER
+       MOV  @LTPAB,R15
+       AI   R15,>6000
+       MOV  @INTOFF(R15),R0   ANYTHING IN BUFFER?
+       JEQ  TREND1            NO, SO JUST CLOSE
+       BL   @FILEIO
+
+TREND1 LI   R0,$CLOSE         * SET UP CALL
+       MOVB R0,@IOERR+1       * HERE ALSO
+       SZC  @LTBIT,@XFLAG     * NO MORE LTRACE
+       MOV  *R10+,R11
+       B    @FILIOO           * PERFORM IO (LET IT DO THE RETURN
+
+
+LTGONE RT

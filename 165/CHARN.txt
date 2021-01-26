@@ -1,0 +1,271 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.155.CHAR
+*
+*    NAME:  CHAR SUPPORT
+*
+*  VERSION: 3.0 - 10/26/86
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  HCHAR
+*    NAME:  VCHAR
+*
+* FORMAT1:  CALL HCHAR (ROW, COL, CC, REP)
+*       2:             (ROW, COL, CC)
+*
+VCHAR  LI   R0,X$VCHR         * LOAD OP-CODE
+       JMP  VC01
+
+HCHAR  LI   R0,X$HCHR         * LOAD OP-CODE
+VC01   MOV  R0,@SDEF          * SAVE CALL
+*
+*    NAME:  VHCOM
+*
+*    WHAT:  VCHAR AND HCHAR COMMON PARSE
+*
+
+       BL   @PRPRPC           GET PIXEL ROW AND COLUMN
+
+       BL   @PARMID           * PARSE CHARACTER CODE
+       JEQ  VHCM15            * JUMP IF STRING
+       BL   @FTOI             * CONVERT IT
+       CLR  @CC
+       MOVB @FAC+SNUML,@CC+1  * USE ONLY THE LOW BYTE
+
+*    COMPARE IF AT A COMMA
+*    NO - DEFAULT IS ONE REP
+
+       CI   R8,>B300          * CHECK IF AT COMMA
+       JNE  VHCM10            * JUMP IF NO
+
+*    PARSE THE REPITION, AND LEAVE IT IN R4
+
+       BL   @PARLST           * PARSE REPITION
+       JEQ  VHCM15            * JUMP IF STRING
+       BL   @FTOI             * CONVERT IT
+       MOV  @FAC+SNUM,R4      * GET THE REP
+*      JEQ  VHCM20            * JUMP IF ZERO
+VHCM05 MOV  @CC,R3            * GET THE CHARACTER
+       MOV  @PC1,R2           * GET THE COL
+       MOV  @PR1,R1           * GET THE ROW
+
+       MOV  @SDEF,R0          * GET TYPE OF CALL BACK
+       MOV  @FB,R5            * USE THE DEFAULT FOREGROUND/ BACKGND COLOR
+       XOP  @SIX,0
+       B    @CONT
+
+VHCM10 BL   @CKRPAR           * ENSURE RIGHT PAREN
+       LI   R4,1              * DEFAULT REPITION IS ONE
+       JMP  VHCM05
+
+       PAGE
+VHCM15
+RPTE07 LI   R0,ERRSNM
+       BL   @ERROR            * STRING NUMBER MISMATCH
+
+VHCM20 BL   @RPTE30           * BAD VALUE
+
+       PAGE
+*
+*    NAME:  CLEAR
+*
+*  FORMAT:  CALL CLEAR
+*
+*           0    1    2    3
+RGTDEF DATA 0039,0079,0000,0031
+*           4    5    6    7
+       DATA 0031,0031,0039,0079
+*           8    9    10
+       DATA 0079,0039,0079
+*           0  1  2 3  4  5  6  7  8  9  10
+*BOTDEF DATA 23,23,0,23,23,23,25,25,25,25,25
+
+
+
+CLR    BL   @EOSTMT           CHECK IF END OF STATEMENT
+       JNE  CLR05             NO, SO SYNTAX ERROR
+
+       LWPI UREG2             YES, OK
+       MOV  @SMODE,R6
+       A    R6,R6
+       LI   R0,X$SM
+       CLR  R1                * TOP
+       CLR  R2                * LEFT
+*      MOV  @BOTDEF(R6),R3    * BOTTOM
+       LI   R3,23
+       MOV  @RGTDEF(R6),R4    * RIGHT
+       XOP  @SIX,0
+
+       CLR  R1                INDICATE WE WANT TO CLEAR
+       LI   R0,X$SWU          LOAD OP CODE
+       CLR  R2                ROW UPPER LEFT
+       MOV  R4,R5
+       MOV  R3,R4             ROW NUMBER LOWER RIGHT
+       CLR  R3
+       LI   R6,>0020
+       MOV  @FB,R7            FOREGRND COL/BACKGND COL
+       XOP  @SIX,0
+
+       LI   R0,X$SM           NOW RESET MARGINS AGAIN
+       MOV  @SCRTOP,R1
+       MOV  @SCRBOT,R3
+       MOV  @WWIDTH,R4
+       DEC  R4
+       MOV  @LMARGN,R2
+       A    R2,R4
+       XOP  @SIX,0
+
+       LWPI UREG1
+       BL   @STCBOT           SET CURSOR TO BOTTOM LEFT OF SCREEN
+
+       B    @CONT             AND CONTINUE
+
+*    NAME:  CHRSET
+*
+* FORMAT1:  CALL CHARSET
+*
+CHRSET SETO @SDEF
+CHRCOM BL   @EOSTMT
+       JNE  CHAR41
+       BL   @SETCHR
+       B    @CONT
+
+SETCHR C    @SMODE,@CW03      * NOW RESTORE DEFAULT COLORS IF GRPH(1,1)
+       JNE  SET141
+       MOV  @ANBIT,@FB        * IT IS GRAPHICS(1,1) SET RESET COLORS
+       MOV  @SEVEN,@SFB
+       BLWP @SCOLUR
+SET141 LI   R0,X$RCS          * LOAD OP-CODE
+       MOV  @SDEF,R1          * SDEF DETERMINES IF CHARS ARE TO BE RESTORED
+       SETO R2                * RESTORE SPRITES FOR SURE
+       XOP  @SIX,0
+       RT
+
+*    NAME:  SPRITESET
+*
+* FORMAT1:  CALL SPRITESET
+*
+
+SPRSET CLR  @SDEF             * DON'T RESTORE THE CHAR SET
+       JMP  CHRCOM
+
+CHAR40 BL   @RPTE07           * STRING NUMBER MISMATCH
+
+CLR05
+CHAR41 BL   @RPTE03           * SYNTAX ERROR
+
+       PAGE
+
+*    NAME:  CHRPAT
+*
+*    WHAT:  GET THE CHARACTER PATTERN
+*
+*  FORMAT:  CALL CHARPAT(CC, SV)
+*                       (CC, SV, CC, SV
+
+HEXDIG TEXT '0123456789ABCDEF'
+
+CHRPAT BL   @PARFST           * PARSE FIRST ARG
+       JEQ  GCHA10            * JUMP IF STRING
+CHP10  BL   @FTOI             * CONVERT IT
+       MOVB @FAC+SNUM,R0
+       JNE  GCHA12
+       MOV  @FAC+SNUM,@CC     * SAVE IT
+
+*    PARSE NEXT AS A STRING VARIABLE
+
+       BL   @CKCOMA           * ENSURE A COMMA
+       BL   @PSYM             * PARSE AS A SYMBOL
+       CB   @FAC+SID,@CSIDST  * CHECK IF WE GOT A STRING
+       JNE  GCHA10            * JUMP IF NO
+
+       BL   @PSHFAC           * SAVE STRING VARIABLE
+
+       LI   R0,X$CPD          * LOAD OP-CODE
+       LI   R1,CDATA          * USE THIS BUFFER
+       LI   R2,1              * ONE CHARACTER TO GET
+       MOV  @CC,R3            * GET CHAR CODE
+       SETO R4                * SELECT GET MODE
+       XOP  @SIX,0
+
+       LI   R1,16             * SET UP THE LENGTH OF THE STRING
+       BL   @GETSTR           * GET STRING SPACE
+
+       MOV  @FAC+STRA,R3      * GET 13 BIT ADDRESS
+       AI   R3,>A000          * MAKE IT 16
+
+       LI   R2,8              * LOOP EIGHT TIMES
+       LI   R1,CDATA          *
+BTOS5  MOVB *R1+,R4           * GET A BYTE
+       SRL  R4,8              * ALIGN REGISTER
+       MOV  R4,R5             * COPY
+       SRL  R4,4              * ISOLATE NYBBLE
+       MOVB @HEXDIG(R4),*R3+  * MOVE ONE CHARACTER
+       ANDI R5,>000F          * MASK OUT SECOND
+       MOVB @HEXDIG(R5),*R3+  * MOVE SECOND CHAR
+       DEC  R2                * DEC COUNTER
+       JNE  BTOS5             * JUMP IF NOT DONE
+
+       BL   @ASSGS            * ASSIGN STRING
+
+       CI   R8,>B300          * AT A COMMA
+       JNE  CHP20             * JUMP IF NO
+       BL   @PARMID           * PARSE NEXT CHAR
+       JEQ  GCHA10            * JUMP IF STRING
+       JMP  CHP10             * LOOP
+
+CHP20  BL   @CKRPAR           * ENSURE RIGHT PAREN
+       B    @CONT             *
+
+       PAGE
+*
+*    NAME:  GCHAR
+*
+*  FORMAT:  CALL GCHAR(ROW, COL, NV)
+*
+*
+
+GCHAR  BL   @PRPRPC           * GET AND ADJUST PIXEL ROW AND COLUMN
+
+       BL   @CKCOMA           * CHECK FOR COMMA
+
+       BL   @PSYM             * PARSE AS SYMBOL
+       CB   @FAC+SID,@CSIDST  * CHECK IF STRING
+       JEQ  GCHA10            * JUMP IF YES
+
+       BL   @CKRPAR           * ENSURE RIGHT PAREN
+
+       BL   @PSHFAC           * PUSH VARIABLE
+
+       LI   R0,X$GCC          * LOAD OP-CODE
+       MOV  @PR1,R1           * ROW
+       MOV  @PC1,R2           * COL
+       XOP  @SIX,0            *
+
+       MOV  R0,R1             * GET ASCII VALUE
+       BL   @BLDINT           * BUILD AN INTEGER IN FAC
+       BL   @ASSGN            * ASSIGN IT
+       B    @CONT             *
+
+GCHA10 BL   @RPTE07           * REPORT ERROR (ERRSNM)
+GCHA12 BL   @RPTE30           * REPORT BAD VALUE
+
+
+PRPRPC DECT R10
+       MOV  R11,*R10
+       BL   @PARFST           * PARSE THE ROW
+       JEQ  GCHA10            * JUMP IF STRING
+       BL   @FTOI             * CONVERT IT
+       MOV  @FAC+SNUM,@PR1    * SAVE IT
+       JEQ  GCHA12            * JUMP IF ZERO
+       DEC  @PR1              * BACK UP FOR ZERO COORDINATES
+
+       BL   @PARMID           * PARSE THE COL
+       JEQ  GCHA10            * JUMP IF STRING
+       BL   @FTOI             * CONVERT IT
+       MOV  @FAC+SNUM,@PC1    * SAVE IT
+       JEQ  GCHA12            * JUMP IF ZERO
+       DEC  @PC1              * BACK UP FOR ZERO COORDINATES
+       MOV  *R10+,R11
+       RT

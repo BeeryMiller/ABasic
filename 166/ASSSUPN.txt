@@ -1,0 +1,388 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.155.ASSSUP
+*
+*    WHAT:  ASSEMBLER SUPPORT
+*           INIT
+*           LOAD
+*           LINK
+*
+* VERSION:  3.0 - 10/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    WHAT:  INITIALIZES THE ASSEMBLER SUPPORT ROUTINES
+*
+*  FORMAT:  CALL INIT
+*
+
+CINIT  BL   @EOSTMT           CHECK IF AT END OF STATEMENT
+       JNE  RPTE03
+
+CINIT2 BL   @INSUP            CALL SUPPORT ROUTINE
+       B    @CONT             AND RETURN
+
+RPTE03 LI   R0,ERRSN
+       BL   @ERROR            USE COMMON CODE
+
+       PAGE
+*
+*    NAME:  LOAD
+*
+*    WHAT:  ASSEMBER SUPPORT FOR LOADING OBJECT OR
+*           MEMORY LOCATIONS FROM BASIC
+*
+* COMMENT:  TWO FORMATS FOR LOAD
+*
+* FORMAT1:  LOAD( FILE NAME, FILE NAME)
+*           THIS FORMAT HANDLED HERE
+*
+* FORMAT2:  LOAD(ADDRESS, DATA, DATA, "", ADDRESS, DATA)
+*           THIS FORMAT IS HANDLED IN POKE
+*
+
+LODPAB DATA >0004,0,EDITB+1,0,80,0,0,0
+
+CLOAD  BL   @TESTNT           TEST IF ASSM LIBS LOADED
+       JEQ  CLD12
+       BL   @INSUP            LOAD THE LIBS IF NOT ALREADY LOADED
+
+CLD12  CLR  @PKTYP            MAKE SURE WE DO A CPU RAM OPERATION
+       BL   @PARFST           PARSE FIRST
+       JNE  POKEV1            JUMP IF NUMERIC
+
+CLD10  MOV  @SLEN+FAC,R4      GET THE LENGTH BYTE
+       JEQ  CLD11             * IF LENGTH IS ZERO, THEN IT MUST BE A SEPARATOR
+       LI   R1,LODPAB         * GET DEFAULT PAB
+       LI   R2,DEFPAB
+       LI   R3,16
+       BL   @FASMVW           * AND INITIALIZE IT TO ZERO
+
+       DEC  R2                R2 NOW POINTS TO NAME LENGTH
+       CI   R4,40
+       JH   RPTE30            CAN NOT BE LARGER THAN 40
+       MOV  R4,R3             FOR LATER
+       MOVB @SLEN+FAC+1,*R2+   * WRITE THE LENGTH BYTE TO THE PAB
+
+       MOV  @STRP+FAC,R4         GET THE PATH NAME STRING
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+       MOV  @STRA+FAC,R1      GET 13 BIT ADDRESS
+       AI   R1,>6000          MAKE IT 16
+       BL   @FASMVB
+
+CLD$3  BLWP @LOADER           * TRANSFER CONTROL TO LOADER
+       MOV  R0,R0             * CHECK IF AN ERROR
+       JNE  CINIT4            * JUMP IF YES
+CLD11  CI   R8,>B300          * CHECK IF AT A COMMA
+       JNE  LDEND3            * JUMP IF NO, MUST BE END OF THE LINE
+
+       BL   @PARMID           * PARSE MIDDLE
+       JEQ  CLD10             * JUMP IF STRING
+       JMP  POKEV1            * NUMERIC, SO GO TO IT
+
+*
+*    NAME:  POKE
+*
+*    WHAT:  WRITE TO A MEMORY ADDRESS, MEMORY CAN
+*           EITHER BE CPU OR VDP
+*
+*  FORMAT:  CALL LOAD(ADDRESS, DATA, "", ADDRESS, DATA)
+*
+
+POKEV  SETO @PKTYP            SET TYPE FOR VDP
+       BL   @PARFST           PARSE ADDRESS
+       JEQ  POKEV8            JUMP IF STRING
+POKEV1 BL   @FTOI             CONVERT IT
+       MOV  @SNUM+FAC,@PKADD  SAVE ADDRESS
+POKEV5 CI   R8,>B300          * CHECK IF AT COMMA
+       JNE  LDEND3            NO, SO MUST BE AT END
+       BL   @PARMID           PARSE NEXT VARIABLE
+       JEQ  CLD10             JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+
+       MOV  @PKADD,R1         GET ADDRESS
+       INC  @PKADD            POINT TO NEXT ADDRESS
+       MOV  @PKTYP,R0         CHECK TYPE
+       JNE  POKEV9            VDP
+
+       C    R1,@H2000         * TEST IF LESS THEN >2000
+       JL   POKEV5            * JUMP IF YES DON'T DO ANYTHING
+       C    R1,@HE000         * TEST IF GREATER THAN >E000
+       JHE  POKEV5            * JUMP IF YES DON'T DO ANYTHING
+
+       BL   @PPMAP            * MAP IN DATA SPACE
+       MOVB @SNUML+FAC,*R1    * WRITE A BYTE
+       JMP  POKEV5
+
+*    WRITTING TO VDP
+
+POKEV9 LIMI 0
+       SWPB R1                VDP WRITE A BYTE
+       MOVB R1,@VDPWA         SET ADDRESS
+       SWPB R1
+       ORI  R1,>4000
+       MOVB R1,@VDPWA
+       SRL  R1,15             NO OP
+       MOVB @SNUML+FAC,@VDPWD
+       LIMI 2                 ENABLE THE INTS AGAIN
+       JMP  POKEV5            JOIN COMMON CODE
+
+POKEV8 BL   @RPTE03           REPORT ERROR (ERRSN)
+
+
+*    END OF THE LINE CHECK FOR RIGHT PAREN
+*    AND RETURN TO CALL NUD
+
+LDEND3 BL   @CKRPAR           NO - GOT TO BE RIGHT PAREN
+       B    @CONT             AND RETURN TO CALL
+
+RPTE30 LI   R0,ERRBV           LOAD ERROR CODE
+CINIT4 BL   @ERROR
+       PAGE
+
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.155.PEEKPOKE
+*
+*    WHAT:  CALL PEEK
+*           CALL PEEKV
+*           CALL POKE
+*           CALL POKEV
+*           CALL STCR
+*           CALL LDCR
+*
+* VERSION:  3.0 - 10/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    WHAT:  READ AN MEMORY LOACTION, CAN EITHER BE VDP OR
+*           CPU
+*
+*  FORMAT:  CALL PEEK(ADDRESS,NV,NV,...)
+*                PEEKV(ADRESS,NV,NV,...)
+*
+
+PEEKV  SETO @PKTYP            SET PEEK TYPE
+       JMP  PEEK1             JOIN COMMON CODE
+
+RPTE07 LI   R0,ERRSNM
+       BL   @ERROR
+
+
+PEEK   CLR  @PKTYP            CLEAR TYPE
+PEEK1  BL   @PARFST           PARSE ADDRESS
+       JEQ  RPTE07            JUMP IF STRING
+PEEK2  BL   @FTOI             CONVERT THE NUMBER
+       MOV  @SNUM+FAC,@PKADD
+PEEK5  BL   @CKCOMA           ENSURE A COMMA
+       BL   @PSYM             GET SYMBOL POINTER
+       CB   @SID+FAC,@CSIDST     IS IT A STRING ?
+       JEQ  RPTE07            YES AN ERROR
+       BL   @PSHFAC           PUSH VARAIBLE
+
+       MOV  @PKADD,R1         * GET ADDRESS
+       INC  @PKADD            * POINT TO NEXT
+       MOV  @PKTYP,R0         * CHECK IF VDP
+       JNE  PEEK9             * JUMP IF YES
+
+       CLR  R2
+       CI   R1,>2000          * TEST IF LESS THAN >2000
+       JL   PEEK8             * JUMP IF YES
+       CI   R1,>E000          * TEST IF GREATER THAN >E000
+       JHE  PEEK8             * JUMP IF YES
+
+       BL   @PPMAP            * MAP IN ADDRESS
+PEEK8  MOVB *R1,R1            * GET BYTE
+
+PEEK6  SRL  R1,8              * ALIGN REGISTER
+       BL   @BLDINT           * RETURN AN INTEGER
+       BL   @ASSGN            * ASSIGN VARIABLE
+       CI   R8,>B300          * AT A COMMA
+       JEQ  PEEK5             * JUMP IF YES
+       B    @LDEND3           NO FINISH UP
+
+*    READING FROM VDP
+
+PEEK9  LIMI 0                 STOP INTS, NO OTHER PROCESSING CAN MESS WITH ADR
+       SWPB R1
+       MOVB R1,@VDPWA
+       SWPB R1
+       MOVB R1,@VDPWA
+       SRL  R1,15
+       MOVB @VDPRD,R1         READ A BYTE FROM VDP
+       LIMI 2                 ENABLE INTS AGAIN
+       JMP  PEEK6             JOIN COMMON CODE
+
+       PAGE
+*
+*    NAME:  CLINK
+*
+*    WHAT:  LINKS BASIC WITH ASSEMBLY ROUTINE
+*
+*  FORMAT:  LINK("NAME")
+*           LINK("NAME", P1, P2, P3)
+*
+
+RPTE06 LI   R0,ERRNTL         NAME TOO LONG
+CLNK9A BL   @ERROR
+
+
+CLINK  BL   @TESTNT           TEST IF ASSM LIBS ALREADY LOADED
+       JNE  POKEV8            NO, SO SYNTAX ERROR
+       CLR  @LNKCNT           CLEAR THE COUNTER
+       BL   @PARFST           PARSE  FIRST ARGUMENT
+       JNE  RPTE07            JUMP IF STRING
+
+CLNK05 MOV  @SLEN+FAC,R3      GET STRING LENGTH
+       JEQ  RPTE30            WATCH OUT FOR ZERO
+       CI   R3,6
+       JH   RPTE06
+
+*    SPACE OUT THE BUFFER
+
+       LI   R5,>2020          GET SOME SPACES
+       MOV  R5,@FAC
+       MOV  R5,@FAC+2         * MAKE IT ALL SPACES
+       MOV  R5,@FAC+4
+
+*    MAP IN STRING SPACE
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+FAC,R1      GET 13 BIT ADDRESS
+       AI   R1,>6000          MAKE IT 16
+       LI   R2,FAC            GET STRING LENGTH
+
+       BL   @FASMVB           NOW MOVE THE STRING
+
+       CI   R8,>B300          FIRST CHECK IF PARAMETERS (IE CHECK FOR ",")
+       JEQ  CLNK10            YES - MORE TO PARSE
+
+CLNK07 BL   @CKRPAR           ENSURE RIGHT PAREN
+       BL   @TESTNT           NOW MAKE SURE THE ASM SPACE IS MAPPED IN
+
+       BL   @CHKREF           MAKE SURE ALL REF'S ARE RESOLVED
+       JMP  CLNK9A            UNDEFINED REF
+
+       BLWP @LKSRCH           NOW SEARCH THE TABLE AND IF FOUND, GO TO IT
+       MOV  R0,R0             CHECK FOR ERROR RETURN
+       JNE  CLNK9A            NAME NOT FOUND OR OTHER ERROR FROM PGM
+       MOV  @LNKCNT,R0        ANY PARMS TO BE PASSED?
+       JEQ  CLNK8             NO
+       MOV  @06(R9),@BEGINV
+       MOV  @08(R9),@SAVEVS
+       AI   R9,-STKSZ         POP THE STACK
+CLNK8  B    @CONT
+
+*    LINK ALSO HAS PARAMETERS
+*    SAVE THE NAME AND PARSE EACH PARAMETER
+*    PUSHING ITS POINTER ON THE STACK
+*    ALSO KEEP TRACK OF ITS TYPE
+
+CLNK10 BL   @PSHFAC           PUSH THE LINK NAME
+       MOV  @BEGINV,@06(R9)
+       MOV  @SAVEVS,@08(R9)
+       MOV  R9,@BEGINV
+       BL   @ACCPAR           ACCUMULATE PARAMETERS
+       MOV  R0,@LNKCNT        SAVE THE COUNT
+       MOV  R9,@SAVEVS
+       MOV  @BEGINV,R9
+       BL   @POPFAC           GET THE LINK NAME BACK
+       MOV  @BEGINV,R9        RESTORE THE STACK LEVEL
+       JMP  CLNK07
+
+       PAGE
+*
+*    NAME:   LINK ROUTINE ENTRY FROM CALL LINK
+*
+LKSRCH DATA UREG2,NAMLNK
+
+NAMLNK
+*
+*      NAME LINK ROUTINE
+*      ASSEMBLE NAME IN FAC
+*
+       MOV  @LFA+>8000,R1      * START OF REF/DEF TABLE
+
+NAML10 CI   R1,DEFTBL         TEST IF ANY USER DEF'D LABELS
+       JEQ  NAMERR            BRANCH IF NONE
+
+       MOV  R1,R0
+       LI   R2,FAC
+       C    *R0+,*R2+         TEST FIRST 2 BYTES
+       JNE  NAML20
+       C    *R0+,*R2+         TEST SECOND 2 BYTES
+       JNE  NAML20
+       C    *R0+,*R2          TEST LAST 2
+       JNE  NAML20
+
+*    FOUND A MATCH, COPY OVER THE STARTING ADDRESS
+
+       MOV  *R0,@ENTADD-ASOF+>8000
+DFLTEN CLR  @ERRCOD
+       LI   R1,UREG1+6        SAVE THE UREG1 REGISTERS AND LOAD ASM MEM MAP
+       LI   R2,SAVRGS-ASOF+>8000
+       LI   R3,26
+       BL   @FASMVW
+       MOV  R13,*R2+         SAVE RETURN CONTEXT
+       MOV  R14,*R2+
+       MOV  R15,*R2
+       MOVB @MAP9A,@MAP92     SET THE PAGE UP CORRECTLY
+       B    @TOASM-ASOF       GO TO ASM PAGES
+
+
+NAML20 AI   R1,8
+       JMP  NAML10
+
+NAMERR LI   R0,ERRNNT
+       MOV  R0,*R13           TO USERS R0
+       RTWP
+
+
+       PAGE
+*
+*    PROGRAM MAPPER FOR PEEK/POKE
+*
+*    CALL PPMAP(INT ADDRESS)
+*               R1
+
+PPMAP  MOV  R1,R2             * COPY PAGE
+       SRL  R2,13             * ALIGN PAGE
+       ANDI R1,>1FFF          * MAKE IT 13
+       A    @ASMPTR,R2        * ADD IN OFFSET
+       MOVB @-1(R2),@MAP96
+       AI   R1,>6000          * MAKE IT 16
+       RT
+
+
+TESTNT MOV  @ASMPTR,R1
+       MOVB *R1,@MAP9A        >2000 PAGE AT >A000
+       MOVB @5(R1),@MAP9C     >C000 PAGE AT >C000
+       C    @>A006,@HAA55      IS IT INITED?
+       RT                     RETURN THE STATUS
+       PAGE
+*
+*    WHAT:  THIS ROUTINE WILL COPY AND INITIALIZE THE
+*           ASSEMBLER SUPPORT
+
+INSUP  DECT R10               * MAKE ROOM
+       MOV  R11,*R10
+       MOV  @ASMPTR,R1        GET POINTER TO ASM PAGE IN MEMORY MAP
+       MOVB *R1,@MAP9A        MAP >2000 ASM PAGE TO >A000 PAGE
+       MOVB @5(R1),@MAP9C     MAP >C000 ASM PAGE TO >C000 PAGE
+
+
+       LI   R1,LIB01          * GET START OF TABLE
+       LI   R2,>A000          AT BEGINNING OF 6000 PAGE
+       LI   R3,LIB99-LIB01
+       BL   @FASMVW
+*                             * NOW LOAD THE REF DEF TABLE
+*      LI   R1,LIBDEF         * GET START OF TABLE
+       LI   R2,DEFTBL
+       LI   R3,DEFEND-LIBDEF
+       MOV  *R10+,R11
+       B    @FASMVW
+

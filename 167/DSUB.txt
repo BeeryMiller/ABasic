@@ -1,0 +1,352 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.157.DSUB
+*
+*  NAME:    USER DEFINE SYMBOL SUPPORT
+*
+*  VERSION: 3.0 - 10/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+DSUB   MOV  @FNFLAG,R0         GET THE FLAG
+       COC  @SUBBIT,R0        IS IT SET
+       JEQ  DSUBE3            YES ERROR
+
+       MOV  @FORNET,R0        CHECK FOR-NEXT COUNTER
+       JNE  DSUBE3            ERROR
+
+       SOC  @SUBBIT,@FNFLAG   NOW SET THE SUB BIT
+
+*    CHECK THAT ITS A STRING
+
+       MOVB *R12+,R8          * GET THE NEXT CHARACTER
+       CI   R8,>C800          * CHECK IF ITS A STRING
+       JNE  DSUBE3            * JUMP IF NO
+
+*    GET THE LENGTH
+
+       MOVB *R12+,R8          GET THE LENGTH
+       MOVB R8,R2             COPY IT
+       SRL  R2,8              ALIGN REGISTER
+       JEQ  DSUBE3
+
+*    COPY THE STRING TO THE END OF THE SYMBOL TABLE.
+*    MAP IN THE SYMBOL SPACE
+
+       MOV  @SYMEND,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @SYMEND+2,R3      GET SYMBOL STORAGE
+       MOV  R3,R4
+       AI   R3,>A000          MAKE IT A 16 BIT ADDRESS
+       CLR  *R3+              HEADER
+       MOV  @BMASK,*R3+       SET THE PAGE
+       CLR  *R3+              CLEAR THE ADDRESS
+
+       MOVB R8,*R3+           COPY THE LENGTH
+
+DSUB01 MOVB *R12+,*R3+        COPY A CHARACTER
+       DEC  R2                DEC COUNTER
+       JNE  DSUB01            UNTIL ZERO
+
+*    TRY AND FIND THE CALL THAT REFERENCE
+*    THIS SUB. IF YOU CANT FIND IT CREAT A CALL
+*    ENTRY
+
+       BL   @SRCHSU           FIND THE SUB
+       MOV  R0,R0             CHECK IF ALREADY THERE
+       JNE  DSUB1A            NO
+
+*      SOC  @UDSBIT,@HEADER   SET THE UDS BIT
+*      BL   @ADDSUB           ADD THE SUB
+*      BL   @ADDVS            ADD VALUE SPACE
+
+*    IN EITHER CASE WE NOW HAVE A CALL ENTRY.
+*    UPDATE THE SYMBOL TABLE FORWARD POINTER
+
+DSUB1  MOV  @LSTSYM,R4        GET PAGE
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @LSTSYM+2,R5      GET 13 BIT ADDRESS
+       AI   R5,>6000          MAKE IT 16 BIT
+
+       MOV  *R5,R4            GET THE HEADER
+       ANDI R4,>000F          MASK OUT VALUE SPACE
+       SLA  R4,1              TIMES BY TWO
+       A    R4,R5             ADD TO ADDRESS
+       CLR  *R5               INDICATE ITS AN UDS
+       MOV  @SYMEND,@02(R5)   COPY SYMBOL TABLE ADDRESS
+       MOV  @SYMEND+2,@04(R5)
+
+*    GET THE SPACE FOR THE CPL ENTRY
+*    RE-CURRSION CANNOT OCCUR
+
+DSUB1A MOV  @SYMEND,R4        * SAVE SYMBOL TABLE END
+       MOV  R4,@LSTSUB        * USED FOR PARAMETERS
+       MOV  R4,@CURCPL        * USED IN SUBEND TO UPDATE SYM CNT
+
+       MOV  @SYMEND+2,R4
+       MOV  R4,@LSTSUB+2
+       MOV  R4,@CURCPL+2
+
+       CLR  @SYMSZ            * CLEAR THE SYMBOL SIZE
+       LI   R1,9              * NUMBER OF WORDS
+       CLR  R2                * NO PAGES
+       BL   @ADDVSW           * ALLOCATE THE SPACE
+
+*    NOW COUNT THE NUMBER OF PARAMETERS
+*    ONLY PARAMETERS NAMES ARE ALLOWED HERE
+
+       MOV  @CW01,@ARGC       SET THE ARGUMENT COUNT TO ONE
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       CI   R8,>B700          LEFT PAREN
+       JEQ  DSUB3B            NO PARAMETERS
+       B    @DSUB2
+
+DSUB3B MOV  R12,@OLDPGM       SAVE THE START
+       CLR  @PARCNT           CLEAR PAREN COUNTER
+
+DSUB3  MOVB *R12+,R8          GET A CHARACTER
+DSUB3A MOVB R8,R8             CHECK IT
+       JEQ  DSUBE3            IF AT END OF LINE
+
+       CI   R8,>B700          LEFT PAREN
+       JEQ  DSUB5A            PROCESS IT
+       CI   R8,>B600          RIGHT PAREN
+       JEQ  DSUB5B            YES
+       CI   R8,>B300          AT A COMMA ?
+       JEQ  DSUB5             YES DONE WITH THIS PARAMETER
+       JMP  DSUB3             GET NEXT CHARACTER
+
+DSUB5  MOV  @PARCNT,@PARCNT
+       JNE  DSUB3
+       INC  @ARGC             INCREMENT ARG COUNTER
+       JMP  DSUB3             CONTINUE SCAN
+
+DSUBE3 B    @DDEF6
+
+DSUB5A INC  @PARCNT           ADD ONE TO COUNTER
+       JMP  DSUB3             GET THE NEXT CHAR
+
+DSUB5B MOV  @PARCNT,R0        CHECK IF WE HAVE A LEFTER
+       JEQ  DSUB4             * NO LEFTER CONTINUE
+       DEC  @PARCNT           BALANCED PARENS
+       JNE  DSUBE3            IF NOT ZERO, ERROR
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       CI   R8,>B600          IS IT ALSO A RIGHT PAREN
+       JNE  DSUB3A            * NO CONTINUE
+
+*    FINISHED WITH THE FIRST SCAN.
+*    GOT THE NUMBER OF ARGUMENTS
+*    CLEAR OUT THE VALUE SPACE FOR THEM
+
+DSUB4  MOV  @ARGC,R14         GET THE COUNTER
+       JEQ  DSUB4A
+
+       CLR  @SYMSZ            * CLEAR THE SYMBOL SIZE
+       CLR  R1                * START WITH ZERO
+DSUB4B AI   R1,2              * ADD TWO WORDS FOR ARG
+       DEC  R14               * DECREMENT COUNTER
+       JNE  DSUB4B            * JUMP IF NOT DONE
+
+DSUB4C CLR  R2                * NO PAGES
+       BL   @ADDVSW           * ADD IT
+
+DSUB4A MOV  @LSTSUB,R4        GET THE VALUE SPACE POINTER
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+2(R4),@MAP98
+
+       MOV  @LSTSUB+2,R4      * GET THE 13 BIT ADDRESS
+       AI   R4,>6006          * MAKE IT 16
+
+       MOV  @CLINE,*R4+       * 06 SAVE CLINE
+       MOV  R12,*R4+          * 08 SAVE PROGRAM POINTER
+
+       CLR  *R4+              * 10 SAVE SYMBOL TABLE COUNT
+       CLR  *R4+              * 12 SAVE SYMBOL TABLE COUNT
+       CLR  *R4+              * 14 SAVE SYMBOL TABLE COUNT
+       MOV  @ARGC,*R4         * 16 SAVE ARGC
+
+       A    @CW18,@LSTSUB+2   * POINT TO ARGV ARRAY
+
+*    SAVE THE SYMBOL TABLE POINTER FOR LATTER
+
+       MOV  @SYMTAB,@SYMOLD
+       MOV  @SYMTAB+2,@SYMOLD+2
+       MOV  @SYMCNT,@SYMOLD+4
+       CLR  @SYMCNT
+       MOV  @SYMEND,@LSTSYM
+       MOV  @SYMEND+2,@LSTSYM+2
+
+*    NOW RESTART THE SCAN ADDING THE SYMBOLS TO THE TABLE
+
+DSUB6A MOV  @OLDPGM,R12       GET THE PROGRAM POINTER
+       MOV  @NVFLAG,@HEADER   CLEAR THE HEADER
+
+DSUB6  MOVB *R12+,R8          GET THE CHARACTER
+       BL   @ENTER            BUILD THE SYMBOL
+       BL   @SRCHSY           SEARCH THE SYMBOL TABLE
+       MOV  R0,R0             FIND IT
+       JEQ  DSUB11
+
+DSUB7  CI   R8,>B700          CHECK IF WE HAVE AN ARRAY
+       JEQ  DSUB80            YES
+
+DSUB7A BL   @ADDSYM           ADD TO SYMBOL TABLE
+
+       BL   @ADDVS
+
+       MOV  @CURSYM,@LSTSYM
+       MOV  @CURSYM+2,@LSTSYM+2
+
+*    UPDATE THE ARGUMNET ADDRESS LIST
+
+       MOV  @LSTSUB,R4        GET THE ADDRESS
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+2(R4),@MAP98
+
+       MOV  @LSTSUB+2,R4      GET 13 BIT ADDRESS
+       AI   R4,>6000          MAKE IT 16
+
+       MOV  @LSTSYM,*R4+      SAVE THE PAGE
+       MOV  @LSTSYM+2,*R4     SAVE THE ADDRESS
+       A    @CW04,@LSTSUB+2   POINT TO NEXT
+
+       MOV  @NVFLAG,@HEADER   CLEAR THE HEADER FOR THE NEXT VARIABLE
+
+DSUB11 CI   R8,>B600          AT A RIGHT PAREN
+       JEQ  DSUB12            YES - DO WITH SCAN
+
+       CI   R8,>B300          * AT A COMMA
+       JEQ  DSUB6             * JUMP IF YES
+
+DSUB2B B    @DDEF6            AND DO IT AGAIN
+
+DSUB12 B    @SYM02            CONTINUE
+
+*    GOT AN ARRAY. ONLY THING VALID BETWEEN PARENS IS A COMMA
+
+DSUB80 CLR  R15               CLEAR THE COUNTER
+DSUB81 MOVB *R12+,R8          GET THE NEXT CHARACTER
+       CI   R8,>B600          AT A RIGHT PAREN
+       JEQ  DSUB82            YES - DONE
+       CI   R8,>B300          MUST BE A COMMA
+       JNE  DSUB2B            NO SYNTAX ERROR
+       INC  R15               INC DIM COUNTER
+       JMP  DSUB81
+
+DSUB82 INC  R15               ADD ONE FOR THE FIRST
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       SOC  @DIMBIT,@HEADER   SET THE DIM FLAG
+       SOC  @SHBIT,@HEADER    AND THE SHARED FLAG
+       SLA  R15,4             ALIGN COUNT FOR FIELD
+       SOC  R15,@HEADER       SET THE BITS
+       JMP  DSUB7A            AND JOIN COMMON CODE
+
+*    NO PARAMETERS. BUILD THE UDS ENTRY
+*    CHANGE THE SUBTAB POINTER. AND CONTINUE SCAN.
+
+DSUB2  BL   @CHKEND           CHECK END
+       JNE  DSUB2B            NO ITS AN ERROR
+       DEC  R12               BACK UP PROGRAM POINTER
+       CLR  @ARGC             INDICATE NO ARGUMENTS
+
+       MOV  @LSTSUB,R4        GET THE VALUE SPACE POINTER
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+2(R4),@MAP98
+
+       MOV  @LSTSUB+2,R4      GET THE 13 BIT ADDRESS
+       AI   R4,>6006          MAKE IT 16
+
+       MOV  @CLINE,*R4+       * 06 SAVE CLINE
+       MOV  R12,*R4+          * 08 SAVE PROGRAM POINTER
+       MOV  @SYMEND,*R4+      * 10 SAVE SYMBOL TABLE START
+       MOV  @SYMEND+2,*R4+
+       CLR  *R4+              * 14 CLEAR SYMCNT
+       MOV  @ARGC,*R4         * 16 SAVE ARGC
+
+*    SAVE THE SYMBOL TABLE POINTER
+
+       MOV  @SYMTAB,@SYMOLD
+       MOV  @SYMTAB+2,@SYMOLD+2
+       MOV  @SYMCNT,@SYMOLD+4
+       CLR  @SYMCNT
+
+       B    @SYM02            AND ADD ANY NEW SYMBOLS TO THIS TABLE
+
+
+*    THIS ROUTINE CHECKS FOR THREE TOKENS
+
+CHKEND CI   R8,>8200          TAIL
+       JEQ  CHK$1
+       CI   R8,>8300          STATEMENT SEP
+       JEQ  CHK$1
+       MOVB R8,R8             EOL
+CHK$1  RT
+
+       PAGE
+*
+*    NAME:  DSUBE
+*
+*    WHAT:  SCAN A SUBEND OR SUBEXIT
+*
+
+DSUBE  MOV  @FNFLAG,R0         GET THE FLAG
+       COC  @SUBBIT,R0        IS THE BIT SET ?
+       JNE  DSUB2B            NO GOT A SUB END WITH NO SUB
+
+       SZC  @SUBBIT,@FNFLAG   RESET THE BIT
+
+       MOV  @CURCPL,R4        GET THE VALUE SPACE POINTER
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+2(R4),@MAP98
+
+       MOV  @CURCPL+2,R4      * GET THE 13 BIT ADDRESS
+*      MOV  @SYMCNT,@>600E(R4)
+       AI   R4,>600A
+       MOV  @SYMTAB,*R4+
+       MOV  @SYMTAB+2,*R4+
+       MOV  @SYMCNT,*R4
+
+*    RESET THE SYMBOL TABLE
+
+       MOV  @SYMOLD,@SYMTAB
+       MOV  @SYMOLD+2,@SYMTAB+2
+       MOV  @SYMOLD+4,@SYMCNT
+
+*    AT THIS POINT THE SYNTAX DICTATES
+*    THAT THE ONLY VALID TOKENS ARE:
+*    REM, END, OR ANOTHER SUB.
+*    ANYTHING ELSE PRODUCES AN ERROR
+
+       MOVB *R12+,R8          * GET NEXT CHARACTER AND TEST
+       JEQ  DSUBE1            * JUMP IF END OF THE LINE
+
+       CI   R8,TREM$*256      * CHECK IF TAIL REMARK
+       JEQ  DSUBE1            * JUMP IF YES
+
+       CI   R8,SSEP$*256      * CHECK IF STATEMENT SEP
+       JNE  DSUBEE            * JUMP IF NO
+
+       MOVB *R12+,R8          * GET NEXT CHARACTER
+       JEQ  DSUBEE            * JUMP IF PREMATURE EOL
+
+       CI   R8,REM$*256       * TEST FOR REMARK
+       JEQ  DSUBE1            * GET NEXT LINE
+
+       CI   R8,END$*256       * TEST FOR END
+       JEQ  DSUBE1            * STOP SCAN
+
+       CI   R8,SUB$*256       * MUST BE ANOTHER SUB
+       JNE  DSUBE9            * JUMP ITS AN ERROR
+       B    @DSUB             * CONTINUE SCAN
+
+DSUBE1 B    @NXTLN            * GET THE NEXT LINE
+
+DSUBEE B    @DDEF6            * REPORT ERROR
+
+DSUBE9 LI   R0,ERRIAS
+       B    @SYMRTN
+

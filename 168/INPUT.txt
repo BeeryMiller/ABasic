@@ -1,0 +1,1041 @@
+*--------------------------------------------------------------------------
+*
+*  FILE:  WDS1.158.INPUT
+*
+*  NAME:  INPUT ROUTINES
+*
+*  VERSION: 3.0 - 10/21/86    BASE LINE
+*
+*--------------------------------------------------------------------------
+
+*      LINPUT ROUTINE
+
+LINPUT BL   @INITKB
+       CI   R8,NUMBE$*256       FILE I/O?
+       JNE  LINP00            NO
+       BL   @GFILEN           GET # AND PAB
+       MOV  @FAC+SNUM,R11     IS IT 0?
+       JNE  LINP01            NO, FILE I/O
+       BL   @INPU$2           YES, SO PROMPT "?" AND ENSURE
+       JMP  LINP10            CONTINUE
+
+LINP01 BL   @INSU1
+       MOVB @MFLAG(R15),R0
+       SLA  R0,5
+       JNC  LINP10            DISPLAY TYPE, SO GO AHEAD
+       JMP  FER1              INTERNAL, SO BOMB
+
+LINP00 BL   @INSUB1
+
+LINP10 MOV  R9,@VAR460        SAVE STACK ON BREAK
+       BL   @PSYM             ASSIGN SYMBOL SPACE, ETC.
+       CB   @FAC+SID,@CSIDST  GOT A STRING?
+       JNE  ERRMU1            NO - ERROR MUST BE A STRING
+       BL   @PSHFAC           PUSH ENTRY ON STACK
+       MOV  @DSRFLG,R0        IS IT DSR I/O
+       JNE  LINP02            NO, SO BRANCH
+       BL   @MAPFD
+       MOV  @INTOFF(R15),R0   YES, SO TEST IF NEW RECORD NEEDED?
+       JNE  LINP03            NO
+       LI   R0,$READ          DO READ AND CLOSE IF ERROR
+       BL   @FILIOO           DOES I/O AND ERROR CHECKING
+       JNE  IOER00            I/O ERROR
+       CLR  @INTOFF(R15)
+
+LINP03 MOV  @CHRCNT(R15),R1   GET INPUT LENGTH
+       S    @INTOFF(R15),R1   TAKE AWAY AMOUNT USED
+
+       BL   @ASSGS2           CONTINUE
+       BL   @MAPFD
+       CLR  @INTOFF(R15)
+       B    @CONT
+
+LINP02 BL   @INPU$3
+* NOW MAY WANT TO LOOK AT TRAILING BLANKS
+       BL   @SROLL
+       LI   R0,EDITB
+       BL   @ASSGS1
+LINP$2 B    @CONT
+
+       PAGE
+ASSGS2 DECT R10
+       MOV  R11,*R10
+       BL   @GETSTR
+       BL   @MAPFD            GET THE PAB BACK TO >6000 SPACE
+       MOV  @PABBUF(R1),R2    INDEX INTO DATA TABLE FOR THIS STRING
+       MOV  @PABBUF+2(R1),R1
+       AI   R1,>6000          POINTER TO ACTUAL DATA
+       A    @INTOFF(R15),R1   ADD IN THE INTERNAL OFFSET
+       MOVB @DATBUF(R2),@MAP96  NOW STRING MAPPED IN AND
+       MOVB @DATBUF+1(R2),@MAP98
+       JMP  ASSG20            GO TO DO THE MOVE OF THE STRING
+
+ASSGS1 MOVB *R0+,R1           LENGTH OF STRING
+       SRL  R1,8              USE IMAGE BUFFER
+ASSGSA MOV  R0,@SVVARA        SAVE POINTER TO STRING
+       DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       BL   @GETSTR           ALLOCATE STRING SPACE
+       MOV  @SVVARA,R1        SOURCE ADDRESS
+*      MOV  @STRREF,R2        DESTINATION    ALREADY DONE IN GETSTR
+
+*      MOVB @DATBUF(R2),@MAP9A
+*      MOVB @DATBUF+1(R2),@MAP9C
+
+ASSG20 MOV  @STRREF+2,R2      GET 13 BIT ADDRESS
+       AI   R2,>A000          MAKE IT 16
+
+       MOV  @FAC+SLEN,R3      LENGTH
+       JEQ  LINP11
+       BL   @FASMVB           MOVE THE STRING
+LINP11 BL   @ASSG             NOW ASSIGN
+       MOV  *R10+,R11
+       RT
+       PAGE
+INSU1  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+* TEST IF FILE EXISTS
+       MOV  R0,R0
+       JEQ  FER1              NO, CHANNEL # DOESN'T EXIST
+*      MOV  R1,R15            POINT TO PAB
+* NOW TEST IF FILE IS IN INPUT OR UPDATE MODE
+       MOVB @MFLAG(R15),R0
+       SLA  R0,7              XXXXXYYX UPDATE 00 INPUT 10
+       JOC  FER1              NOT IN INPUT OR UPDATE MODE
+       BL   @OUTEOF           MAKE SURE ALL RECORDS WRITTEN
+       BL   @PARREC           GET RECORD NUMBER IF ANY
+       CI   R8,COLON$*256
+       JNE  ERSN01
+       MOVB *R12+,R8
+       CLR  @DSRFLG           DSR I/O, NOT SCREEN
+INSU02 MOV  *R10+,R11
+       RT
+       PAGE
+FER1   B    @OPERFE
+
+ERRMU1 LI   R0,ERRMUV
+IOER00 BL   @ERROR
+
+SNME00 BL   @GFISNM
+
+INSUB1 DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  R12,@STADDR       SAVE PROGRAM POINTER
+       DEC  @STADDR           BACK UP POINTER
+INSU01 BL   @NXTCHR
+       JEQ  INP$37
+       CI   R8,COLON$*256     GOT A COLON ?
+       JNE  INSU01            NO
+       MOV  @STADDR,R12       RESTORE PGM POINTER
+       MOVB *R12+,R8          GET NEXT CHAR
+       BL   @PARSE
+       BYTE COLON$
+CB99   BYTE 99
+       CB   @FAC+SID,@CSIDST   STRING ONLY ACCEPTABLE
+       JNE  SNME00            CAN'T ACCEPT IT
+       BL   @OSTRNG           OUTPUT TO SCREEN
+       JMP  INP$39            GO TO DO OUTPUT
+
+INP$37 MOV  @STADDR,R12
+       LI   R8,COLON$*256
+INP$02 LI   R5,QUESPR         LOAD ONLY THE BYTE
+       BL   @OSTR22
+
+INP$39
+* NOW BLANK TO END OF LINE
+*      MOV  @VARA,@SVVARA     SAVE WHERE I/O TO GO
+*      MOV  @CCOL,@SAVCOL
+*      MOV  @CROW,@SAVROW
+       BL   @FTOEOL           FILL TO EOL WITH SPACES
+*      MOV  R2,@CCOL
+*      MOV  R1,@CROW
+       CI   R8,COLON$*256
+       JNE  ERSN01
+       MOVB *R12+,R8
+       JMP  INSU02
+
+INPU$2 DECT R10
+       MOV  R11,*R10
+       JMP  INP$02
+
+INPU$3 DECT R10
+       MOV  R11,*R10
+       BL   @TONE1
+******************************
+       MOV  R12,@ARG613
+       MOV  @SMTSRT,R12       MOVE THE START TO PGMPTR
+       BL   @EXV4SP
+       BL   @READNA
+       BL   @EXV4SP
+       MOV  @ARG613,R12       RESTORE PGM POINTER
+       JMP  INSU02
+
+ERSN01 B    @OPNERS
+
+       PAGE
+NXTCHR DECT R10               MAKE ROOM
+       MOV  R11,*R10
+       BL   @EOSTMT
+       JEQ  RTEQST            AT END OF STATEMENT
+       CI   R8,>C700          STRING
+       JEQ  NXTC$0            YES
+       CI   R8,>C800          NUMBER
+       JNE  NXTC$1            NO
+NXTC$0 MOVB *R12+,R8          GET NEXT CHAR
+       SRL  R8,8              ALIGN REGISTER
+       A    R8,R12            UPDATE PROGRAM POINTER
+       CLR  R8                CLEAR THE REGISTER
+       JMP  NXTC$2            CONTINUE TO GET NEXT CHAR
+
+NXTC$1 CI   R8,LN$*256        IS IT LINE NUMBER?
+       JNE  NXTC$2            NO, SO JUST SKIP NEXT CHAR
+       INCT R12
+NXTC$2 MOVB *R12+,R8          GET NEXT CHAR
+       JMP  INSU02            RETURN
+
+RTEQST MOV  *R10+,R11         RETURN EQ SET
+       C    R11,R11
+       RT
+
+EXV4SP MOV  R9,R0             SAVE THE STACK POINTER IN REG
+       MOV  @VAR460,R9        GET THE OLD POINTER
+       MOV  R0,@VAR460        NOW SAVE IN PERM LOCATION
+       RT
+
+IERSN0 JMP  ERSN01
+
+       PAGE
+*--------------------------------------------------------------------------
+*
+*    NAME:  ACCEPT
+*
+*--------------------------------------------------------------------------
+ACCEPT MOV  R9,@VAR460        SAVE VAL STK PTR
+       CLR  @VALIDP           CLEAR OF PARMS OF ACCEPT
+       CLR  @DISFLG           TELL ACCDIS ROUTINE THAT IT IS ACCEPT
+       BL   @ACCDIS           INITIALIZE PARMS
+       BL   @EOSTMT           PREMATURE END?
+       JEQ  ERSN01            YES, SYNTAX ERROR
+       CLR  R0
+       MOVB R0,@ACCTRY        FIRST TIME THROUGH
+       MOVB R0,@IMGBM1        NO VALIDATE STRING
+       CI   R8,>FE00          VALIDATE?
+       JNE  ACCP03
+       MOVB *R12+,R8          GET NEXT CHAR
+       CI   R8,LPAR$*256      * CHECK IF LEFT PAREN
+       JNE  ERSN01            * JUMP IF NO
+       SOCB @CBH40,@ADFLAG    * SET VALIDATE USED
+ACCP02 MOVB *R12+,R8          * GET NEXT CHAR
+       CI   R8,ALPHA$*256     * TEST IF VALID TOKEN
+       JL   ACCP01
+       CI   R8,UALPH$*256
+       JH   ACCP01
+
+* NOW CONVERT PARM
+
+       MOVB R8,R0
+       SRL  R0,8
+       AI   R0,->E5
+       LI   R1,>2000
+       SRL  R1,0              SHIFT VIA R0
+       SOCB R1,@VALIDP+1
+       MOVB *R12+,R8
+       JMP  VLID$0
+
+ACCP01 BL   @PARSE
+       BYTE RPAR$,0
+       CB   @FAC+SID,@CSIDST   MUST BE A STRING
+       JNE  IERSN0            ISN'T
+
+* NOW TRY TO CONCATINATE STRING TO STRING IN IMAGE BUFFER
+
+VLID$1 MOVB @IMGBM1,R1        BUFFER LENGTH
+       SRL  R1,8              MAKE IT A WORD
+       MOV  @FAC+SLEN,R3      NEW STRING LENGTH
+       A    R1,R3
+       CI   R3,255            IS IT TOO LONG OF A VALIDATE STRING?
+       JLE  ACCP04            NO, USE THE WHOLE STRING
+       LI   R3,255            USE ONLY THIS MUCH
+       S    R1,R3             OF THE VALIDATE STRING
+       MOV  R3,@FAC+SLEN      USE ONLY THIS
+
+*      ISSUE A WARNING MESAGE
+
+       LI   R0,WRNST          LOAD WARN CODE
+       BL   @WARN             AND ISSUE MESSAGE
+
+       JMP  VLID$1            REDO THIS
+
+ACCP04 SWPB R3
+       LI   R2,IMGBM1
+       MOVB R3,*R2+
+       A    R1,R2
+       MOV  @FAC+SLEN,R3      LENGTH TO COPY
+       JEQ  VLID$0            NOTHING TO COPY
+       MOV  @FAC+STRP,R1      STRING POINTER
+       MOVB @DATBUF(R1),@MAP9A
+       MOVB @DATBUF+1(R1),@MAP9C
+
+       MOV  @FAC+STRA,R1      13 BIT ADDRESS
+       AI   R1,>A000          16 BIT ADDRESS
+       BL   @FASMVB           CONCATINATE THE STRING
+
+VLID$0 CI   R8,COMMA$*256
+       JEQ  ACCP02
+       BL   @CKRPAR
+       BL   @ACCDS            CONTINUE PARSE OF PARMS
+       BL   @EOSTMT
+       JEQ  IERSN0
+
+ACCP03 MOV  @LRC(R15),@SIZREC  SAVE THE LRC IF IT IS USED FOR PRINT, ETC
+*                                WHEN DURING A BREAK
+       MOV  @ADFLAG,R1
+       JEQ  ACCP77
+       CI   R8,COLON$*256
+       JNE  IERSN0
+       MOVB *R12+,R8
+       JMP  ACCP77            CON'T RESAVE CCOL AND CROW THE FIRST TIME THRU
+
+ACCP$7 MOV  @CCOL,@SAVCOL     SAVE THE CURRENT LOCATION OF THE X,Y POINTER
+       MOV  @CROW,@SAVROW     SAVE X AND Y PTRS
+       MOV  @DISROW,R1        NOW SET THE NEW LOCATIONS
+       MOV  @DISCOL,R2
+       BL   @GOTOXY           SET THEM AND STORE IN CCOL+ROW
+
+ACCP77 MOVB @ACCTRY,R0        TRIED BEFORE?
+       JNE  ACCP05            YES
+       BL   @PSYM
+       BL   @PSHFAC
+       SETO R0
+       MOVB R0,@ACCTRY        GOT SYMBOL ALREADY
+
+ACCP05
+*  BLANK THE EDITB BUFFER
+
+       BL   @BLKEBF           ALL BLANKS
+       CLR  @BBFLEN           0 LENGTH
+
+* NOW SET UP READLN PARMS
+
+       MOV  @ADFLAG,R0        TEST FOR NEGATIVE LENGTH
+       JEQ  ACP12A
+       JLT  ACCP12            BRANCH IF NEGATIVE (IE NEGATIVE SIZE)
+       BL   @FTOEOL           FILL TO END OF LINE WITH SPACES
+
+ACP12A MOV  @ADFLAG,R0
+       ANDI R0,>1C00
+       JNE  ACCP12            SIZE OR AT
+       BL   @SETVRA
+       JMP  ACCP20
+
+ACCP12 MOV  @LRC(R15),R3       SET SIZE
+       MOV  R3,@VARA
+       DEC  @VARA              MAKE SURE VARA ONE LESS FOR READLN ROUTINE
+       MOV  @ADFLAG,R0        NEGATIVE SIZE
+       SLA  R0,1
+       JNC  ACCP20            NOT NEGATIVE
+*ADDED FOR NEGATIVE SIZE IN ACCEPT AT WITHIN WINDOW   11-22-94 JU
+*      MOV  @WINRO1,@CROW
+* NEED TO GET THE STRING IN THE AT SIZE FIELD IN THE EDITB BUFFER
+
+       MOV  R3,@BBFLEN        STORE BUFFER LENGTH
+       LI   R4,EDITB+1        START HERE IN STRING
+       MOV  @CCOL,R2
+       A    @LMARGN,R2        ADD IN THE OFFSET FROM THE LEFT
+ACCP25 MOV  @CROW,R1
+       A    @SCRTOP,R1     XXXX   JU
+       LI   R0,X$GCC
+       XOP  @SIX,0            READ THE CHAR
+       SWPB R0
+       MOVB R0,*R4+
+       INC  R2                NEXT COLUMN
+       DEC  R3
+       JNE  ACCP25
+*ADDED TO RESTORE CROW AFTER NEG SIZE WITHIN WINDOW  11-22-94 JU
+*      MOV  @WINRO2,@SAVROW
+
+ACCP20 SETO R1
+       MOV  @ADFLAG,R0        IS IT VALIDATE?
+       SLA  R0,2
+       JNC  ACCP06            NO
+       CLR  R1
+ACCP06 MOV  R1,@VALFG
+       MOV  R12,@ARG613       IN CASE OF BREAK, SET UP PGMPTR
+       MOV  @SMTSRT,R12
+       BL   @EXV4SP
+       MOV  @ADFLAG,R0        NOW SET FLAGS IN VARIABLES
+       ANDI R0,>2080
+       MOV  R0,@BLKFLG        SET BLINK AND INVERSE FLAGS
+       BL   @READ4A
+       CLR  @BLKFLG           RESET BLINK PARMS
+       BL   @EXV4SP
+       MOV  @ARG613,R12       RESTORE PGM POINTER
+
+* NOW RESTORE X,Y IF SIZE CLIP OR AT USED
+
+       MOV  @ADFLAG,R0
+       ANDI R0,>1C00
+       JEQ  ACCP19            NO AT OR SIZE
+
+       MOV  @SAVCOL,R2
+       MOV  @SAVROW,R1
+       BL   @GOTOXY           RESTORE THEM
+
+* NOW ELIMINATE TRAILING BLANKS
+
+ACCP19 MOVB @EDITB,R1
+       SRL  R1,8              length of input in R1
+       JEQ  ACCP14
+       MOV  R1,R3
+       AI   R3,EDITB          R3 pointer to buffer
+ACCP13 CB   *R3,@SPACE
+       JNE  ACCP14
+       DEC  R3
+       DEC  R1
+       JNE  ACCP13
+
+* NOW TEST IF GETTING A STRING OR A NUMBER
+
+ACCP14 CB   @SID(R9),@CSIDST  IS IT A STRING
+       JEQ  ACCP09            YES
+
+* EXPECTING A NUMBER, SO ELIMINATE LEADING 0'S
+
+       MOV  R1,R1             is it length of zero?
+       JEQ  WARN$5            LENGTH OF 0
+       LI   R2,EDITB+1
+ACCP08 CB   *R2+,@SPACE
+       JNE  ACCP07
+
+* IS BLANK SO ELIMINATE IT
+
+       DEC  R1
+       JNE  ACCP08            LENGTH NOT 0
+
+WARN$5
+*      CALL WARN$$
+*      INPUT ERROR, TRY AGAIN
+       LI   R0,WRNINP
+       BL   @WARN
+WAR$51 EQU  $
+
+ACCP$8 MOV  @SIZREC,@LRC(R15)
+       B    @ACCP$7
+
+
+ACCP07
+
+* CONVERT STRING TO NUMBER, R1 POINTS TO START, R2 IS LENGTH
+
+       DEC  R2                POINTER TO STRING
+       MOV  R1,R3             LENGTH OF STRING IN R3
+       LI   R1,FAC+SNUM       WHERE TO PUT IT
+
+       LI   R0,X$CSN
+       XOP  @TEN,0
+
+*  may want to test if entire number was converted here
+*?????????????????????????????????????????????????
+
+
+* NOW TEST IF OVERFLOW
+       MOV  R0,R0
+       JEQ  ACCP7B
+       LI   R0,WRNNO
+       BL   @WARN
+       JMP  WAR$51
+
+ACCP7B MOVB @CSIDRL,@FAC+SID    SAY IT IS A RADIX 99
+       BL   @ASSG
+       JMP  ACCP30
+
+ACCP09 LI   R0,EDITB+1
+       BL   @ASSGSA
+* DO WE SCROLL THE SCREEN (IF NOT AT OR SIZE)
+ACCP30 EQU  $                 ALL ACCEPT GOES THROUGH HERE
+*                               SO TEST IF "AT" AND THEREFORE RESTORE
+*                               THE X AND Y PTRS
+       MOVB @ADFLAG,R0
+       ANDI R0,>1C00          CLIP OR AT OR SIZE?
+       JEQ  ACCPC1            NO SO SCROLL
+       SLA  R0,6              AT ?
+       JNC  ACCPCO            NO, SO NEED TO SEE IF SCROLL NEC
+       B    @ACCPOP           RESTORE THE ORIGINAL COL AND ROW
+
+* need to position cursor at end of line here
+ACCPCO A    @LRC(R15),@CCOL
+       C    @CCOL,@WWIDTH
+       JL   ACCP70            GO TO SET CCOL AND CROW
+ACCPC1 BL   @SROLL            MUST SCROLL
+ACCPCN B    @CONT
+
+ACCP70 MOV  @CCOL,R2
+       MOV  @CROW,R1
+       BL   @GOTOXY
+       JMP  ACCPCN
+       PAGE
+INPUT  MOV  R9,@VAR460
+       BL   @INITKB
+       MOV  R12,@ARG614       SAVE PGMPTR FOR RETRY
+       DEC  @ARG614
+       MOV  R9,@ARG616
+INPU$W CI   R8,>FD00          DEVICE OR #0?
+       JNE  INPU$9            NO
+       BL   @GFILEN           TRY TO SEE IF OPEN
+       MOVB @DEFPAB+FILENO,R11  ZERO ?
+       JNE  INPU01            DEVICE
+       BL   @INPU$2
+       JMP  INPU$B            CONTINUE
+
+INPU$9 BL   @INSUB1           OUTPUT THE PROMPT
+       MOV  @CWFF,@TMP4       added 8-6-99 for quote patch
+INPU$B BL   @GETVAR           GET THE VARIABLES
+
+       BL   @INPU$3           READ THE INPUT LINE
+
+       BL   @SROLL            SCROLL THE SCREEN
+       CLR  @SAVCHR
+       LI   R1,EDITB          length of buffer
+       MOVB *R1+,@SAVCHR+1
+       BL   @CNTCMA           COUNT THE COMMAS
+
+INPU$X INC  R2                ONE MORE FIELD THEN COMMAS COUNTED
+       C    R2,@VAR5          TEST IF NUMBER OF PARAMETERS MATCH
+       JNE  INPU$Z            NOT EQUAL - WARNING
+*=========================================================================
+*
+*    NOW IS THE TIME TO CHECK THE PARAMETERS
+*    IF THE PARAMETERS MATCH, THEM RECAN THE INPUT LINE
+*    AND MAKE THE ASSIGNMENTS
+*
+*=========================================================================
+       CLR  @BUFSRT           BUFFER START
+       MOV  @ARG615,R12       RESET PGM POINTER
+       MOVB *R12+,R8          GET THE CHARACTER
+INP$73 BL   @PSYM             GET SYMBOL
+       BL   @PSHFAC           PUSH ON STACK
+       LI   R4,EDITB+1        PREPARE FOR CONVERSION CALL
+       BL   @CNVSN            CONVERT STRING  OR NUMBER
+       MOV  R0,R0             ERROR
+       JNE  INPU$Z            YES
+
+       BL   @ASSG             DO THE ASSIGNMENT
+       DEC  @VAR5             ONE LESS TO DO
+       JEQ  INP$90            DONE
+       INC  @BUFSRT           POINT PAST COMMA ON INPUT STRING
+       CI   R8,COMMA$*256
+       JNE  IERSN1
+       MOVB *R12+,R8
+       JMP  INP$73            AND REPEAT LOOP
+
+INP$90 B    @CONT
+       PAGE
+INPU$Z LI   R0,WRNINP
+       BL   @WARN             YES - OUTPUT MESSAGE
+       BL   @SROLL            SCROLL THE SCREEN
+       MOV  @ARG614,R12       RESTORE PGM POINTER
+       MOV  @ARG616,R9
+       MOVB *R12+,R8          GET THE CHARACTER
+       JMP  INPU$W            AND REDO !
+       PAGE
+INPU01 BL   @INSU1
+       MOVB @MFLAG(R15),R0    INTERNAL?
+       SLA  R0,5
+       JOC  INPU03            YES
+
+* IS DISPLAY, SO CHECK INPUT LIST
+
+       BL   @GETVAR
+       MOV  @ARG615,R12       RESTORE PGM POINTER
+       MOVB *R12+,R8
+
+       BL   @MAPFD         HAVE TO MAP THE PAB BACK IN HERE
+
+INPU03 MOV  @INTOFF(R15),R2   DO WE NEED TO GET THE NEXT RECORD?
+       JNE  INPU04            NO
+INTR$0 LI   R0,$READ
+       BL   @FILIOO           PERFORM I/O
+       JNE  INPINE
+       CLR  @INTOFF(R15)
+INPU04 MOV  @INTOFF(R15),@ARG+14
+       MOVB @MFLAG(R15),R0    INTERNAL?
+       SLA  R0,5
+       JNC  INPU20            DISPLAY
+
+*    THE FOLLOWING CODE ASSIGNS VALUES TO VARIABLES IN THE INTERNAL MODE
+
+INTR$1 BL   @PSYM             GET THE SYMBOL POINTER
+       BL   @PSHFAC
+       CLR  @BYTE#
+       BL   @MAPFD
+       C    @INTOFF(R15),@CHRCNT(R15)   AT END OF INPUT STRING?
+       JHE  INTR$0            YES, SO GET A NEW RECORD
+
+* GET BYTE LENGTH
+
+       BL   @GETPPT           MAPS IN THE PAB BUFFER TO >A000 SPACE
+       MOVB *R2+,R1           GET LENGTH BYTE         R2 POINTS TO BUFFER
+       SRL  R1,8              MAKE IT A WORD
+       MOV  R1,@BYTE#         SAVE THE LENGTH FOR LATER USE
+       INC  @INTOFF(R15)      UP THE INTOFF POINTER
+
+*INPU05 BL   @GETPPT
+       CB   @FAC+SID,@CSIDST  GOT A STRING ?
+       JNE  INPU06            NO
+       BL   @ASSGS2
+       JMP  INPU07            GO TO UPDATE THE INTOFF
+
+INPINE BL   @ERROR            BOMB OUT I/O ERROR
+
+INPU06 LI   R5,FAC+SNUM
+       MOVB *R2+,*R5+         SAVE THE FIRST 2 BYTES
+       MOVB *R2+,*R5+
+       CI   R1,2              IS IT AN INTEGER ASSIGNMENT?
+       JNE  INPU08            NO
+       CB   @CSIDIN,@FAC+SID  IS THE VARIABLE AN INTEGER?
+       JEQ  INPU09            MATCHES
+       JMP  INPFER            NO, SO FILE ERROR
+
+IERSN1 B    @OPNERS
+
+INPU08 CI   R1,8              IS IT A REAL NUMBER?
+       JNE  INPFER            FILE ERROR
+       MOV  R5,R1             SAVE R5 FOR LATER USE
+       MOVB *R2+,*R1+
+       MOVB *R2+,*R1+
+       MOVB *R2+,*R1+
+       MOVB *R2+,*R1+
+       MOVB *R2+,*R1+
+       MOVB *R2,*R1
+       MOV  @FAC+SNUM,R0      IS IT ZERO?
+       JEQ  INPU09            YES, SO USE IT
+       LI   R4,6
+INPU10 CB   *R5+,@CB99        TEST IF LOGICAL VALUE
+       JH   INPFER            FILE ERROR
+       DEC  R4
+       JNE  INPU10            AT END OF TEST
+       ABS  R0
+       SLA  R0,8
+       JEQ  INPFER
+       CI   R0,99*256
+       JLE  INPU09
+INPFER BL   @OPERFE
+
+
+GETPPT DECT R10
+       MOV  R11,*R10
+       BL   @MAPFD            GET THE PAB IN >6000 SPACE
+       MOV  @PABBUF(R15),R2
+       MOVB @DATBUF(R2),@MAP9A
+       MOVB @DATBUF+1(R2),@MAP9C
+       MOV  @PABBUF+2(R15),R2
+       AI   R2,>A000
+       A    @INTOFF(R15),R2   SET R2 TO POINT INTO THE PAB BUFFER
+       MOV  *R10+,R11
+       RT
+
+INPU09 BL   @ASSG
+INPU07 BL   @MAPFD
+       A    @BYTE#,@INTOFF(R15)  UDATE LENGTH OF INPUT STRING USED
+
+* NOW TAKE CARE OF PENDING INPUT
+
+       CI   R8,>B300
+       JNE  INPU12            CAN'T CONTINUE
+       MOVB *R12+,R8
+       BL   @EOSTMT           END OF STATEMENT?
+       JEQ  INTR$2            AT END SO BRANCH TO DETERMINE IF MORE RECORD
+       C    @INTOFF(R15),@CHRCNT(R15)
+       JHE  INTR$0             GO GET ANOTHER NEW RECORD
+       JMP  INTR$1            USE SOME MORE OF WHAT IS THERE
+
+INTR$2 C    @INTOFF(R15),@CHRCNT(R15)  IS THERE ANY MORE LEFT IN THIS RECORD
+       JL   DONSPA
+INPU12 CLR  @INTOFF(R15)      MAKE SURE WE GET A NEW RECORD NEXT TIME
+
+DONSPA B    @CONT
+
+       PAGE
+*
+*    DISPLAY FORMAT FROM DSR
+*
+*
+INPU20 MOV  @CHRCNT(R15),R3        LENGTH
+       S    @INTOFF(R15),R3
+       MOV  R3,@SAVCHR        SAVE FOR USE LATER
+
+* NOW GET THE NUMBER OF COMMAS TO DETERMINE HOW MANY VARS CAN BE ASSIGNED
+* FROM THIS INPUT STRING
+
+* REMEMBER TO SET R1=POINTER TO BUFFER FOR CNTCMA
+
+       BL   @GETPPT           GET POINTER TO STRING
+       MOV  R2,R1
+       BL   @CNTCMA
+       INC  R2                ONE MORE
+       MOV  R2,@VAR0          THERE ARE THIS MANY FIELDS IN THE STRING
+       CLR  @BUFSRT                       REMAINING
+INPU91 BL   @PSYM             GET SYMBOL
+       BL   @PSHFAC           PUSH ON STACK
+       BL   @GETPPT
+       MOV  R2,R4             PREPARE FOR CONVERSION CALL
+       BL   @CNVSN            CONVERT STRING  OR NUMBER
+
+       MOV  R0,R0             ERROR?
+       JNE  INPFER            YES, MUST BE A FILE ERROR
+
+       BL   @ASSG
+       BL   @MAPFD            MAKE SURE WE MAP THE PAB BACK IN
+       INC  @BUFSRT           GO PAST THE COMMA
+       DEC  @VAR5             ONE LESS VAR TO ASSIGN
+       JEQ  INPU92            ALL DONE, SO GO TO TEST IF PENDING INPUT
+       CI   R8,COMMA$*256     MORE TO ASSIGN, SO WE MUST HAVE A "," HERE
+       JNE  IERSN1
+       MOVB *R12+,R8
+
+       DEC  @VAR0             ONE LESS CONSTANT IN STRING TO ASSIGN
+       JNE  INPU91            CONTINUE
+* NOW MUST GET ANOTHER RECORD
+       B    @INTR$0
+
+* NOW ALL VARS HAVE BEEN ASSIGNED, SO MUST DETERMINE IF PENDING
+* INPUT, ETC
+INPU92 DEC  @VAR0             ANY MORE CONSTANTS LEFT IN STRING?
+       JEQ  INPU95            NO, SO MAKE SURE WE READ A NEW RECORD
+
+INPU96 A    @BUFSRT,@INTOFF(R15)  NOW GET LENGTH PROCESSED LAST TIME
+       C    @INTOFF(R15),@CHRCNT(R15)
+       JL   INPU97            BRANCH IF MORE TO GO
+INPU95 CLR  @INTOFF(R15)
+INPU97 CI   R8,COMMA$*256
+       JNE  INPU12
+       MOVB *R12+,R8          GET NEXT PGM CHAR
+       JMP  DONSPA
+
+
+FTOEOL MOV  @LRC(R15),R2      FILL THE INPUT PROMPT LINE USING LRC
+       MOV  @ADFLAG,R0
+       ANDI R0,>1C00          IS IT SIZE, AT OR CLIP?
+       JNE  FTOEO0
+       S    @CCOL,R2
+FTOEO0 SETO R3                   ASSUME X,Y POINTERS ALREADY SET
+       LI   R1,BLKBUF
+       LI   R0,X$WCS
+       XOP  @SIX,0
+       RT
+
+QUESPR BYTE 2
+       TEXT '? '
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.158.FILEUTIL
+*
+*    NAME:  FILE UTILITIES
+*
+*  VERSION: 3.0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  CNTCMA
+*
+*    WHAT:  COUNT THE NUMBER OF COMMAS IN INPUT BUFFER
+*
+
+CNTCMA CLR  @BUFSRT
+       CLR  R2                FIELD COUNTER
+       CLR  R3                QUOTE COUNTER
+       LI   R4,>2C22
+CNT$10 CB   *R1,R4
+       JEQ  CNT$20
+       SWPB R4
+       CB   *R1,R4
+       JNE  CNT$11
+       MOV  R3,R3
+       JEQ  CNT$32
+       DEC  R3
+
+CNT$11 SWPB R4
+CNT$12 INC  @BUFSRT
+       INC  R1                POINT TO NEXT CHARACTER
+       C    @BUFSRT,@SAVCHR
+       JL   CNT$10
+*      CLR  R0                INDICATE NO ERRORS
+       RT                     AND RETURN
+
+CNT$20 MOV  R3,R3             ONE MORE
+       JNE  CNT$12
+       INC  R2
+       JMP  CNT$12
+
+CNT$32 INC  R3
+       JMP  CNT$11
+
+*CNT$31 SETO R0
+*      RT
+
+       PAGE
+*=========================================================================
+*
+*    NAME:  CNVSTR
+*
+*    WHAT:  CONVERT STRING
+*
+*
+*    RULES: 1. IF YOU GET A SPACE BEFORE A QUOTE
+*              CANCEL QUOTE CHECK AND COPY QUOTES
+*
+*           2. REMOVE LEADING SPACES IF A QUOTE NOT FOUND
+*
+*           3. REMOVE TRAILING SPACES IF NOT IN A QUOTE
+*              AND THE END IS ENCOUNTERED
+*
+*    REG:   DESCRIPTION
+*     0     INDEX INTO INPUT BUFFER
+*     1     WILL POINT TO BEGINNING OF STRING IN INPUT BUFFER
+*     2
+*     3     STRING LENGTH
+*     4     ACTUAL POINTER TO BUFFER
+*     5     QUOTE COUNTER
+*     6     SPACE FLAG
+*
+*=========================================================================
+COMMA# EQU  $
+CBH2C  DATA >2C22
+QUOTE$ EQU  $-1
+
+CNVSTR MOV  @SAVCHR,@SAVCHR   CHECK IF NULL STRING
+       JEQ  CNV11A            YES - PROCESS IT
+CNVS00 C    R0,@SAVCHR        ARE WE DONE ALREADY?
+       JHE  CNV11             YES
+       CB   *R4,@SPACE        ELIMINATE LEADING ZEROS
+       JNE  CNVS01
+       INC  R4                UP POINTER
+       INC  R0                AND CHARS USED IN STRING
+       JMP  CNVS00
+
+CNVS01 CB   *R4,@COMMA#       DID WE FIND A COMMA AFTER SPACES?
+       JEQ  CNV11             YES
+       MOV  R4,R1             ELSE SET START POINTER TO STRING
+       JMP  CNV10             GO BUMP THE POINTERS
+
+*    TEST FOR SPACE ?
+
+CNV05  CB   *R4,@SPACE        GOT A SPACE
+       JNE  CNV06A            NO, CONTINUE
+*      MOV  R3,R3             IS IT AT BEGINNING OF STRING?
+*      JEQ  CNV07             YES, SO IGNORE
+       MOV  R2,R2             IS IT AFTER FINAL " ?
+       JNE  CNV07             YES, SO IGNORE IT
+       JMP  CNV10             THIS IS PART OF THE STRING
+
+*    NOW TEST FOR COMMA ?
+
+CNV06A CB   *R4,@COMMA#       TEST FOR COMMA ?
+       JNE  CNV06
+       MOV  R5,R5             WITHIN A " ?
+       JEQ  CNV11             NO, SO AT END
+
+*    TEST FOR QUOTE ?
+
+CNV06  MOV  R2,R2             TEST IF NON SPACE OR COMMA CAN BE ACCEPTED
+       JNE  CNV20             NO, CAN'T FOLLOW A CLOSE "
+CNV10  CB   *R4,@QUOTE$       CHECK FOR FIRST QUOTE OR ""
+       JEQ  CNV08             SKIP IT
+
+*CNV09  MOVB *R4,*R1+          NO MOVE CHARACTER
+CNV09  INC  R3                INCREMENT STRING LENGTH
+CNV07  INC  R0                ONE MORE CHARACTER EATEN
+       INC  R4                POINT TO NEXT CHAR IN STRING
+CNV07A C    R0,@SAVCHR        AT THE END
+       JL   CNV05             NOT YET
+* AT END, SO TEST IF "" ARE OKAY
+       MOV  R5,R5
+       JNE  CNV20             NO GOOD
+
+CNV11  MOV  R0,@BUFSRT        SAVE THE CURRENT LEVEL
+
+* NOW ELIMINATE TRAILING BLANKS
+       MOV  R2,R2             WAS IT A "XCVXCVXCV" TYPE STATEMENT?
+       JNE  CNV11A            YES, SO LENGTH ALREADY KNOWN
+CNV11B MOV  R3,R3             ANY CHARS IN BUFFER
+       JEQ  CNV11A            NO, SO PROCESS NULL STRING
+       DEC  R4
+       CB   *R4,@SPACE        SPACE?
+       JNE  CNV11A            NO, SO HAVE STRING
+       DEC  R3
+       JMP  CNV11B
+CNV11A C    @TMP4,@CWFF   Quoted strs can't use pg bound patch
+       JNE  CNV11C          08-06-99ju
+       DECT R10              PUT ON STACK
+       MOV  R1,*R10           LOCATION OF THE STRING
+       MOV  R3,R1             LGTH FOR GET STRING
+       JMP  CNV14
+*FIX CROSSING PAGE BOUNDARY  03-23-99ju
+CNV11C DECT R10               PUT ON STACK was CNV11A
+       MOV  R3,*R10           SAVE LGTH OF THE STRING
+       LI   R2,>FE30          TMP BUFFER RESV <100
+       BL   @FASMVB           MOV IT
+       MOV  *R10+,R1          LGTH FOR GET STRING
+       BL   @GETSTR           * GET STRING SPACE AND BUILD FAC
+*    GET STRING MAPS IN STRING SPACE AT >A000
+
+*      MOV  *R10+,R1          * LOAD SOURCE STRING
+       LI   R1,>FE30          * LOAD SOURCE STRING
+CNV14A MOV  @FAC+STRA,R2      * GET 13 BIT DESTINATION ADDRESS
+       AI   R2,>A000          * MAKE IT 16
+       MOV  @FAC+SLEN,R3      * BYTE COUNT
+       JEQ  CNV15             IF ZERO NOTHING TO MOVE
+       BL   @FASMVB           TRANSFER THE STRING
+
+CNV15  CLR  R0                INDICATE A CLEAN CONVERSION
+       CLR  @TMP4             added for quoted str patch
+CNV16  MOV  *R10+,R11         GET THE RETURN ADDRESS
+       RT                     AND RETURN
+CNV14  BL   @GETSTR
+       MOV  *R10+,R1
+       JMP  CNV14A
+CNVSTX JMP  CNVSTR       added for long jmp-quote patch
+*    ERROR RETURN
+
+CNV20  SETO R0                INDICATE AN ERROR
+       JMP  CNV16             AND RETURN
+
+*    THIS ROUTINE KEEPS TRACT OF THE NUMBER OF QUOTES
+*    IF THE NEXT CHARACTER IS A QUOTE THEN COPY IT
+*    ELSE DECERMENT QUOTE COUNTER AND CONTINUE
+
+CNV08  MOV  R5,R5             FIRST QUOTE ?
+       JEQ  CNV08A            YES
+       INC  R0                NO, THIS IS EITHER THE FINAL QUOTE OR ""
+       INC  R4                SO SKIP THIS ONE IN ANY CASE
+       CB   *R4,@QUOTE$       CHECK FOR "" OR FINAL QUOTE
+       JNE  CNV08B            THIS IS THE FINAL QUOTE
+
+*  THIS IS A "" WITHIN A QUOTED STRING SO MOVE STRING
+*    AT R1 OF LENGTH R3 UP ONE BYTE
+
+       MOV  R3,R11
+       JEQ  CNV08D            NOTHING TO MOVE
+       MOV  R4,R5             USE R5
+CNV08C DECT R5
+       MOVB *R5+,*R5
+       DEC  R11
+       JNE  CNV08C
+       SETO R5                RESTORE R5
+CNV08D INC  R1                UP THE START OF STRING POINTER
+       JMP  CNV09             CONTINUE
+
+* THE RIGHT MATCHING PAREN, SO CAN ONLY ACCEPT " " UNTIL END OR ,
+CNV08B SETO R2                AT END OF QUOTED FIELD
+       CLR  R5
+       JMP  CNV07A            END OF THE STRING
+
+CNV08A MOV  R3,R3             IS QUOTE EMBEDDED IN STRING
+       JNE  CNV09             YES, SO TREAT AS NORMAL CHARACTER
+       MOV  R4,R1             INIT POINTER
+       INC  R1
+       SETO R5
+       JMP  CNV07
+       PAGE
+*========================================================================
+*
+*      DECIDE WHICH CONVERSION TO USE
+*       R4 MUST POINT TO BUFFER START
+*       USES STRBUF FOR CONVERSION
+*
+*========================================================================
+CNVSN  DECT R10               SAVE RETURN
+       MOV  R11,*R10
+       CLR  R5                OPEN QUOTE FLAG
+       CLR  R2                LAST " FLAG
+       CLR  R3                LENGTH OF STRING
+       MOV  @BUFSRT,R0
+       A    R0,R4
+       CB   @FAC+SID,@CSIDST  IS IT A STRING?
+       JEQ  CNVSTX            YES chg'd for quote patch
+       PAGE
+*=========================================================================
+*
+*    NAME:  CNVNUM
+*
+*    WHAT:  CONVERT TO NUMBER
+*
+*
+*=========================================================================
+CNVNUM MOV  @SAVCHR,@SAVCHR   IS THE LENGTH 0?
+       JEQ  CNV20             YES, SO ERROR OUT
+CNVN22 C    R0,@SAVCHR        HAVE WE EXHAUSTED THE STRING?
+       JHE  CNV20
+
+       CB   *R4,@CBH2C        IS IT A COMMA?
+       JEQ  CNV20             YES, SO STRING IS ONLY SPACES, SO ERROR
+       CB   *R4+,@SPACE       IS IT A BLANK
+       JNE  CNVN21            NO, SO START THE NUMBER STRING
+       INC  R0                ONE MORE CHAR SEARCHED
+       JMP  CNVN22            GO TO FIND OUT IF WE HAVE GONE TOO FAR
+
+CNVN21 MOV  R4,R2             START OF STRING HERE
+       DEC  R2                COMPENSATE
+CNVN24 INC  R3                LENGTH IS GREATER BY ONE
+       INC  R0                USED UP ONE MORE CHAR IN STRING
+       C    R0,@SAVCHR        IS THE STRING USED UP?
+       JHE  CNVN23            YES
+       CB   *R4+,@CBH2C       IS IT A COMMA?
+       JNE  CNVN24            NO, SO CONTINUE
+
+CNVN23 MOV  R0,@BUFSRT        SAVE WHERE THE POINTER IS IN THE BUFFER
+
+       LI   R1,FAC+SNUM       WHERE THE OUTPUT IS TO GO
+       LI   R0,X$CSN          OPERATION   R2 AND R3 ARE ALREADY SET
+       XOP  @TEN,0
+       MOV  R0,R0              OVERFLOW
+       JNE  CNV20             YES
+*      CLR  R0                INDICATE NO ERRORS
+***************  TEST IF ENTIRE NUMBER HAS BEEN CONVERTED ***************
+
+
+
+       MOVB @CSIDRL,@FAC+SID   INDICATE A REAL
+GETV20 JMP  CNV16             AND RETURN
+       PAGE
+*=========================================================================
+*
+*    NAME:  GETVAR
+*
+*    WHAT:  GET VARIABLES
+*
+* COMMENT:  USED BY INPUT TO GET THE VARAIBLES
+*
+*           INPUT : NORMAL BASIC STATEMENT
+*           OUTPUT: VAR5 CONTAINS THE NUMBER OF VARIABLES TO ASSIGN
+*
+*=========================================================================
+GETVAR DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+*      MOV  @PGMPTR,@ARG615   SAVE THE START
+       MOV  R12,@ARG615       SAVE THE START
+       DEC  @ARG615
+       CLR  @VAR5             CLEAR COUNTER
+
+GETV05 BL   @PSYM             GET AND FIND THE SYMBOL
+       INC  @VAR5             INCREMENT COUNTER
+GETV11 MOVB R8,R8             AT THE END
+       JEQ  GETV20
+       CI   R8,>8200          AT A SEPERATOR
+       JEQ  GETV20
+       CI   R8,>B300          COMMA
+       JEQ  GETV21
+GETV12 BL   @RPTE03
+
+GETV21 MOVB *R12+,R8          GET THE NEXT CHARACTER
+
+* NOW TEST IF DSR I/O
+
+       MOVB @DSRFLG,R11
+       JNE  GETV22            ISN'T DSR I/O
+       BL   @EOSTMT           AT END?
+       JEQ  GETV20            YES, SO RETURN
+
+GETV22 MOVB R8,R8
+       JGT  GETV05            IF SYMBOL GOT TO IT
+       JMP  GETV11            ELSE CHECK ITS MEANING

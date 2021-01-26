@@ -1,0 +1,89 @@
+*
+*    NAME:  CERR$
+*
+*    WHAT:  CALL ERROR
+*
+*  FORMAT:  ERROR(NV, NV)
+*           ERROR(NV, NV, NV, NV)
+*
+
+CERR27 LI   R2,FAC
+       LI   R1,EENTRY
+       LI   R3,16
+       JMP  CERR21
+
+CERR   MOV  @EENTRY,R0
+       CI   R0,>011F
+       JEQ  CERR18
+       CI   R0,>001F
+       JEQ  CERR27
+
+*    NO CREAT A DUMMY INDEX
+
+CERR18 LI   R1,FAC
+       ANDI R0,>00FF
+       MOV  R0,*R1+
+       CLR  *R1
+       MOV  R1,R2
+       INCT R2
+       LI   R3,12
+CERR21 BL   @FASMVW
+       BL   @PSHFAC
+       CLR  @CURLIN           ASSUME NO ARGUMENTS
+       BL   @CKLPAR           ENSURE LEFT PAREN
+
+CERR$1 BL   @PSYM             GET A SYMBOL
+       CB   @CSIDST,@SID+FAC  CHECK IF STRING
+       JEQ  CERR$5            JUMP IF YES
+
+       BL   @PSHFAC           PUSH IT
+       INC  @CURLIN           INCREMENT COUNTER
+       CI   R8,>B300          AT A COMMA ?
+       JNE  CERR$9            NO
+       BL   @CKCOMA           EAT THE COMMA
+       JMP  CERR$1
+
+CERR$5 BL   @RPTE07           REPORT ERROR (ERRSNM)
+
+CERR$4 BL   @RPTE03           * SYNTAX
+
+CERR$9 BL   @CKRPAR           * ENSURE RIGHT PAREN
+       C    @CW02,@CURLIN     * CHECK IT THEY PASSED TWO
+       JEQ  ERR$20            * JUMP IF YES
+       C    @CW04,@CURLIN     * THEN IT MUST BE FOUR
+       JNE  CERR$4            * JUMP IF NO
+
+       MOV  @-62(R9),R1   * GET THE LINE NUMBER
+
+CERR15 BL   @BLDINT           * BUILD AN INTEGER
+       BL   @ASSGN            * ASSIGN THE LINE NUMBER
+
+*    ASSIGN THE SEVERITY CODE
+
+       MOVB @-44(R9),R1     * GET THE SEVERITY CODE
+       SRL  R1,8
+       BL   @BLDINT
+       BL   @ASSGN
+
+*    ASSIGN THE ERROR TYPE
+
+ERR$20 MOVB @-29(R9),R1       * GET THE ERROR NUMBER
+       JLT  ERR$21
+       SRL  R1,8
+ERR$22 BL   @BLDINT
+       BL   @ASSGN
+
+*    ASSIGN THE ERROR CODE
+
+       MOVB @-8(R9),R1        * GET THE ERROR NUMBER
+       SRL  R1,8
+       BL   @BLDINT
+       BL   @ASSGN
+       MOVB @CBH01,@EENTRY    * SET THE PRINT FLAG
+       AI   R9,-STKSZ         * POP THE STACK
+       B    @CONT
+
+ERR$21 LI   R1,>FFFF          LOAD A MINUS ONE
+       JMP  ERR$22
+
+

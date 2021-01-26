@@ -1,0 +1,130 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.157.DATA
+*
+*  NAME:    DATA TABLES
+*
+*  VERSION: 3.0 - 10/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*CBH81  BYTE >81               ELSE
+*CBH82  BYTE >82               SSEP
+*CBH83  BYTE >83               TAIL REMARK
+*CBH84  BYTE >84               IF
+*CBH85  BYTE >85               GO
+*CBH86  BYTE >86               GOTO
+*CBH87  BYTE >87               GOSUB
+*CBH88  BYTE >88               RETURN
+*CBH89  BYTE >89               DEF
+*CBH8A  BYTE >8A               DIM
+*CBH8B  BYTE >8B               END
+*CBH8C  BYTE >8C               FOR
+*CBH92  BYTE >92               INPUT
+*CBH93  BYTE >93               DATA
+*CBH94  BYTE >94               RESTORE
+*CBH96  BYTE >96               NEXT
+*CBH9A  BYTE >9A               REM
+*CBH9B  BYTE >9B               ON
+*CBH9D  BYTE >9D               CALL
+*CBH9E  BYTE >9E               OPTION
+*CBHA1  BYTE >A1               SUB
+*CBHA3  BYTE >A3               IMAGE
+*CBHA7  BYTE >A7               SUBXT
+*CBHA8  BYTE >A8               SUB END
+*CBHAA  BYTE >AA               LINPUT
+CBHAD  BYTE >AD               EXTENDED NUD
+*CBHAE  BYTE >AE               INTEGER
+*CBHB0  BYTE >B0               THEN
+*CBHB3  BYTE >B3               COMMA
+*CBHB6  BYTE >B6               RIGHT PAREN
+*CBHB7  BYTE >B7               LEFT PAREN
+*CBHC7  BYTE >C7               NUMERIC CONSTANT
+CBHC8  BYTE >C8               STRING CONSTANT
+*CBHC9  BYTE >C9               LINE NUMBER
+CBHE3  BYTE >E3               EXTENDED FUNCTION
+*CBHEC  BYTE >EC               ALL
+CBHF1  BYTE >F1               BASE
+*
+*
+CBH50  BYTE >50               UC P
+CBH70  BYTE >70               LC P
+CBH2D  BYTE >2D               MINUS
+CBH2B  BYTE >2B               PLUS
+CBH2A  BYTE >2A               ASTRICK
+
+*    SCAN TABLE
+
+SCNTAB DATA NXTLN        80
+       DATA NXTCHR       81   ELSE
+       DATA SYM01        82   STATEMENT SEP
+       DATA TAILCK       83   REMARK
+       DATA IF           84
+       DATA GO           85
+       DATA IMPER        86
+       DATA IMPER        87
+       DATA RETURN       88   RETURN
+       DATA DDEF         89   DEF
+       DATA DIM          8A   DIM
+       DATA NXTCHR       8B
+       DATA FOR          8C
+       DATA NXTCHR       8D
+       DATA NXTCHR       8E
+       DATA NXTCHR       8F
+       DATA NXTCHR       90
+       DATA NXTCHR       91
+       DATA IMPER        92
+       DATA DATA1        93
+       DATA NXTCHR       94
+       DATA NXTCHR       95
+       DATA NEXT         96
+       DATA NXTCHR       97
+       DATA NXTCHR       98
+       DATA NXTCHR       99
+       DATA NXTLN        9A
+       DATA ON           9B
+       DATA NXTCHR       9C
+       DATA DCALL        9D
+       DATA OPTION       9E
+       DATA NXTCHR       9F
+       DATA NXTCHR       A0
+       DATA DSUB         A1   SUB
+       DATA NXTCHR       A2
+       DATA IMPER        A3   IMAGE
+       DATA NXTCHR       A4
+       DATA NXTCHR       A5
+       DATA NXTCHR       A6
+       DATA NXTCHR       A7   SUB EXIT
+       DATA DSUBE        A8   SUB END
+       DATA NXTCHR       A9
+       DATA IMPER        AA   LINPUT
+       DATA NXTCHR       AB
+       DATA NXTCHR       AC
+       DATA EXNUD        AD
+       DATA DEFINT       AE   INTEGER
+       DATA DEFREL       AF   REAL
+       DATA NXTCHR       B0   THEN
+
+
+SUBBIT DATA >2000        SUB BIT
+SBEBIT DATA >1000        SUB BIT END
+
+       PAGE
+
+*    THE FOLLOWING IS THE HEADER LAYOUT
+*
+*    -----------------------------------------------------
+*    | 0  1  2  3 | 4  5  6  7 | 8 | 9  A  B | C  D  E  F |
+*    |------------|------------|---|---------|------------|
+*    | U  U  D  S |            | D | S I Z E |            |
+*    | D  D  I  H | T  Y  P  E | I |         | V  S  O    |
+*    | F  S  M    |            | M |         |            |
+*    |            |            |   |         |            |
+*    -----------------------------------------------------
+*
+
+DIMBIT DATA >2080        ARRAY BIT
+
+STRBIT DATA >0500        STRING
+
+CHFFF0 DATA >FFF0
+CW18   DATA 18

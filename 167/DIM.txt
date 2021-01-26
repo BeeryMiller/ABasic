@@ -1,0 +1,222 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.157.DIM
+*
+*  NAME:    SCAN AN DIM STATEMENT
+*
+*  VERSION: 3.0 - 10/25/86    BASE LINE
+*
+*         USES R0-R5,R15
+*-------------------------------------------------------------------------
+DIM    MOV  @NVFLAG,@HEADER   RESET STRING FLAG
+DIM$1  SETO @BASE1
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       JEQ  DIMRTN            AT THE END - ERROR
+       JLT  DIMERR            TOKEN      - ERROR
+       BL   @ENTER            GET THE SYMBOL
+       BL   @SRCHSY           SEARCH THE SYMBOL TABLE
+       MOV  R0,R0             FIND SYMBOL ?
+       JEQ  DIMERR            FOUND IT ITS AN ERROR
+       BL   @ADDSYM           ADD THE SYMBOL
+
+       BL   @GETAS            * GET ARRAY SIZE
+
+       CI   R8,>B700          * MUST BE AT LEFT PAREN
+       JNE  DIMERR
+
+DIM10  MOVB *R12+,R8          GET THE NEXT CHARACTER
+       CI   R8,>C800          * NUMERIC CONSTANT
+       JNE  DIMERR            * JUMP IF NOT
+       MOVB *R12+,R3          GET THE LENGTH
+       MOV  R12,R2            COPY THE STRING ADDRESS
+       SRL  R3,8              ALIGN REGISTER
+       A    R3,R12            UPDATE PERM POINTER
+
+       LI   R0,X$CSIN         LOAD OP-CODE
+       XOP  @TEN,0
+
+       INC  R1                ADD ONE TO ARRAY SIZE FOR BASE 0
+
+       MOV  @SVDIM,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+2(R4),@MAP98
+       MOV  @SVDIM+2,R4
+       INCT @SVDIM+2          POINT TO NEXT ENTRY
+
+       MOV  R1,@>6000(R4)     NO - SAVE ARRAY SIZE
+       JGT  DIM20A
+
+DIME20 LI   R0,ERRBV
+DIME10 B    @SYMRTN           USE COMMON CODE
+
+DIM20A INC  @DIMCNT           INCREMENT ARRAY DEPTH COUNTER
+       C    @DIMCNT,@CW08
+       JHE  DIME20
+
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       CI   R8,>B300          AT A COMMA
+       JEQ  DIM10
+       CI   R8,>B600          RIGHT PAREN
+       JEQ  DIM12             DONE WITH THIS ONE
+
+DIMERR BL   @SYMSYN           SYNTAX ERROR
+
+DIMRTN B    @SYM02            INDICATE NO ERRORS
+
+*    ALL DONE WITH DIM SCAN. WRITE THE HEADER.
+
+DIM12  MOV  @CURSYM,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+2(R4),@MAP98
+       MOV  @CURSYM+2,R4
+
+       MOV  @DIMCNT,R1        GET THE COUNTER IS A REG
+       MOV  R1,R5             SAVE FOR LATER USE
+       SLA  R1,4              ALIGN IT
+       SOC  @DIMBIT,R1        SET THE DIM BIT
+       SOC  R1,@>6000(R4)      WRITE THE HEADER
+
+*    NOW CALCULATE THE TOTAL ARRAY SIZE.
+*    MAP IN THE SPACE
+
+       MOV  @SVDIM,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+2(R4),@MAP98
+
+       MOV  @SVDIM+4,R4       GET 13 BIT ADDRESS
+       AI   R4,>6000          MAKE IT 16
+
+       CLR  R2                USE R2,R3 AS ACCUMULATORS  MSW
+       MOV  *R4+,R3                 LSW
+       ABS  @BASE             BASE 1 OR 0
+       JEQ  DIMCAL            BASE 0
+       DEC  R3                BASE 1 SO ONE LESS DIMENSION
+DIMCAL DEC  R5
+       JEQ  DIMC02            ALL DONE
+       MOV  R3,R0             GET THE LSW
+       MOV  *R4+,R15          GET NEXT INDEX
+       ABS  @BASE
+       JEQ  DIMC03
+       DEC  R15               BASE 1
+DIMC03 MPY  R15,R0            FIRST MULTIPLY THE LSW
+       MOV  R1,R3             LSB
+       MOV  R2,R1             NOW GET THE MSB TO MULTIPLY
+       MOV  R0,R2
+       MOV  R1,R0
+       MPY  R15,R0
+       MOV  R0,R0
+       JNE  DIMOVF            OVERFLOW
+       A    R1,R2
+       JNC  DIMCAL
+DIMOVF B    @ADDVS2
+
+
+DIMC02 CZC  @CHFFF0,R2        MAKE SURE ONLY A 20 BIT NUMBER (BECAUSE WORDS)
+       JNE  DIMOVF            TOO LARGE FOR THE MACHINE
+       MOV  R3,R1             PUT THE LSW IN THE CORRECT REGISTER
+       BL   @ADDV44           ADD THE SPACE
+
+       MOV  @NDIMFL,R0
+       JNE  NON$10
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       JEQ  DIMRTN            YES - EXEC A NORMAL RETURN
+       CI   R8,>8300          IS IT A TAIL
+       JEQ  DIMRTN            YES - EXEC A NORMAL RETURN
+       CI   R8,>8200
+       JEQ  DIMRTN
+       CI   R8,>B300          IS IT A COMMA
+       JNE  DIMERR            YES - EXEC A ERROR RETURN
+       B    @DIM              GO ABCK AND PARSE SOME MORE
+
+       PAGE
+*
+*    NAME:  NONDIM
+*
+*    WHAT:  A NON DIMINENSION DIMENSION
+*           WHEN WE GET HERE, WE MIGHT BE AT A
+*           POINT IN THE SOFTWARE OF ANOTHER OCCURANCE
+*           OF THE SYMBOL. IF NOT, SYNTAX REQUIRES IT TO BE
+*           A DIMENSION.
+*           THERE ARE TWO FORMATS WE ALLOW HERE...
+*
+*           1. SYMBOL(NUMBER)
+*              IF A NUMBER, JUST IGNORE ITS VALUE AND COUNT
+*              COMMAS TO GET THE NUMBER OF SUBSCRIPTS
+*
+*           2. SYMBOL(VARIABLE)
+*              IF THERE IS A VARIABLE, CHECK TO SEE IF IT EXIST
+*              IF NOT ADD IT
+*
+
+NONDIM SETO @NDIMFL           * SET THE NON-DIMINENSION FLAG
+       SETO @BASE1            * INDICATE THAT WE HAVE A DIM
+       MOV  R12,@PGMNDD
+       DEC  @PGMNDD
+
+       BL   @GETAS            * GET ARRAY SPACE
+*                             *  MAPS IN THE SVDIM AT >6000 PAGES
+
+NON$01 LI   R1,11             * DEFAULT DIM COUNT
+
+       MOV  @SVDIM+2,R4
+       AI   R4,>6000
+       INCT @SVDIM+2          POINT TO NEXT DIMENSION
+       MOV  R1,*R4            WRITE IN THE DIM SUBSCRIPT VALUE
+       INC  @DIMCNT           DIM COUNT
+
+NON$02 MOVB *R12+,R8          GET THE NEXT CHARACTER
+       JGT  NON$02            YES IGNORE IT
+       CI   R8,COMMA$*256     AT A COMMA
+       JEQ  NON$01
+       CI   R8,RPAR$*256      AT A RIGHT PAREN
+       JEQ  DIM12             YES DONE
+       CI   R8,>C800          NUMERIC CONSTANT
+       JNE  NON$02            SKIP CHAR
+
+NON$03 MOVB *R12+,R1          GET THE LENGTH
+       SRL  R1,8              ALIGN IT
+       A    R1,R12            ADD TO PROGRAM POINTER
+       JMP  NON$02            AND CONTINUE SCANNING
+
+NON$10 CLR  @NDIMFL           RESET NON DIM FLAG
+       MOV  @NVFLAG,@HEADER   RESET HEADER
+       MOV  @PGMNDD,R12
+       B    @NXTCHR           AND GET THE NEXT CHARACTER
+
+       PAGE
+GETAS  DECT R10
+       MOV  R11,*R10
+
+       CLR  @DIMCNT           * CLEAR THE ARRAY COUNTER
+
+*    SAVE THE CURRENT END. THIS MARKS THE START OF THE
+*    ARRAY SUB-SCRIPT SIZES.
+
+       MOV  @SYMEND,@SVDIM
+       MOV  @SYMEND+2,@SVDIM+2
+       MOV  @SYMEND+2,@SVDIM+4
+
+*    NOW GET 8 WORDS FOR THE ARRAY DEPTH. ONE MORE
+*    THEN WE NEED. MAKES THE CALCULATION EASIER.
+
+       LI   R1,8              * NUMBER OF WORDS 32 BIT
+       CLR  R2                * MSW OF WORDS TO GET
+       BL   @ADDVSW           * DONT USE THE HEADER
+       CLR  @SYMSZ            * CLEAR THE SYMBOL SIZE
+
+       MOV  @SVDIM,R4         * GET THE PAGE
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SVDIM+2,R4       * GET THE 13 BIT ADDRESS
+       AI   R4,>6000          * MAKE IT 16
+       MOV  *R4,R1            * READ THE HEADER
+       ANDI R1,>000F          * MASK OUT VSO
+       SLA  R1,1              * MULTIPLY BY 2
+
+       A    R1,@SVDIM+2       * ADD VSO TO SAVED LOACTION 1
+       A    R1,@SVDIM+4       * ADD VSO TO SAVED LOCATION 2
+
+       MOV  *R10+,R11
+       RT
+

@@ -1,0 +1,15 @@
+BLDINT LI   R5,FAC            COPY FAC
+       MOV  @BLDCON,*R5+      HEADER
+       CLR  *R5+              FAC+2
+       MOV  R1,*R5+           FAC+4
+       CLR  *R5+              FAC+6
+       CLR  *R5+              FAC+8
+       CLR  *R5+              FAC+10
+       CLR  *R5+              FAC+12
+       CLR  *R5               FAC+14
+       RT                     RETURN
+
+BLDCON BYTE SIDVS
+       BYTE SIDINT
+
+

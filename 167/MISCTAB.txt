@@ -1,0 +1,78 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.157.MISCTAB
+*
+*  NAME:    MISC STRING TABLES
+*
+*  VERSION: 3.0 - 11/20/86    BASE LINE RELEASE 2.0
+*
+*-------------------------------------------------------------------------
+
+*    FUNCTION KEY LIST TABLE
+*    THE ADDRESS OF THE STRING IS
+*    STORED IN THIS TABLE
+
+FKLTAB DATA 10
+       DATA FKL1,FKL2,FKL3,FKL4
+       DATA FKL5,FKL6,FKL7,FKL8
+       DATA FKL9,FKLA
+
+FKL1   BYTE 5
+       TEXT 'LIST '
+FKL2   BYTE 4
+       TEXT 'RUN '
+FKL3   BYTE 4
+       TEXT 'OLD '
+FKL4   BYTE 5
+       TEXT 'SAVE '
+FKL5   BYTE 3
+       TEXT 'CON'
+FKL6   BYTE 6
+       TEXT 'MERGE '
+FKL7   BYTE 4
+       TEXT 'NUM '
+FKL8   BYTE 6
+       TEXT 'TRACE '
+FKL9   BYTE 6
+       TEXT 'PRINT '
+FKLA   BYTE 3
+       TEXT 'KEY'
+
+FKNMES DATA MAXFK-3
+       DATA FKN01
+       DATA FKN02
+       DATA FKN03
+       DATA FKN04
+       DATA FKN05
+       DATA FKN06
+       DATA FKN07
+       DATA FKN08
+       DATA FKN09
+       DATA FKN10
+       DATA FKN11
+       DATA FKN12
+
+FKN01  BYTE 3
+       TEXT 'F1 '
+FKN02  BYTE 3
+       TEXT 'F2 '
+FKN03  BYTE 3
+       TEXT 'F3 '
+FKN04  BYTE 3
+       TEXT 'F4 '
+FKN05  BYTE 3
+       TEXT 'F5 '
+FKN06  BYTE 3
+       TEXT 'F6 '
+FKN07  BYTE 3
+       TEXT 'F7 '
+FKN08  BYTE 3
+       TEXT 'F8 '
+FKN09  BYTE 3
+       TEXT 'F9 '
+FKN10  BYTE 3
+       TEXT 'F10'
+FKN11  BYTE 3
+       TEXT 'WD '
+FKN12  BYTE 3
+       TEXT 'PPT'

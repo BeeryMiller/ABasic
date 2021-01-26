@@ -1,0 +1,7 @@
+FASTPG MOV  R1,R2               MAKE COPY
+       SRL  R2,13               GET ONLY PAGE
+       MOVB @PGMMAP(R2),@MAP96  LOAD >6000 MAP PAGE
+       MOVB @PGMMAP+1(R2),@MAP98 LOAD >8000 MAP PAGE
+       ANDI R1,>1FFF            NOW GET POINTER WITHIN PAGE
+       ORI  R1,>6000
+       RT
