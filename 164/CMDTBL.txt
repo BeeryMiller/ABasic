@@ -1,0 +1,88 @@
+*-------------------------------------------------------------------------
+*
+*   FILE:   WDS1.154.CMDTBL
+*
+*   NAME:   COMMAND TABLE
+*
+* VERSION:  3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+CMDTBL DATA SYM8,TODEB       TO THE DEBUGGER
+       BYTE 1
+       TEXT 'D'
+
+SYM8   DATA SYM9,BYE          BACK TO OS
+       BYTE 3
+       TEXT 'BYE'
+
+SYM9   DATA SYM12,CONT       CONTINUE
+       BYTE 3
+       TEXT 'CON'
+
+SYM12  DATA SYM15,LIST       LIST A BASIC PROGRAM
+       BYTE 4
+       TEXT 'LIST'
+
+SYM15  DATA SYM16,MERGE      MERGE A BASIC PROGRAM
+       BYTE 5
+       TEXT 'MERGE'
+
+SYM16  DATA SYM17,NEW        RE-INITIALIZE BASIC POINTERS
+       BYTE 3
+       TEXT 'NEW'
+
+SYM17  DATA SYM18,NUM        ENTER A BASIC PROGRAM
+       BYTE 3
+       TEXT 'NUM'
+
+SYM18  DATA SYM20,OLD        READ A BASIC PROGRAM IN
+       BYTE 3
+       TEXT 'OLD'
+
+SYM20  DATA SYM21,RES        RESEQUENCE THE LINE NUMBERS
+       BYTE 3
+       TEXT 'RES'
+
+SYM21  DATA SYM22,RUN        EXECUTE A BASIC PROGRAM
+       BYTE 3
+       TEXT 'RUN'
+
+SYM22  DATA SYM23,SAVE       SAVE A BASIC PROGRAM
+       BYTE 4
+       TEXT 'SAVE'
+
+SYM23  DATA SYM28,CHDIR      CHANG DIRECTORY
+       BYTE 5
+       TEXT 'CHDIR'
+
+SYM28  DATA SYM29,PWD        PRINT WORKING DIRECTORY
+       BYTE 3
+       TEXT 'PWD'
+
+SYM29  DATA SYM30,DELET       DELETE LINE NUMBERS
+       BYTE 3
+       TEXT 'DEL'
+
+SYM30  DATA SYM31,LLIST       LIST TO DEFAULT PRINTER
+       BYTE 5
+       TEXT 'LLIST'
+
+SYM31  DATA SYM32,CHPR        CHANGE DEFAULT PRINTER
+       BYTE 3
+       TEXT 'LPT'
+
+SYM32  DATA SYM33,PPT         PRINT THE DEFAULT PRINTER DEVICE
+       BYTE 3
+       TEXT 'PPT'
+
+SYM33  DATA SYM34,CONT
+       BYTE 8
+       TEXT 'CONTINUE'
+
+SYM34  DATA SYM35,RES
+       BYTE 10
+       TEXT 'RESEQUENCE'
+
+SYM35  DATA 0,DELET
+       BYTE 6
+       TEXT 'DELETE'

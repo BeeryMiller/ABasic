@@ -1,0 +1,192 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    \161\EXEC/SRC
+*
+*  NAME:    EXECUTIVE
+*
+*  WRITTEN: 3\0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+FILE0  EQU  $            RD151
+       UNL
+       COPY "161\RD151N"
+       LIST
+FILE1  EQU  $            EQUSYS
+       UNL
+       PAGE
+       COPY "160\EQUSYS"
+       LIST
+FILE2  EQU  $            EQUTOKEN
+       UNL
+       PAGE
+       COPY "160\EQUTOKEN"
+       LIST
+FILE3  EQU  $            EQUXOP
+       UNL
+       PAGE
+       COPY "160\EQUXOP"
+       LIST
+FILE4  EQU  $            EQUERR
+       UNL
+       PAGE
+       COPY "160\EQUERR"
+       LIST
+FILE5  EQU  $            EQUSTACK
+       UNL
+       PAGE
+       COPY "160\EQUSTACK"
+       LIST
+*FILE6  EQU  $            PG2LINK
+*      UNL
+*      PAGE
+*      COPY "150\PG2LINK"
+*      LIST
+*FILE7  EQU  $            PG4LINK
+*      UNL
+*      PAGE
+*      COPY "150\PG4LINK"
+*      LIST
+*FILE8  EQU  $            PG7LINK
+*      UNL
+*      PAGE
+*      COPY "150\PG7LINK"
+*      LIST
+FILE9  EQU  $            VARY 1
+       UNL
+       PAGE
+       COPY "160\VARY1"
+       LIST
+FILE10 EQU  $                 160\VARY2
+       UNL
+       PAGE
+       COPY "160\VARY2"
+       LIST
+FILE11 EQU  $                 160\VARY3
+       UNL
+       PAGE
+       COPY "160\VARY3"
+       LIST
+FILE12 EQU  $                 160\OV152
+       UNL
+       PAGE
+       COPY "160\OV152"
+       LIST
+FIL12B EQU  $                 160\OV158
+       UNL
+       PAGE
+       COPY "160\OV158"
+       LIST
+FILE13 EQU  $                 160\EQUPAB
+       UNL
+       PAGE
+       COPY "160\EQUPAB"
+       LIST
+
+       AORG >0400
+
+FILE15 EQU  $                 160\DATA
+*      BL   @RSTOP
+*VSLOW  DATA >FE30             VALUE SET ALREADY
+*VSHIGH DATA >FFE0
+
+       B    @ENTRY
+VSLOW  DATA >E000
+VSHIGH DATA >EF80
+
+       UNL
+       PAGE
+       COPY "160\DATA"
+       LIST
+FILE16 EQU  $                 161\TABLES
+       UNL
+       PAGE
+       COPY "161\TABLES"
+       LIST
+FILE17 EQU  $                 161\SRCHLN
+       UNL
+       PAGE
+       COPY "161\SRCHLN"
+       LIST
+FILE18 EQU  $                 161\STRING
+       UNL
+       PAGE
+       COPY "161\STRING"
+       LIST
+FILE19 EQU  $            GARBAGE
+       UNL
+       PAGE
+       COPY "161\GARBAGEN"
+       LIST
+FILE20 EQU  $            VSTACK
+       UNL
+       PAGE
+       COPY "161\VSTACK"
+       LIST
+FILE21 EQU  $            BSYMBOL
+       UNL
+       PAGE
+       COPY "161\BSYMBOLN"
+       LIST
+FILE22 EQU  $            PARSE
+       UNL
+       PAGE
+       COPY "161\PARSE"
+       LIST
+FILE23 EQU  $            ASSIGN
+       UNL
+       PAGE
+       COPY "161\ASSIGN"
+       LIST
+FILE24 EQU  $            ERRORN
+       UNL
+       PAGE
+       COPY "161\ERRORN"
+       LIST
+FILE25 EQU  $            MATHIN
+       UNL
+       PAGE
+       COPY "161\MATHIN"
+       LIST
+FILE26 EQU  $            CONVNUM
+       UNL
+       PAGE
+       COPY "161\CONVNUM"
+       LIST
+FILE27 EQU  $            PARSESUP
+       UNL
+       PAGE
+       COPY "161\PARSESUP"
+       LIST
+FILE28 EQU  $            UTILITY
+       UNL
+       PAGE
+       COPY "161\UTILITY"
+       LIST
+FILE29 EQU  $            WINDOW
+       UNL
+       PAGE
+       COPY "161\WINDOW"
+       LIST
+FILE30 EQU  $            READLN
+       UNL
+       PAGE
+       COPY "161\READLN"
+       LIST
+FILE31 EQU  $            WRITELN
+       UNL
+       PAGE
+       COPY "161\WRITELN"
+       LIST
+FILE32 EQU  $            INTRND
+       UNL
+       PAGE
+       COPY "161\INTRND"
+       LIST
+FILE33 EQU  $            GETPGM
+       UNL
+       PAGE
+       COPY "161\GETPGMN"
+       LIST
+P1END  EQU  $-2
+       END
+

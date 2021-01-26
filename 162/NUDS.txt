@@ -1,0 +1,642 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.NUDS
+*
+*  NAME:    NUMERIC NUDS
+*
+*  VERSION: 3.00 -  10/19/86  BASE LINE
+*           3.01 -  02/23/87
+*
+*-------------------------------------------------------------------------
+NABS   CI   R8,LPAR$*256      * CHECK FOR LEFT PAREN
+       JNE  RPTE03            * JUMP IF NO
+       BL   @PARSE
+       BYTE ABS$
+CBH8C  BYTE >8C
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  RPTE07            JUMP IF YES
+       ABS  @SNUM+FAC         TAKE THE ABSOLUTE VALUE
+NABS10 B    @CONT             AND CONTINUE
+
+NSGN   CI   R8,LPAR$*256      * CHECK IF LEFT PAREN
+       JNE  RPTE03            * JUMP IF NO
+       BL   @PARSE
+       BYTE SGN$
+CBH86  BYTE >86
+       CB   @SID+FAC,@CSIDST  GOT A STRING
+       JEQ  RPTE07            JUMP IF YES
+       LI   R4,>4001          FLOATING POINT ONE
+       MOV  @SNUM+FAC,R0      CHECK STATUS
+       JEQ  NABS10            IF 0 RETURN 0
+       JGT  BLTST9            IF POSITIVE RETURN +1
+       B    @LTRUE            IF NEGATIVE RETRUN -1
+
+BLTST9 B    @LTST90           SETS UP FAC WITH R4 AND ZEROS
+
+RPTE07 LI   R0,ERRSNM         STRING NUMBER MISMATCH
+       BL   @ERROR
+
+
+NATN   BL   @PARCOM
+       LI   R0,X$ATN          LOAD THE ARCTAN ADDRESS
+       JMP  COMMON
+
+
+NCOS   BL   @PARCOM
+       LI   R0,X$COS          LOAD COSINE ADDRESS
+       JMP  COMMON
+
+
+NEXP   BL   @PARCOM
+       LI   R0,X$EXP          LOAD EXPONENTIAL ADDRESS
+       JMP  COMMON
+
+
+NINT   BL   @PARCOM           PARSE THE PARAMETER
+       LI   R0,X$GRIN
+       LI   R1,FAC+SNUM       GET FAC
+       MOV  R1,R2             SOURCE
+       XOP  @TEN,0
+       MOV  R0,R0
+       JNE  COM10
+       B    @CONT
+
+NLOG   BL   @PARCOM
+       LI   R0,X$LOG          LOAD THE LOGARITHM ADDRESS
+       JMP  COMMON
+
+
+NSIN   BL   @PARCOM
+       LI   R0,X$SIN          LOAD SIN ADDRESS
+       JMP  COMMON
+
+
+NSQR   BL   @PARCOM
+       LI   R0,X$SQR          LOAD SQUARE ROOT ADDRESS
+       JMP  COMMON
+
+
+RPTE03 LI   R0,ERRSN
+       BL   @ERROR
+
+
+LEXP   CB   @SID+FAC,@CSIDST  GOT A STRING
+       JEQ  RPTE07            YES - ERROR
+       BL   @PSHPRS           PUSH FIRST AND PARSE SECOND
+       BYTE EXPON$
+CSIDER BYTE SIDERR            CONSTANT
+       CB   @SID+FAC,@CSIDST  GOT A STRING
+       JEQ  RPTE07            YES - ERROR
+       BL   @ITOF             CONVERT NUMBER TO FLOAT
+       MOV  R9,R3
+       AI   R3,SNUM
+       AI   R9,-STKSZ
+       LI   R0,X$PWR
+       JMP  COMMON
+
+NTAN   BL   @PARCOM
+       LI   R0,X$TAN          LOAD TANGENT ADDRESS
+
+COMMON LI   R1,FAC+SNUM       GET FAC
+       MOV  R1,R2             SOURCE
+       XOP  @TEN,0            LET OS DO THE REST
+       MOV  R0,R0
+       JNE  COM10
+       B    @CONT             AND CONTINUE
+
+COM10  BL   @RPTE28           * BAD ARGUMENT
+
+PARCOM DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       CI   R8,LPAR$*256      MUST HAVE LEFT PAREN
+       JNE  RPTE03            IF NOT SYNTAX ERROR
+       BL   @PARSE            PARSE THE ARGUMENT
+       BYTE >FF               TO END OF ARGUMENT
+CBH87  BYTE >87
+       CB   @SID+FAC,@CSIDST  GOT A STRING
+       JEQ  RPTE07            YES - ERROR
+       BL   @ITOF             CONVERT TO FLOAT
+COMM05 MOV  *R10+,R11         GET ADDRESS
+       RT                     AND RETURN
+
+*    MORE ERROR ROUTINES
+
+*BMF    LI   R0,ERRMEM         LOAD ERROR CODE
+*       JMP  BERR50
+
+*BSO    LI   R0,ERRSO          LOAD ERROR CODE
+*BERR50 BL   @ERROR            AND REPORT IT
+
+*=========================================================================
+*
+*    NAME:  LED FOR AND
+*
+*=========================================================================
+OAND   BL   @PSHPRS           PUSH LH AND PARSE RH
+       BYTE AND$
+CBHE5  BYTE >E5
+       BL   @CONVRT           CONVERT BOTH TO INTEGERS
+       INV  @SNUM+FAC         COMPLEMENT LH
+       SZC  @SNUM+FAC,@SNUM+ARG PERFORM THE AND
+OAND1  MOV  @SNUM+ARG,@SNUM+FAC PUT BACK FAC
+OAND2  BL   @ITOF             CONVERT BACK TO FLOAT
+       B    @CONT             AND CONTINUE
+
+*=========================================================================
+*
+*    NAME:  LED FOR OR
+*
+*=========================================================================
+OOR    BL   @PSHPRS           PUSH LH AND PARSE RH
+       BYTE OR$               STOP ON 'OR' OR LESS
+CBH98  BYTE >98
+       BL   @CONVRT           CONVERT BOTH TO INTEGERS
+       SOC  @SNUM+FAC,@SNUM+ARG    PERFORM THE OR
+       JMP  OAND1             CONVERT TO FLOAT AND RETURN
+
+*=========================================================================
+*
+*    NAME:  LED FOR NOT
+*
+*=========================================================================
+ONOT   BL   @PARSE            PARSE THE ARG
+       BYTE NOT$              STOP ON 'NOT' OR LESS
+CBH9C  BYTE >9C
+       CB   @SID+FAC,@CSIDST  GOT A STRING
+       JEQ  CONV12            YES - ERROR
+       BL   @FTOI             CONVERT TO INTEGER
+       MOV  R0,R0             CHECK FOR AN ERROR
+       JNE  RPTE03            ITS AN ERROR
+ONOT$1 INV  @SNUM+FAC         PERFORM THE NOT
+       JMP  OAND2             CONVERT IT TO FLOAT AND CONTINUE
+
+*=========================================================================
+*
+*    NAME:  LED FOR XOR
+*
+*=========================================================================
+OXOR   BL   @PSHPRS           PUSH LH AND PARSE RH
+       BYTE XOR$              STOP ON 'XOR' OR LESS
+CBHA1  BYTE >A1
+       BL   @CONVRT           CONVERT BOTH TO INTEGER
+       MOV  @SNUM+ARG,R0      INTEGER RH INTO A REGISTER
+       XOR  @SNUM+FAC,R0      DO THE XOR
+       MOV  R0,@SNUM+FAC      PUT RESULT BACK
+       JMP  OAND2             CONVERT IT TO FLOAT AND CONTINUE
+
+*=========================================================================
+*
+*    NAME:  NUD FOR LEFT PARENTHESIS
+*
+*=========================================================================
+NLPR   CI   R8,RPAR$*256      * CHECK IF RIGHT PAREN
+       JEQ  CONV12            * JUMP IF YES
+       BL   @PARSE            PARSE INSIDE THE PAREN
+CBHB7  BYTE LPAR$             STOP AT LEFT PAREN OR LESS
+CBHA5  BYTE >A5
+       CI   R8,RPAR$*256      * CHECK IF RIGHT PAREN
+       JNE  CONV12            * JUMP IF NO
+       MOVB *R12+,R8          GET NEXT CHARACTER
+NLPR10 B    @CONT             AND CONTINUE
+
+*
+*    NAME:  NUD FOR UNARY MINUS
+*
+
+NMINUS BL   @PARSE            PARSE THE EXPRESSION
+       BYTE MINUS$            UP TO ANOTHER MINUS
+CBHA6  BYTE >A6
+       CB   @SID+FAC,@CSIDST  * TEST IF STRING
+       JEQ  CONV12            * JUMP IF YES
+       NEG  @SNUM+FAC         MAKE IT NEGATIVE
+       JMP  NLPR10            AND CONTINUE
+
+*
+*    NAME:  NUD FOR UNARY PLUS
+*
+
+NPLUS  BL   @PARSE            PARSE THE EXPRESSION
+       BYTE PLUS$             UPTO ANOTHER PLUS
+CBHC9  BYTE >C9
+       CB   @SID+FAC,@CSIDST  * TEST IF STRING
+       JNE  NLPR10            * NO, SO CONTINUE
+       JMP  CONV12            * YES, ERROR
+
+       PAGE
+
+CONV11 BL   @POPARG           * REMOVE PUSH
+       INCT R10               * REMOVE THIS PUSH
+CONV12 BL   @RPTE03           * STRING NUMBER MISMATCH
+*
+*    NAME:  CONVERT BOTH ARGUMENTS TO INTEGERS
+*
+*    TAKES TWO ARGUMENTS ONE FROM FAC THE OTHER FROM
+*    THE TOP OF THE STACK AND CONVERST THEM TO INTEGERS
+*    FROM FP NUMBERS. ISSUES APPROPIATE ERRORS
+*
+
+CONVRT DECT R10               * MAKE ROOM
+       MOV  R11,*R10          * SAVE RETURN
+       CB   @SID+FAC,@CSIDST  * TEST IF STRING
+       JEQ  CONV11            * JUMP IF YES
+       BL   @FTOI             CONVERT RIGHT HAND
+
+       BL   @MTOARG           COPY RIGHT TO ARG
+       DATA FAC
+
+       BL   @POPFAC           GET LEFT HAND BACK
+       CB   @SID+FAC,@CSIDST  * TEST IF STRING
+       JEQ  CONV12            * JUMP IF YES
+       BL   @FTOI             CONVERT
+
+       MOV  *R10+,R11         GET THE RETURN ADDRESS
+       RT                     AND RETURN TO THE CALLER
+
+RPTE30 LI   R0,ERRBV          LOAD ERROR CODE (BAD VALUE)
+       BL   @ERROR
+
+       PAGE
+*
+*    NAME:  NUD FOR A STRING CONSTANTS
+*           COPIES THE STRING FROM PROGRAM SPACE
+*           INTO STRING SPACE
+*
+
+NQTSTR MOV  R8,R1             GET LENGTH BYTE NEXT
+       SRL  R1,8              ALIGN REGISTER
+       BL   @GETSTR           * ALLOCATE STRING SPACE
+
+*    GET STRING MAPS IN STRING AT >A000
+
+       MOV  @SLEN+FAC,R3      GET THE LENGTH
+       JEQ  NSTR20            * JUMP IF ZERO
+
+       MOV  @STRA+FAC,R2      GET THE 13 BIT ADDRESS
+       AI   R2,>A000          MAKE IT 16 BIT ADDRESS
+
+       MOV  R12,R1            PROGRAM POINTER
+       A    R3,R12            UPDATE PROGRAM POINTER
+       BL   @FASMVB           MOVE THE STRING
+
+NSTR20 MOVB *R12+,R8          GET CHARACTER FOLLOWING STRING
+       B    @CONT             AND CONTINUE ON
+
+
+       PAGE
+*
+*    NAME:  NUMCON
+*
+*    WHAT:  NUD ROUTINE FOR NUMERIC CONSTANT
+*
+
+NUMCON MOV  R12,R2            COPY PGMPTR
+       MOV  R8,R3             COPY THE LENGTH
+       SRL  R3,8              ALIGN FOR THE ADD
+       A    R3,R12            UPDATE PERM POINTER
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+
+*    LOAD R0 WITH THE HEADER AND MOVE IT INTO FAC
+*    CLEAR FAC+2 AND LEAVE R1 POINTING TO
+*    FAC+SNUM
+
+       LI   R0,SIDVS*256+SIDRAD
+       MOV  R7,R1             COPY FAC ADDRESS
+       MOV  R0,*R1+           UPDATE THE HEADER
+       CLR  *R1+              CLEAR THIS LOCATION
+
+*    R1 =   PTR RESULT
+*    R2 =   PTR TO STRING
+*    R3 =   STRING LENGTH
+
+       LI   R0,X$CSN          CONVERT STRING TO NUMBER
+       XOP  @TEN,0            DO IT !
+
+       B    @CONT
+
+NUM50  LI   R0,WRNNO          LOAD WARNING CODE
+       BL   @WARN             ISSUE WARNING MESSAGE
+
+       PAGE
+*
+*    NAME:  CONCAT
+*
+*    WHAT:  STRING CONCAT
+*
+
+CONCAT CB   @SID+FAC,@CSIDST  GOT A STRING
+       JNE  CONC20            NO
+CONC00 BL   @PSHFAC           PUSH IT
+
+       BL   @PARSE            PARSE TO ...
+       BYTE CONC$
+CBHC7  BYTE >C7
+
+       CB   @SID+FAC,@CSIDST  GOT ANOTHER STRING
+       JNE  CONC19            NO
+
+*    ADD THE LENGTH OF STRING ONE (ON STACK)
+*    TO THE STRING IN FAC AND PLACE THE RESULTS IN R1
+
+       MOV  @SLEN+FAC,R1      GET RIGHT HAND LENGTH
+       A    @SLEN(R9),R1      ADD IN THE LEFT
+       C    R1,@STRMAX        CHECK STRING MAX
+       JLE  CONC05            NO
+       LI   R0,ERRST          ISSUE WARNING
+       BL   @WARN
+       MOV  @STRMAX,R1        SET THE MAX SIZE
+
+CONC05 MOV  R1,@BYTE#         SAVE R1
+       JEQ  CONC18            NOTHING TO DO
+       BL   @POPARG           GET LEFT TO ARG
+       BL   @PSHFAC           PUSH RIGHT
+       BL   @PSHARG           * SAVE LEFT
+       MOV  @BYTE#,R1
+       BL   @GETSTR           ALLOCATE AND BUILD FAC
+
+*    THE TEMP STRING ENTRY IS IN FAC
+*    THE FIRST STRING IS IN ARG
+*    COPY THE STRING IN ARG TO THE STRING IN FAC
+*
+*    MAP IN FAC  STR TO >A000
+*    MAP IN TEMP STR TO >6000
+
+       BL   @POPARG           * GET STRING BACK
+
+*    MAP IN TEMP STRING
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+FAC,R2      GET THE 13 BIT ADDRESS
+       AI   R2,>A000          MAKE IT 16
+       CLR  @14+FAC           JUST IN CASE ITS ZERO
+
+*    GET THE SOURCE STRING
+
+       MOV  @STRP+ARG,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+ARG,R1      GET 13 BIT ADDRESS
+       AI   R1,>6000          MAKE IT 16
+
+       MOV  @SLEN+ARG,R3      GET THE LENGTH
+       JEQ  CONC10            NOTHING TO COPY
+
+       C    R3,@STRMAX        * TEST IF GREATER THAN MAX
+       JL   CONC09            * JUMP IF NO
+       MOV  @STRMAX,R3        * SET COPY SIZE
+
+CONC09 MOV  R3,@14+FAC        SAVE THIS STRING LENGTH
+       BL   @FASMVB           * COPY LEFT STRING
+
+CONC10 BL   @POPARG           * GET RIGHT STRING
+       MOV  @SLEN+ARG,R3      * GET THE LENGTH
+       JEQ  CONC15            * NOTHING TO COPY
+
+       A    @14+FAC,R3        * ADD IN FIRST STRING
+       C    R3,@STRMAX        * TEST IF TOO MUCH
+       JLE  CONC14            * BRANCH IF NO TRUNCATION
+       MOV  @STRMAX,R3        * SET COPY SIZE
+
+CONC14 S    @14+FAC,R3
+       JEQ  CONC15            * IS ALREADY AT MAX
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+FAC,R2      GET 13 BIT ADDRESS
+       AI   R2,>A000          MAKE IT 16
+       A    @14+FAC,R2        ADD IN OFFSET
+
+       MOV  @STRP+ARG,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+ARG,R1      GET 13 BIT ADDRESS
+       AI   R1,>6000          MAKE IT 16
+
+       BL   @FASMVB           AND COPY IT
+
+CONC15 CI   R8,CONC$*256
+       JEQ  CONC21
+       B    @CONT             AND CONTINUE
+
+CONC19 BL   @POPARG           POP THE STACK
+CONC20 BL   @RPTE07           REPORT THE ERROR
+
+CONC18 BL   @POPARG           POP THE STACK
+       JMP  CONC15            AND CONTINUE
+
+CONC21 MOVB *R12+,R8
+       B    @CONC00
+
+       PAGE
+*
+*    NAME:  KEY NUD
+*
+*    WHAT:  FUNCTION KEY NUD
+*
+*  SYNTAX:  KEY OFF           - TURNS DISPLAY OFF
+*           KEY ON            - TURNS DISPLAY ON
+*           KEY LIST          - LIST FUNCTION KEY STRINGS
+*           KEY STOP          - RESETS XFLAG AND BOTH KEY PROCESSING FLAGS
+*
+*           KEY(NE)=ON        - TURNS ON PROCESS FOR THAT KEY
+*           KEY(NE)=OFF       - TURNS PROCESS OFF AND NEVER PUTS IN QUE
+*           KEY(NE)=STOP      - STOPS PROCESSING AND QUEUES THE KEY
+*           KEY(NE)=SE        - ASSIGNS STRING TO KEY
+
+NFKEY  CI   R8,LPAR$*256      IS IT LEFT PAREN
+       JEQ  NFKE01            PARSE KEY NUMBER
+
+       CI   R8,>9800          KEY STOP
+       JEQ  NFKE93
+
+       CI   R8,>E300          EXTENDED
+       JEQ  NFKE02
+
+       CI   R8,ON$*256        ON TOKEN
+       JNE  NFKE00
+
+       BL   @TURNON           TURN ON
+       JMP  NFKE06
+
+NFKE99 AI   R9,-STKSZ
+NFKE00 BL   @RPTE03
+
+NFKE93 LI   R1,FKKEY          KEY STOP
+NFKE91 CLR  *R1+              ZERO OUT BOTH FLAGS AND GOTO STATEMENT #
+       CI   R1,FKKEY+70        both on key and on mouse ju
+       JNE  NFKE91
+       SZC  @FKABIT,@XFLAG
+       JMP  NFKE06
+
+NFKE40 BL   @TURNOF           TURN OFF
+       JMP  NFKE06
+
+NFKE02 MOVB *R12+,R8          GET NEXT CHARACTER
+       CI   R8,>9100          CHECK IF OFF
+       JEQ  NFKE40            JUMP IF YES
+       CI   R8,>9300          CHECK IF LIST
+       JNE  NFKE00            ERROR
+
+*    LIST ALL FUNCTION KEY
+
+NFKE04 LI   R5,FUNCKL         * GET THE ADDRESS
+       LI   R4,FKNMES         * GET THE TABLE ADDRESS
+       MOVB @MEMTBL+4,@MAP94  * MAP IN PAGE
+       MOV  *R4+,@14+FAC      * READ NUMBER OF FUNC KEYS
+       MOV  R4,@12+FAC        * SAVE INDEX
+       MOV  R5,@02+FAC        * SAVE R5
+
+NFKE05 MOV  @12+FAC,R0        * GET INDEX INTO TABLE
+       MOV  *R0+,R1           * GET STRING ADDRESS AND SAVE IT
+       MOV  R0,@12+FAC        * SAVE POINTER
+       BL   @DOPRT            * PRINT FUNCTION KEY NUMBER
+
+       LI   R1,NFKSPC
+       BL   @DOPRT
+
+       MOV  @02+FAC,R5        * GET R5
+       MOV  *R5+,R4           * GET PAGE
+       SZCB R4,R4             * MASK OUT PAGE
+
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  *R5+,R1           * GET 13 BIT ADDRESS
+       MOV  R5,@02+FAC        * SAVE THE ADDRESS
+       AI   R1,>A001          * MAKE IT 16 BIT
+
+       BL   @DOPRT            * PRINT FUNCTION KEY ASSIGNMENT
+       BL   @SROLL            * SCROLL THE SCREEN
+
+NFKE07 DEC  @14+FAC           * DEC POINTER
+       JNE  NFKE05            MORE TO DO
+
+NFKE06 MOVB *R12+,R8          * GET NEXT CHAR
+       B    @CONT
+
+NFKSPC BYTE 1                 SPACE
+       TEXT ' '
+
+*CBHE3  BYTE >E3
+*CBH9B  BYTE >9B
+*CBH91  BYTE >91
+*CBH93  BYTE >93
+*CBHBE  BYTE >BE
+*CBHAC  BYTE >AC
+*CBHB3  BYTE >B3
+
+*    ENCOUNTER A LEFT PAREN PARSE SOME MORE
+
+NFKE01 BL   @PARONE           PARSE FUNCTION KEY NUMBER
+       JEQ  NFKE00            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       BL   @RANGE            ENSURE WITHIN RANGE
+       DATA 1,MAXFK
+
+       CI   R8,>BE00          CHECK IF EQUAL SIGN
+       JNE  NFKE49            JUMP IF NO
+
+       MOVB *R12+,R8          GET NEXT CHARACTER
+       JGT  NFKE50            SYMBOL
+
+       CI   R8,>C700          * CHECK FOR QUOTED STRING
+       JEQ  NFKE50            * JUMP IF YES
+
+       CI   R8,>9B00          CHECK IF ON
+       JEQ  NFKE10            JUMP IF YES
+
+       CI   R8,>9800          CHECK IF STOP
+       JEQ  NFKE12            JUMP IF YES
+
+       CI   R8,>E300          CHECK IF EXTENDED
+       JNE  NFKE49            JUMP IF NO
+
+       MOVB *R12+,R8          GET NEXT CHARACTER
+       CI   R8,>9100          CHECK IF OFF
+       JEQ  NFKE11            JUMP IF YES
+
+NFKE49 BL   @RPTE03           SN
+
+       PAGE
+*
+*    ASSIGN A STRING TO A FUNCTION KEY
+*
+NFKE50 BL   @PSHFAC           SAVE THE NUMBER
+       BL   @PARSE            PARSE TO END
+       BYTE TREM$
+CBH8D  BYTE >8D
+
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JNE  NFKE99            JUMP IF NUMERIC
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+FAC,R1      * GET 13 BIT SOURCE ADDRESS
+       AI   R1,>6000          * MAKE IT 16
+       MOV  @SLEN+FAC,R3      * GET THE LENGTH
+       CI   R3,62             * GREATER THAN MAX
+       JL   NFKE52            * JUMP IF NO
+       LI   R3,62             * MAKE IT MAX
+NFKE52 MOV  @SNUM(R9),R2      * GET KEY NUMBER
+       DEC  R2                * BACK UP FOR 0-15
+       SLA  R2,2              * TIMES BY 4
+       AI   R2,FUNCKL         * ADD IN BASE
+       MOV  *R2+,R4           * GET THE PAGE
+
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  *R2,R2            * GET THE 13 BIT DEST ADDRESS
+       AI   R2,>A000          * MAKE IT 16
+       MOV  R3,*R2+           * WRITE IN LENGTH
+       JEQ  NFKE55            * JUMP IF NOTHING TO COPY
+       BL   @FASMVB           * COPY REST OF STRING
+NFKE55 AI   R9,-STKSZ         * REMOVE THE KEY # FROM STACK
+       MOVB @KFLAG,R0         * TEST IF KEY LABELS ON
+       JEQ  NFKE56            * JUMP IF NO
+       BL   @TURNON           * DISPLAY NEW STRING
+NFKE56 B    @CONT
+
+
+*    FUNCTION KEY ON
+
+NFKE10 MOV  @SNUM+FAC,R1      GET KEY NUMBER
+       DEC  R1                BACK UP INDEX
+       SLA  R1,2
+       LI   R2,>0100          * GET A ONE
+       MOV  R2,@FKKEY(R1)     * TURN ON/OFF FLAG ON,
+*                             * CLEAR STOP FLAG
+       SOC  @FKABIT,@XFLAG    * SET THE ARMED BIT IN FLAG
+       JMP  NFKE17
+
+*    FUNCTION KEY OFF
+
+NFKE11 MOV  @SNUM+FAC,R1      GET FUNCTION KEY NUMBER
+       DEC  R1                0-15
+       SLA  R1,2              TIMES BY 4
+       CLR  R2                * ZERO
+       MOV  R2,@FKKEY(R1)     * TURN ON/OFF FLAG OFF,
+*                             * CLEAR STOP FLAG
+       JMP  NFKE17
+
+*    FUNCTION KEY STOP
+
+NFKE12 MOV  @SNUM+FAC,R1      GET FUNCTION KEY NUMBER
+       DEC  R1                * FOR ZERO ADDRESS
+       SLA  R1,2              * TIMES BY 4
+       LI   R2,>0100          * GET A ONE
+       MOVB R2,@FKKEY+1(R1)   * SET STOP FLAG ON
+
+NFKE17 MOVB *R12+,R8          * GET NEXT CHAR
+       B    @CONT
+
+*NFKE90 LI   R0,ERRBV
+*      BL   @ERROR
+

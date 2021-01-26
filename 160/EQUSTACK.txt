@@ -1,0 +1,69 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.150.EQUSTACK
+*
+*  NAME:    STACK EQUATES
+*
+*  VERSION: 3.00 - 10/10/86    BASE LINE
+*           3.01 - 02/15/87
+*
+*-------------------------------------------------------------------------
+*
+*    SID FOR VARIABLE SCOPES
+*
+SIDVS  EQU  >10               VALUE SPACE
+SIDPTR EQU  >20               POINTER TO VALUE SPACE
+SIDDIM EQU  >40               ARRAY
+SIDUDF EQU  >80               UDF
+
+*    STACK IDS FOR DATA TYPES
+
+SIDCON EQU  >00               CONTROL
+SIDINT EQU  >01               INTEGER
+SIDSGL EQU  >02               SINGLE
+SIDDBL EQU  >03               DOUBLE
+SIDRAD EQU  >04               REAL
+SIDSTR EQU  >05               STRING
+
+*    STACK IDS FOR BASIC CONTROL
+
+SIDGOS EQU  >17               GO-SUB
+SIDFOR EQU  >18               FOR
+
+SIDWHS EQU  >19               WHILE STE
+SIDWHM EQU  >1A               WHILE MARK
+
+SIDUSS EQU  >1B               UDS STE
+SIDUSM EQU  >1C               UDS MARK
+
+SIDUFS EQU  >1D               UDF STE
+SIDUFM EQU  >1E               UDF MARK
+
+SIDERR EQU  >1F               ERROR
+
+*    THE EQUATES HERE ARE PROVIDE
+*    FOR COMMON ROUTINES TO REFER
+*    TO THE ELEMENTS OF THE STACK
+
+SID    EQU  >01               STACK ID
+
+VSO    EQU  >02               VALUE SPACE OFFSET
+SPLN   EQU  >02               PGMLN VALUE
+
+SNUM   EQU  >04               NUMBER LOCATION
+SNUML  EQU  >05               NUMBER LOW BYTE
+
+SYMP   EQU  >04               SYMBOL PAGE
+SYMA   EQU  >06               SYMBOL ADDRESS
+
+STRP   EQU  >08               STRING PAGE
+SBUFL  EQU  >08
+STRA   EQU  >0A               STRING ADDRESS
+
+SLEN   EQU  >0C               STRING LENGTH
+SLIN   EQU  >0C               CLINE VALUE
+SACC   EQU  >0C               SAVE ACC VALES
+
+SPGM   EQU  >0E               PROGRAM POINTER
+SDIM   EQU  >0E               SAVE DIM COUNTER
+

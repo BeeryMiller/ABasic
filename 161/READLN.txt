@@ -1,0 +1,681 @@
+*-------------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.READLN
+*
+*  NAME:    READ LINE
+*
+*  WRITTEN: 3.0 - 04/05/87    BASE LINE
+*
+*   EXTERNAL ENTRIES
+*              READL1  FROM 154  VARA GETS SET, USER SETS BBFLEN, NLCNTR,EDITB
+*                                CALLED FROM EDITN (TO EDIT A LINE)
+*
+*              READ4A  FROM 158  MUST SET VARA, BBFLEN, NLCNTR, EDITB BUFFER
+*                                BLKFLG, FROM ACCEPT
+*
+*              READLN  FROM 154  VARA SET TO 253 OR WINSIZ 0 TO BBFLEN
+*                                CALLED FROM IMPERATIVE MODE
+*
+*              READNA  FROM 158  VARA SET TO 253 OR WINSIZ 0 TO BBFLEN
+*                                CALLED FROM INPUT AND LINPUT
+*
+*-------------------------------------------------------------------------------
+*CHRESC BYTE >9B
+*CBHE0  BYTE >E0
+TIMUP  DATA 900
+CURTIM DATA 500
+H00FD  DATA >00FD
+*
+*
+READL1 SETO @VALFG            NO INPUT VALIDATION
+       MOV  @CW05,@KEYBD
+       DECT R10
+       MOV  R11,*R10
+       BL   @SETVRA
+       CLR  @BLKFLG
+       JMP  READ4L
+
+READ4A DECT R10
+       MOV  R11,*10
+*
+READ4L MOV  @CCOL,@HCOL       INIT HOME ROW AND COL
+       MOV  @CROW,@HROW
+*
+       SETO @CILFG            NO CHANGE IN LINE
+       CLR  @CLCNTR           AT THE FIRST LINE OF INPUT
+       MOV  @WHIGHT,R0        NOW GET THE # OF LINES USED ALREADY
+       S    @CROW,R0
+       DEC  R0
+       MOV  R0,@NLCNTR        THIS GETS IT
+       JMP  READL9
+
+READLN MOV  @CW05,@KEYBD      SELECT THE KEYBOARD
+
+READNA DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE THE RETURN ON THE STACK
+       CLR  @BLKFLG           NO BLINKING OR INVERSE
+       CLR  @CLCNTR           CURRENT LINE COUNTER
+       CLR  @NLCNTR           # of lines
+       CLR  @BBFLEN           LENGTH OF BUFFER USED
+       BL   @BLKEBF           PUT ALL BLANKS IN THE EDIT BUFFER
+       CLR  @FKKEY
+*
+       BL   @SETVRA
+       MOV  @CCOL,@HCOL
+       MOV  @CROW,@HROW
+*
+READL3 SETO @CILFG            NO CHANGE IN LINE
+       SETO @VALFG            NO VALIDATE
+
+READL9 LI   R1,>0100          GET A ONE
+       MOV  R1,@RSTR          INITIALIZE STRING LENGTH
+       MOV  R1,@TSTR          INITIALIZE STRING LENGTH
+
+       CLR  @INSMD            NO INSERT MODE
+READL2 CLR  @CURPOS           POSITION BUFFER POINTER A START
+
+*    TO GET OUT OF INSERT MODE WE USUALLY
+*    RETURN HERE
+
+READ$0 CLR  @ARG              NOT IN POTENTIAL BEEP MODE
+RDFO$1 CLR  @INSMD            INDICATE NORMAL OPERATION
+
+*    INPUT ONE CHARACTER AND ALTERNATE BETWEEN
+*    CURRENT CHARACTER AND THE CURSOR
+
+READ$1 MOV  @FKLEN,R0         ARE THERE ANY KEYS IN THE FUNCTION KEY BUF?
+       JEQ  NFK00             NO, SO TRY INPUT KEY BUFFER
+       DEC  @FKLEN            ONE LESS TO DO
+       MOV  @FKPTR,R1         GET THE ADDRESS
+       MOV  @PABLST,R4        MAP IN THE PAGE OF DATA SPACE
+       MOVB @DATBUF(R4),@MAP96
+       MOVB *R1+,@RKEY
+       MOV  R1,@FKPTR
+       JMP  R901
+
+NFK00  MOV  @CLLEN,R0         IS THERE ANYTHING IN CLIST ?
+       JEQ  NCL00             NO
+       MOVB @CLIST,@RKEY      GET THE NEXT KEY OUT
+       DEC  @CLLEN            ONE LESS KEY TO FLUSH
+       JMP  FK001
+
+FK002  MOVB @1(R1),*R1+       PUSH IT UP
+FK001  DEC  R0
+       JNE  FK002
+       JMP  R901
+
+
+NCL00  MOV  @CURTIM,@TIMER    ONLY DISPLAY THE CURSOR FOR A SHORT TIME
+       JMP  READ$8
+
+READ$9 MOV  @CURTIM,@TIMER    *CLR  @TIMER  ch'd for test ju
+READ$8 LI   R1,CURSTR
+       BL   @DOPRT3           PUT CURSOR ON SCREEN, DON'T UPDATE POSITION
+
+R200   BL   @MOUSET           TEST IF MOUSE IS ON
+       INCT @TIMER            INC TIMER   ch'd to inct ju
+       C    @TIMER,@TIMUP     AT LIMIT
+       JH   R300              YES
+
+       MOV  @KEYBD,R0         SCAN FOR A CHARACTER
+       XOP  @FIVE,0
+       JNE  R200              NO KEY
+       JMP  R900              GOT A CHARACTER
+
+R300   MOV  @CURTIM,@TIMER    *CLR  @TIMER  START CLEAN ch'd for test ju
+       BL   @RSTCHR           PUT THE CHARACTER FROM THE BUFFER TO THE SCREEN
+
+R400   BL   @MOUSET           TEST IF MOUSE IS ON
+       INC  @TIMER
+       C    @TIMER,@TIMUP
+       JH   READ$9
+
+       MOV  @KEYBD,R0         SCAN KEYBOARD
+       XOP  @FIVE,0
+       JNE  R400              NO KEY
+
+R900   CI   R1,>8000          IS IT CONTL C?
+       JEQ  READ$1            IGNOR IT
+       MOVB R1,@RKEY          SAVE IT IN THE STRUCTURE
+       BL   @RSTCHR           PUT THE CHARACTER BACK ON SCREEN AFTER KEY PUSH
+
+R901   CLR  R1
+       MOVB @RKEY,R1
+
+       CB   R1,@SPACE         IS IT PRINTABLE
+       JL   READ$2            NOPE MUST BE A FUNCTION/CONTROL KEY
+
+       CI   R1,>E200          IS IT A NEW TYPE FUNCTION KEY
+       JHE  NFKEYR            YES
+
+       CI   R1,>9B00          IS IT ESCAPE (DELETE LINE)?
+       JNE  READ3B            NO
+       B    @RDCLN            YES
+
+       PAGE
+*
+*    GOT A VALID CHAR CHECK IF CONTROL
+*
+READ$2 SRL  R1,7              NO - ADJUST BYTE  (R1 CLEARED ABOVE)
+       MOV  @KEYJMP(R1),R1    GET THE ADDRESS
+       B    *R1               GO TO IT !
+
+NFKEYR B    @NFKEY1
+
+READ3B B    @RDVAL            LONG BRANCH
+
+       PAGE
+*
+*
+*    BREAK KEY
+*
+
+RDBRK  SZC  @BBIT,@XFLAG      RESET THE BREAK BIT IN CASE SET
+       SZCB @ANBIT,@PFLAG     RESET AUTO NUMBER MODE
+       MOV  @PFLAG,R0
+       COC  @RNBIT,R0         CHECK RUN BIT
+       JNE  READ3C            NO
+       COC  @BBIT,R0          YES, SO CHECK IF BREAKS ALLOWED
+       JEQ  READ$1            NO, SO JUST IGNOR
+       CLR  @BLKFLG           NO MORE BLINKING ALLOWED
+
+       MOVB @MEMTBL+3,@MAP94  NUD2 PAGE
+       B    @EXEC6C
+
+*      LI   R1,EXEC6C         LOAD INDEX
+*      MOV  R1,R2             COPY IT
+*      SRL  R1,8              ALIGN FOR MAP
+*      MOVB @MEMTBL(R1),@MAP94
+*      SZCB R2,R2             MASK OUT HIGH BYTE
+*      MOV  @>4000(R2),R2     GET THE ADDRESS
+*      B    *R2               YES TAKE A BREAK
+
+READ3C INCT R10               POP THE STACK
+       CLR  @BLKFLG           NO MORE BLINKING/INVERSE ALLOWED
+EXEC50 BL   @SROLL
+       LI   R0,TOPL35         LOAD INDEX
+       B    @TOPLEV           EXIT FROM EDIT MODE
+
+       PAGE
+*
+*    NAME:  RDREC
+*
+*    WHAT:  BUFFER RECALL
+*
+*
+
+RDREC  BL   @CHKRUN           CHECK IF RUNNING A PROGRAM
+       JEQ  RDINS1            YES - IGNORE IF EXEC MODE
+
+       MOVB @EDITR,R1         WILL THE THING FIT IN THE SCREEN?
+       SRL  R1,8
+       C    R1,@WINSIZ
+       JH   RDINS1            TO BIG, SO IGNOR
+
+       CLR  @CLCNTR           CLEAR THE LINE COUNTERS
+       SETO @CILFG            NO CHANGE IN LINE FLAG
+       SETO @VALFG            VALIDATE FLAG
+
+       SZCB @ANBIT,@PFLAG     RESET THE AUTO NUMBER BIT
+
+       BL   @SROLL
+
+*    ZERO OUT EDIT BUFFER AND THEN COPY STRING FROM RECALL BUF TO EDIT BUF
+
+       BL   @BLKEBF           PUT ALL BLANKS IN THE EDIT BUFFER
+
+       LI   R1,EDITB          DEST
+       LI   R2,EDITR          SRC
+       BLWP @STRCPY           COPY THE STRING
+
+*    NOW PRINT IT ON THE SCREEN
+
+       MOV  R2,R1             LOAD STRING
+       MOVB *R2,R3            SET END OF BUFFER
+       SRL  R3,8
+       MOV  R3,@BBFLEN
+       BL   @DOPRT3           PRINT IT, DON'T UPDATE POINTER
+       MOV  @WHIGHT,R0        NOW GET THE # OF LINES USED ALREADY
+       S    @CROW,R0
+       DEC  R0
+       MOV  R0,@NLCNTR        THIS GETS IT
+       CLR  @HCOL             ZERO OUT THE HOME COLUMN
+
+RDREC2 B    @READL2           JOIN COMMON CODE
+
+       PAGE
+*
+*    NAME:  RDBCK
+*
+*    WHAT:  BACKWARD CURSOR MOVEMENT
+*
+*
+
+RDBCK  MOV  @CURPOS,R0        AT THE BEGININNG OF THE LINE
+       JEQ  RDBCK1            YES - CANT GO ANY WHERE
+
+RDBCK4 MOV  @CCOL,R2
+       JNE  RDBCK2            AT BEGINNING, MUST GO TO PREVIOUS LINE
+       MOV  @WWIDTH,@CCOL
+       DEC  @CROW
+       DEC  @CLCNTR
+       JMP  RDBCK4
+
+RDBCK2 DEC  R2
+       MOV  @CROW,R1
+       BL   @GOTOXY
+
+       DEC  @CURPOS
+
+RDBCK3 B    @READ$0           NO - RETURN TO CLEAR INSERT FLAG
+
+RDBCK1 BL   @TONE2
+       JMP  RDBCK3
+       PAGE
+*
+*    NAME:  RDFOR
+*
+*    WHAT:  FORWARD CURSOR MOVEMENT
+*
+*
+
+RDFOR  C    @CURPOS,@VARA     CAN WE GO FURTHER?
+       JL   RDF05             YES, OKAY
+       BL   @TONE2            OUTPUT TONE
+       B    @RDFO$1           YES, OKAY
+
+RDF05  BL   @CURFOR
+       B    @READ$0
+
+*
+*    WHAT:  INSERT MODE
+*
+
+RDINS  INV  @INSMD            INVERT THE INSERT FLAG
+RDINS1 B    @READ$1           GO BACK
+       PAGE
+*
+*    NAME:  RDDEL
+*
+*    WHAT:  DELETE CHARACTER
+*
+
+RDDEL  MOV  @BBFLEN,R0        GET THE PRESENT END+1
+       JEQ  RDDEL5
+       MOV  @CURPOS,R2        WHERE IT IS NOW
+       C    R0,R2             TEST IF END AND PRESENT POS THE SAME
+       JLE  RDDEL5            BRANCH IF YES, NO CHAR TO DEL
+       DEC  @BBFLEN
+       AI   R2,EDITB+1        POINT TO WHERE THE CURSOR IS
+       MOV  R2,R1             SAVE FOR LATER
+       S    @CURPOS,R0        # OF CHARACTERS AFFECTED
+       MOV  R0,R3             SAVE FOR LATER
+RDDEL2 DEC  R0                NOW FIX THE BUFFER
+       JEQ  RDDEL1            ALL DONE
+       MOVB @1(R2),*R2+
+       JMP  RDDEL2
+
+RDDEL1 MOVB @SPACE,*R2        SPACE TO THE BUFFER END
+       DEC  R1                NOW DISPLAY THE NEW STRING
+       MOVB *R1,R4            SAVE CHAR BEFORE THE STRING
+       SWPB R3
+       MOVB R3,*R1
+       MOV  R1,R5
+       BL   @DOPRT3
+       MOVB R4,*R5
+       CLR  @CILFG            SET CHANGED LINE
+RDDEL5 B    @READ$0
+       PAGE
+*
+*    NAME:  R39
+*
+*    WHAT:  CLEAR LINE
+*
+*
+
+RDCLN  LI   R1,EDITB+1
+       MOV  @BBFLEN,R3        # OF CHARS
+       JEQ  R395              LENGTH IS ZERO
+       LI   R2,'  '
+       BLWP @MEMSET           DO A MEMSET
+       SWPB R3
+       MOVB R3,@EDITB
+
+*    SET THE CURSOR TO THE BEGINNING
+*    BLANK OUT THE LINE
+
+       MOV  @HROW,R1          HOME ROW
+       MOV  @HCOL,R2          HOME COL
+       BL   @GOTOXY
+
+       LI   R1,EDITB          NOW BLANK THE LINE
+       BL   @DOPRT3
+
+       MOVB @CBH00,@EDITB     ZERO BUFFER LENGTH
+       CLR  @BBFLEN
+       CLR  @CLCNTR           ZERO TO CURRENT LINE
+*      CLR  @NLCNTR           ZERO TO # OF LINES CURRENTLY USED (NO SAME # USED)
+       CLR  @CILFG            CHANGE IN LINE
+R395   B    @READL9           RETURN TO MAIN LOOP AND NOT INSERT MODE
+       PAGE
+*
+*    WHAT:  MOVE CURSOR DOWN
+*
+*
+
+RDDWN  C    @CLCNTR,@NLCNTR
+       JHE  RDEXT             ELSE TAKE AN EXIT
+       MOV  @CURPOS,R0
+       A    @WWIDTH,R0
+       C    R0,@VARA
+       JH   RDEXT
+
+       INC  @CLCNTR           UPDATE THE CURRENT LIMIT
+       INC  @CROW
+
+       JMP  RDDWN1            RETURN
+
+       PAGE
+*
+*    NAME:  RDUP
+*
+*    WHAT:  MOVE CURSOR UP
+*
+*
+
+RDUP   MOV  @CLCNTR,R0        COMPARE THE CURRENT TO THE HIGH
+       JEQ  RDEXT             CAN'T MOVE UP HIGHER
+       MOV  @CROW,R0
+       JEQ  RDEXT
+       MOV  @CURPOS,R0
+       S    @WWIDTH,R0
+       JLT  RDEXT
+
+       DEC  @CLCNTR           ELSE DO IT
+       DEC  @CROW
+
+RDDWN1 MOV  R0,@CURPOS
+       MOV  @CROW,R1
+       MOV  @CCOL,R2
+       BL   @GOTOXY           MOVE CURCOS TO PREVIOUS LINE
+       JMP  RDDEL5            AND RETURN
+       PAGE
+
+*
+*    E X I T  P O I N T
+*
+*
+RDEXT
+RDEXT1 MOVB @RKEY,@TKEY       UPDATE THE TERM CHAR
+       MOVB @BBFLEN+1,@EDITB    GET THE LENGTH OF THE STRING
+*      MOVB @CBH00,@EDITR          WHY??????????
+       MOV  *R10+,R11         YES - GET RETURN ADDRESS
+       RT                     AND RETURN TO CALLER
+
+       PAGE
+*
+*    NAME:  RDVAL
+*
+*    WHAT:  VALIDATION ROUTINE
+*
+
+RDVAL  MOV  @VALFG,R0         CHECK VALIDATION
+       JNE  VALI$9            NO
+
+*    GET VALIDATION FLAG
+*    FIRST TEST IS UALPHA-(ALPHA,UALPHA)
+
+       MOV  @VALIDP,R3
+       ANDI R3,>0011          TEST UALPHA BIT
+       JEQ  V01
+       CI   R1,'Z'*256        UPPER CASE 'Z'
+       JH   V01
+       CI   R1,'A'*256        UPPER CASE 'A'
+       JHE  VALI$9
+       CI   R1,' '*256        SPACE
+       JEQ  VALI$9
+
+*    DIGIT ?  (NUMERIC,DIGIT)
+
+V01    MOV  @VALIDP,R3
+       ANDI R3,>0006
+       JEQ  V02               TEST NUMBER BIT
+       CI   R1,'0'*256        YES -
+       JL   V02
+       CI   R1,'9'+1*256
+       JL   VALI$9
+
+*    NUMERIC BESIDE DIGIT  (NUMERIC)
+
+V02    ANDI R3,>0004
+       JEQ  V03
+       CI   R1,'E'*256        UPPER CASE 'E'
+       JEQ  VALI$9            ALLOW IT
+       CI   R1,'.'*256        DOT
+       JEQ  VALI$9            ALLOW IT
+       CI   R1,'+'*256        PLUS
+       JEQ  VALI$9            ALLOW IT
+       CI   R1,'-'*256        MINUS
+       JEQ  VALI$9            ALLOW IT
+
+*    LALPHA (ALPHA,LALPHA)
+
+V03    MOV  @VALIDP,R3
+       ANDI R3,>0018
+       JEQ  VALI$2
+       CI   R1,' '*256
+       JEQ  VALI$9
+       CI   R1,'a'*256
+       JL   VALI$2
+       CI   R1,'z'+1*256
+       JL   VALI$9
+
+VALI$2 LI   R3,IMGBM1         GET STRING ADDRESS
+       MOVB *R3+,R2           GET STRING LENGTH
+       JEQ  V04               IF ZERO LENGTH NOTHING TO TEST
+
+*    NOTE: STRING IS IN EITHER THE CRUNCH BUFFER
+*          OR STRING SPACE
+
+       SRL  R2,8
+VALI$3 CB   R1,*R3+
+       JEQ  VALI$9
+       DEC  R2
+       JNE  VALI$3
+*V04    BL   @TONE2
+V04    B    @READ$1
+
+
+*    FIRST CHECK IF INSERT FLAG IS ON
+
+VALI$9 MOV  @INSMD,R0         CHECK IF IN INSERT MODE
+       JEQ  READ4C            NO
+
+*    TO BE HERE, IN INSERT MODE SO SEE IF AT END AND THEREFORE USE NORMAL ENTRY
+
+       C    @CURPOS,@BBFLEN
+       JHE  READ4C
+       C    @CURPOS,@VARA
+       JHE  READ4C
+
+* TO BE HERE, PUT THE CHARACTER IN THE BUFFER AND PUSH DOWN THE STACK
+
+       MOVB @RKEY,R5          THE CHARACTER TO PUT IN
+       MOV  @BBFLEN,R4
+       MOV  @CURPOS,R3        WHERE TO PUT THE CHARACTER
+       S    R3,R4             THE # OF POSITIONS TO UPDATE
+       AI   R3,EDITB+1        LET R3 DO THE ACTUAL POINTING
+
+INSM00 MOVB *R3,R2            GET THE CHAR TO MOVE AHEAD
+       MOVB R5,*R3+
+       MOVB R2,R5
+       DEC  R4
+       JNE  INSM00
+
+       C    @BBFLEN,@VARA     CAN WE EXTEND THE LINE?
+       JH   INSM01            NO
+
+       MOVB R5,*R3            YES, SO DO SO
+       INC  R4                NOW R4 IS 1 AND CONTAINS THE ADDER IF ANY
+       INC  @BBFLEN           STRING IS ONE CHAR LONGER
+
+INSM01 MOV  @BBFLEN,R2        NOW WRITE THE STRING OUT FROM WHERE WE ARE
+       MOV  @CURPOS,R1
+       S    R1,R2             NOW R2 HAS THE # OF BYTES TO WRITE ON SCREEN
+       AI   R1,EDITB
+       MOVB *R1,R5            SAVE THE PREVIOUS CHAR
+       SWPB R2
+       MOVB R2,*R1
+       BL   @DOPRT3
+       MOV  @CURPOS,R1
+       MOVB R5,@EDITB(R1)
+       JMP  READ5C
+       PAGE
+*
+*    GOT A CHARACTER TO DISPLAY
+*
+*
+
+READ4C
+READ4D MOV  @CURPOS,R2        GET THE BUFFER POINTER
+       MOVB @RKEY,R1          GET THE KEY VALUE
+       MOVB R1,@EDITB+1(R2)
+       INC  R2                NOW UPDATE THE BBFLEN
+       C    R2,@BBFLEN        OKAY, NEW CHAR
+       JL   READ6C
+       MOV  R2,@BBFLEN
+READ6C LI   R1,RSTR           PUT THE NEW CHAR ON THE SCREEN AND
+       BL   @DOPRT3           DON'T UPDATE THE CURSOR
+
+       C    @CURPOS,@VARA
+       JL   READ5C
+       MOV  @ARG,R0
+       JEQ  READ5C
+
+       BL   @TONE2
+
+READ5C BL   @CURFOR           UPDATE THE CURSER POSITION
+NFKEY2 CLR  @CILFG            WE HAVE CHANGED THE LINE
+READ5D B    @READ$1           GET ANOTHER KEY
+
+
+CURFOR C    @CURPOS,@VARA
+       JHE  CURF01            YES, SO DON'T DO ANYTHING
+       INC  @CURPOS
+       INC  @CCOL
+       C    @CCOL,@WWIDTH     PAST END OF LINE?
+       JL   CURF02
+       INC  @CLCNTR
+       CLR  @CCOL
+       INC  @CROW
+       C    @CROW,@WHIGHT
+       JL   CURF02
+       DEC  @HROW
+       INC  @NLCNTR
+       B    @SROLL
+
+CURF02 MOV  @CCOL,R2
+       MOV  @CROW,R1
+       B    @GOTOXY
+
+CURF01 SETO @ARG
+       RT
+       PAGE
+
+*
+*    NAME:  RDFK?
+*
+*    WHAT:  ALL THE FUNCTION KEY SUPPORT
+*           IS HERE
+*        1. FIRST CHANGE TYPED FK INTO SOMETHING
+*           WE CAN USE.
+*        2. TURN INTO AND 4 WORD INDEX
+*        3. MAP IN STRING PAGE
+*        4. GET STRING ADDRESS
+*        5. AND WRITE IT
+*
+*    COMMON FUNCTION KEY ROUTINE
+*    GET STRING ADDRESS AND MAP IN THE STRING
+
+NFKEY1 AI   R1,->E200
+       SRL  R1,6
+
+*      MOV  @FKKEY,R1         GET THE INDEX
+*      DEC  R1
+*      SLA  R1,2              TURN INTO 2 WORD OFFSET
+
+       MOV  @FUNCKL(R1),R4           GET PAGE ADDRESS
+
+       MOVB @DATBUF(R4),@MAP9A
+
+       MOV  @FUNCKL+2(R1),R1  SOURCE ADDRESS
+       AI   R1,>A000          TURN INT 16 BIT ADDRESS
+       MOV  *R1+,@FKLEN       GET THE LENGTH OF THE STRING
+       MOV  R1,@FKPTR         AND POINTER TO STRING ITSELF
+       B    @READ$1          AND RETURN
+
+
+RSTCHR MOV  @CURPOS,R2        RESTORE THE CHARACTER AT CURPOS TO THE SCREEN
+       MOVB @EDITB+1(R2),@RCBUF+1        FROM EDITB BUFFER
+       LI   R1,RCBUF
+       MOVB @CBH01,*R1
+       B    @DOPRT3           DON'T UPDATE THE CURSOR POSITION ON THE SCREEN
+
+SETVRA MOV  @WINSIZ,@VARA
+       S    @CCOL,@VARA
+       C    @VARA,@H00FD
+       JLE  READ99
+       MOV  @H00FD,@VARA
+READ99 DEC  @VARA
+       RT
+
+BLKEBF LI   R1,EDITB          BUFFER
+       LI   R2,>0020          A SPACE
+       MOVB R2,*R1+           ZERO LENGTH
+       LI   R3,253            NUMBER OF BYTES
+       BLWP @MEMSET           AND SET IT
+MOUS00 RT
+
+MOUSET LI   R1,>0200          BREAK KEY
+       MOV  @XFLAG,R0         TEST IF BREAK KEY HAS BEEN HIT
+       COC  @BBIT,R0
+       JEQ  MOUS08            YES, SO TAKE A BREAK
+       COC  @MSABIT,R0        TEST IF MOUSE IS "ON"
+       JNE  MOUS00            NO
+*------------------------
+*  PUT BRANCH TO MOUSE TEST HERE
+       DECT R10
+       MOV  R11,*R10
+       SETO @KEYMOS           FLAG TO TELL ROUTINE TO SKIP GOSUB TEST
+       MOVB @MAP94,@SMAP94    SAVE OUT POSSIBLE CALLERS PAGE
+       MOVB @CAL1PG,@MAP94
+       MOV  @>4000,R0
+       BL   *R0               GO TO IT
+       MOV  *R10+,R11         get the return back
+       MOVB @SMAP94,@MAP94    RESTORE POSSIBLE RETURN
+       CLR  @KEYMOS           RESET FLAG
+*
+*------------------------
+       MOVB @MSTAT,R0         TEST IF RIGHT KEY HAS BEEN PUSHED
+       SLA  R0,3
+       JNC  MOUS00            NO
+       MOVB @OSTAT,R0         WAS IT DOWN LAST TIME?
+       SLA  R0,3
+       JOC  MOUS00            YES, SO DON'T DO IT AGAIN
+       LI   R1,>0D00          FAKE AN ENTER KEY
+MOUS08 B    @R900
+
+CURSTR BYTE >01
+       BYTE >5F               CURSOR CHARACTER
+
+*    KEY ENTRY TABLE IS HERE. ONE ENTRY FOR EACH
+*    KEY UNDER 16. INVALID KEY CODES GO TO READ$1
+
+*             0     1     2     3
+KEYJMP DATA READ$1,RDEXT,RDBRK,RDDEL
+*             4     5      6    7
+       DATA RDINS,READ$1,RDREC,RDCLN
+*             8     9     10    11
+       DATA RDBCK,RDFOR,RDDWN,RDUP
+*             12    13    14    15
+       DATA RDEXT,RDEXT,RDEXT,RDEXT1

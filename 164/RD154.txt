@@ -1,0 +1,85 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS2.154.RD154
+*
+*  NAME:    REF DEFS
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+       DEF  TOPL15
+       DEF  TOPL35
+       DEF  TOPL55
+       DEF  RUN
+       DEF  RUN3
+       DEF  RUN4
+       DEF  LDRSET
+       REF  LSTKWT            167
+       REF  PRESCN            167
+       REF  CRUNCH            167
+       REF  FKLTAB            167
+       REF  LSTEXK            167
+       REF  MEM1              167
+       REF  MEM2              167
+*      REF  CLOSAL            168
+*      REF  TREND             168
+
+       DEF  ENTRY             -pc 10/11/90
+       DEF  RSPACH            -pc 10/11/90
+*      REF  RSTOP
+
+       REF  VSLOW
+       REF  VSHIGH
+
+       REF  FASMVB
+       REF  FASMVW
+
+       REF  CALLIO
+       REF  TONE2
+       REF  INITPB
+
+       REF  CHKPGM
+       REF  CHKPRO
+       REF  PARSE
+       REF  EXEC
+       REF  SYNCHK
+       REF  EOSTMT
+       REF  CONTIN
+
+       REF  GOTOXY
+       REF  DREADY
+       REF  DPROMP
+       REF  DOPRT
+       REF  DOPRT3
+       REF  BLKEBF            BLANK THE EDITB BUFFER
+       REF  CLRWIN
+       REF  SROLL
+*      REF  INITSC
+
+       REF  ITOD
+       REF  ITOF
+       REF  FTOI
+
+       REF  ERROR             ISSUE ERROR
+       REF  WARN              ISSUE WARNING MESSAGE
+       REF  READLN            CALLED FROM EDITN AND FROM CMDINTRP
+       REF  READL1
+
+       REF  GETSTR            GET STRING
+       REF  ALLOCS
+
+       REF  STRCAT
+       REF  STRCPY
+       REF  STRCMP            STRING COMPARE
+       REF  MEMSET
+       REF  GARB              GARBAGE COLLECTION
+
+       REF  PSHFAC
+       REF  POPFAC
+       REF  SRCHLN
+
+       REF  INTRND
+
+       REF  GETPGM
+
+       REF  CBREAK            ENTRY FOR BREAK POINT

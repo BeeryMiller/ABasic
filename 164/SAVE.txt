@@ -1,0 +1,352 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.SAVE
+*
+*  NAME:    SAVE COMMAND
+*
+*  VERSION: 3.0 - 02/07/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  SAVE
+*
+*    WHAT:  SAVE COMMAND
+*
+*    COMMAND SYNTAX  { SAVE [FILE NAME] [FILE TYPE] }
+*
+
+SAVEOP DATA $SAVE
+SMRGPB DATA >0012,0,0,0       MERGE PAB
+CW163  DATA 163,0,0
+
+*OPNDVO DATA >0012
+OPNIVO DATA >001A
+
+SAVE   DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       LI   R0,ERRMRG
+       DEC  @ARGC             ANY ARGUMENTS
+       JEQ  SAVE91            NONE, SO ERROR
+
+       BL   @CHKPRG           CHECK IF PROTECTION BIT IS SET AND IF PROGRAM
+
+       CLR  @WSMBLK+10        ASSUME NOT PROTECTED
+       BL   @CLOSEA           CLOSE ALL
+       BL   @INITPB           INITIALIZE
+       MOV  @ARGV1,R1
+       BL   @TSTARG
+       JMP  SAVE33
+
+CMDE10 LI   R0,ERRSNM         (IS A NUMBER, SHOULD BE A STRING)
+SAVE91 BL   @ERROR
+
+SAVE33 MOV  @ARGV1,R1         PUSH ADDRESS
+       BL   @GFILEN           GET THE PATH NAME
+
+* NOW TEST IF THE FILE ALREADY EXISTS ON THE DISK?
+
+       LI   R0,>0900          STATUS OPCODE
+       BL   @OPEN05           SET UP THE PAB
+*      BL   @DOIOCL           PERFORM THE STATUS CALL  OUT 4-1  JU
+       LI   R1,SMSG1
+       MOVB @STATBY+DEFPAB,R0  GET THE STATUS
+       SRL  R0,15             PUT THE PROTECT BIT IN THE CARRY OF STATUS REG
+       JOC  SAVE46            IT IS PROTECTED, TELL THEM SO
+       SRL  R0,1
+       JOC  SAVE47            DOES NOT EXIST, SO PERFORM SAVE OPERATION
+* FILE EXISTS, SO ASK IF IT SHOULD BE OVER WRITTEN
+       LI   R1,SMSG4          FILE EXISTS
+       BL   @DPROMP
+SAVE48 MOV  @KEYBD,R0
+       CLR  R1
+       XOP  @FIVE,0
+       JNE  SAVE48
+       ANDI R1,>DF00
+       CI   R1,>5900          IS IT "Y" ?
+       JEQ  SAVE49            YES, SO SAVE IT AND TELL THEM
+       BL   @SROLL
+       LI   R1,SMSG2
+SAVE46 BL   @DPROMP
+       BL   @SROLL
+       JMP  SAVE69            ALL DONE
+
+SAVE49 LI   R1,SMSG3          TELL THEM THEY SAID "Y"
+       BL   @DPROMP
+       BL   @SROLL
+SAVE47 DEC  @ARGC             AT THE END OF THE LINE
+       JEQ  SAVE32            YES
+
+*
+*  CHECK THE SAVE OPTION (PROTECTION, MERGE, INTERNAL)
+*
+*    CHECK IF THE STRING MATCHES
+*
+
+       MOV  @ARGV2,R1         GET ADDRESS
+       LI   R2,SVTXT1         PROTECTION ?
+       BLWP @STRCMP
+       MOV  R0,R0
+       JEQ  SAVE31
+
+*    CHECK IF THE STRING MATCHES
+
+       MOV  @ARGV2,R1         GET ADDRESS
+       LI   R2,SVTXT2         MERGE      ?
+       BLWP @STRCMP
+       MOV  R0,R0
+       JEQ  SAVE71
+
+*    CHECK IF THE STRING MATCHES
+
+       MOV  @ARGV2,R1         GET ADDRESS
+       LI   R2,SVTXT3         INTERNAL   ?
+       BLWP @STRCMP
+       MOV  R0,R0
+       JNE  CMDE07
+       BL   @CLRABK           CLEAR ALL THE BREAKPOINTS
+*      BL   @CALPGM           DON'T HAVE TO CALCULATE THE LENGTH NOW
+SAVE20 B    @SAVE68
+
+CMDE07 LI   R0,ERRSN
+       JMP  SAVE91
+
+SAVE31 SETO @WSMBLK+10        SET PROTECTION FLAG
+
+SAVE32 BL   @CLRABK           CLEAR ALL BREAKPOINTS
+*      BL   @CALPGM           CALCULATE NUMBER OF BYTES NEEDED
+*
+*   FOR NOW ALWAYS SAVE AS PROGRAM FILE TYPE UNLESS INTERNAL SPECIFIED
+*
+
+*      C    R0,@WSMBLK+10     IF AVAILABLE < PGM SIZE
+*      JL   SAVE20            I/V 254 FILE
+
+       C    @ELINE,@EIGHT     NEED 8 BYTES FOR HEADER
+       JL   SAVE20            DON'T HAVE THEM
+
+*    SAVE PROGRAM AS IS, DON'T WORRY ABOUT POINTER ADJUSTMENT
+*      BUT FIRST NEED TO ADD THE HEADER TO THE PROGRAM
+*
+
+       BL   @FILWSB           AFTER CALL, R0=ELINE
+       AI   R0,-8             TO START OF HEADER
+       MOV  R0,R1
+       BL   @FASTPG           MAP IT IN
+       LI   R2,WSMBLK+2
+       MOV  *R2+,*R1+         PUT HEADER IN PGM
+       MOV  *R2+,*R1+         PUT HEADER IN PGM
+       MOV  *R2+,*R1+         PUT HEADER IN PGM
+       MOV  *R2,*R1           PUT HEADER IN PGM
+*
+*    R0 SAVED AND R2 SET ON RETURN
+*
+       MOV  R0,R2             NOW GET PROGRAM START LOCATION IN MEM SPACE
+       LI   R3,>0001
+*      A    R0,R2
+*      JNC  SAVE17            CAN NEVER OVERFLOW
+*      INC  R3                BUFFER LOCATION IN R2,R3
+SAVE17 NEG  R0                THIS IS THE LENGTH IN BYTES
+       LI   R1,DEFPAB
+       MOV  @SAVEOP,*R1+      OPCODE AND FLAGS
+       MOV  R3,*R1+           CLEAR ERROR AND MSB OF BUF ADR
+       MOV  R2,*R1+           MID AND LSB OF BUF ADR
+       CLR  *R1+
+       CLR  *R1+
+       CLR  *R1+
+       MOV  R0,*R1
+*      LI   R0,DEFPAB
+*      XOP  @EIGHT,0
+*      MOVB @DEFPAB+ECODE,@IOERR
+*      JNE  SAVE81
+
+       BL   @DOIOCL           PERFORM THE I/O CALL
+
+SAVE69 CLR  @ERRCOD
+SAV69A MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN TO CALLER
+       PAGE
+*
+*   SAVE IN MERGE FORMAT
+*
+
+SAVE71 LI   R1,SMRGPB
+       BL   @SETDFP
+       BL   @DOIOCL           OPEN THE FILE
+       MOV  @SLINE,R5         STARTING LINE NUM TAB ENTRY
+
+SAVE73 LI   R1,CRNBUF         GET THE BUFFER ADDRESS
+*      ANDI R1,>1FFF          STACK STARTS AT >E000  SPACE
+*      ORI  R1,>E000
+       MOV  R1,@DEFPAB+BALOW
+       MOV  R5,R1             MAP IN THE LINE NUMBER TABLE
+       BL   @FASTPG           USE R1,R2
+       MOV  *R1+,R4           LINE NUMBER IN R4
+       ANDI R4,>7FFF          TAKE OUT BREAK POINT
+       MOV  *R1,R1            NOW R1 POINTS TO THE PROGRAM LINE
+       DEC  R1                NOW R1 POINTS TO THE LINE LENGTH
+       BL   @FASTPG           MAP IN THE PGM LINE
+       MOVB *R1+,R3           GET THE LINE LENGTH
+       JEQ  SLNTL1            ZERO LENGTH, SO ERROR
+       SRL  R3,8
+       CI   R3,161            CAN ONLY BE 161 BYTES LONG
+       JLE  SLNTL             OKAY, GO AHEAD
+
+SLNTL1 BL   @CLOSPB
+       MOV  R4,@PGMLN         PUT THE LINE NUMBER FOR ERROR USAGE
+       LI   R0,ERRLTM
+       BL   @WARN             ISSUE WARNING AND RETURN
+       JMP  SAVE69
+
+SLNTL  LI   R2,CRNBUF
+       MOV  R4,*R2+
+       MOV  R3,@DEFPAB+CHRCNT
+       BL   @FASMVB
+       INCT @DEFPAB+CHRCNT
+       BL   @WRITPB
+
+       AI   R5,-4
+       C    R5,@ELINE         ARE WE DONE?
+       JHE  SAVE73
+*
+*   NOW WRITE OUT A RECORD OF >FFFF
+*
+       MOV  @TWO,@DEFPAB+CHRCNT
+       LI   R2,WSMBLK
+       SETO *R2
+       MOV  R2,@DEFPAB+BALOW
+       CLR  @DEFPAB+ECODE
+       BL   @WRITPB
+       BL   @CLOSPB
+       JMP  SAVE69              all done
+
+       PAGE
+*=========================================================================
+*
+*    I/V 254
+*
+*=========================================================================
+SAVE68 MOV  @OPNIVO,@DEFPAB   OPEN OPCODE, INTERNAL,VARIABLE,OUTPUT
+       AI   R1,6              SKIP TO RECORD LENGTH
+       MOV  @H00FE,@DEFPAB+LRC  254 BYTES
+       BL   @DOIOCL
+
+*
+*   NOW WRITE OUT 10 BYTE HEADER
+*
+
+       MOV  @H000A,@DEFPAB+CHRCNT
+       BL   @FILWSB
+       MOV  @WSMBLK+2,R0          REVERSE WSMBLK+2 AND 6
+       MOV  @WSMBLK+6,@WSMBLK+2
+       MOV  R0,@WSMBLK+6
+
+       LI   R1,WSMBLK         GET THE BUFFER ADDRESS
+*      ANDI R1,>1FFF          STACK STARTS AT >0E000
+*      ORI  R1,>E000
+       MOV  R1,@DEFPAB+BALOW
+       MOV  @H000A,@CHRCNT
+       BL   @WRITPB           WRITE I/O CALL
+
+       CLR  R4                START OF PGM SPACE IN MEMORY
+       LI   R3,1              MSB OF BUFFER ADDRESS
+*
+*  ON RETURN R2 SET FOR START ADDRESS (>E000 OR >E001)
+*
+*
+*    00    STARTING MEMORY ADDRESS
+*    10    BYTE COUNT
+*
+
+       MOV  @ELINE,R2         R2 FOR # OF BYTES
+       A    R2,R4
+       JNC  SAVE63
+       INC  R3
+SAVE63 NEG  R2
+SAVE66 LI   R5,>00FE          RECORD LENGTH MAX
+       C    R5,R2             IS IT 254 OR GREATER?
+       JLE  SAVE67            YES
+       MOV  R2,R5
+SAVE67 MOV  R5,@DEFPAB+CHRCNT
+       MOV  R3,@DEFPAB+ECODE
+       MOV  R4,@DEFPAB+BALOW
+*      LI   R0,DEFPAB
+*      XOP  @EIGHT,0
+*      MOVB @DEFPAB+ECODE,@IOERR
+*      JNE  SAVE81
+
+       BL   @DOIOCL
+
+       A    R5,R4             UPDATE BUFFER ADDRESS
+       JNC  SAVE89
+       INC  R3
+SAVE89 S    R5,R2             THAT MANY LESS TO WRITE
+       JNE  SAVE66            ANY MORE TO GO?
+
+*      LI   R1,$CLOSE
+*      LI   R0,DEFPAB
+*      MOVB R1,*R0
+*      XOP  @EIGHT,0
+*      MOVB @DEFPAB+ECODE,@IOERR
+*      JNE  SAVE81
+
+       BL   @CLOSPB           CLOSE IT
+
+       B    @SAVE69
+
+
+SVTXT1 BYTE 9
+       TEXT 'PROTECTED'
+
+SVTXT2 BYTE 5
+       TEXT 'MERGE'
+
+SVTXT3 BYTE 8
+       TEXT 'INTERNAL'
+       PAGE
+*
+*    NAME:  CLRABK
+*
+*    WHAT:  CLEAR ALL BREAKPOINTS
+*
+CLRABK DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       MOV  @ELINE,R3         GET THE ADDRESS
+       MOV  @LNECNT,R0
+ABK03  MOV  R3,R1
+       BL   @FASTPG           MAP IN AT >6000->9FFF  USES R1,R2
+
+ABK01  MOV  *R1,R2            READ THE LINE NUMBER
+       ANDI R2,>7FFF          RE-SET THE BREAK FLAG
+       MOV  R2,*R1+           WRITE IT BACK
+       INCT R1                POINT TO NEXT ONE
+       DEC  R0                ONE LESS LINE # TO DO
+       JEQ  ABK02             ALL DONE
+       AI   R3,4              UPDATE ABSOLUTE LINE # POINTER
+       CI   R1,>A000          AT THE END OF DOUBLE PAGE?
+       JL   ABK01             NO
+       JMP  ABK03             YES, SO REMAP
+
+ABK02  MOV  *R10+,R11         YES - GET THE RETURN ADDRESS
+       RT                     AND RETURN TO THE CALLER
+
+
+*
+*   ROUTINE TO FILL THE WSMBLK FROM THE PGM'S PARMS
+*
+
+FILWSB LI   R1,WSMBLK
+       MOV  @PGMID,*R1+
+       MOV  @ELINE,R0         WSMBLK+6
+       MOV  @SLINE,R2
+       AI   R2,3              WSMBLK+4
+       MOV  R2,R3
+       XOR  R0,R3
+       ABS  @WSMBLK+10        IS IT PROTECTED
+       JEQ  SAVE80
+       NEG  R3                WSMBLK+2
+SAVE80 MOV  R3,*R1+
+       MOV  R2,*R1+
+       MOV  R0,*R1+
+       SETO *R1
+       RT

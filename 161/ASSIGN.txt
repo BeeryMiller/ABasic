@@ -1,0 +1,180 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.ASSIGN
+*
+*  NAME:    ASSIGN SUPPORT
+*
+*  VERSION: 3.10 - 10/08/88    BASE LINE
+*
+*-------------------------------------------------------------------------
+ATABLE JMP  ASSERR            0 - ERROR
+       JMP  ASSINT            2 - INTEGER ASSIGNMENT
+       JMP  ASSRI             4 - MIXED NUMERICS
+       JMP  ASSERR            6 - ERROR
+       JMP  ASSRAD            8 - RADIX
+       JMP  ASSSTR            A - STRING
+       JMP  ASSERR            C - ERROR
+       JMP  ASSERR            E - ERROR
+
+*    THE CALLING ROUTINE SHOULD CHECK FOR
+*    STRING NUMBER MISMATCH
+
+ASSG
+ASSGN
+ASSGS
+       MOV  *R9,R1            * GET LEFT TYPE
+       A    *R7,R1            * ADD IN RIGHT TYPE
+       ANDI R1,>000E          * MASK OUT OPERATION
+       B    @ATABLE(R1)
+
+ASSERR DECT R10
+       MOV  R11,*R10
+       BL   @POPARG           * POP THE STACK
+       LI   R0,ERRSNM         * LOAD ERROR CODE
+       MOV  *R10+,R11
+       RT
+       PAGE
+*
+*    THE TYPES DONT MATCH, SO CONVERT WHATS IN FAC TO MATCH
+*    THE STACK
+
+ASSRI  CB   @SID(R9),@CSIDRL  CHECK IF RADIX99
+       JNE  ASSRI5            JUMP IF YES
+
+*    MUST BE A INTEGER ON STACK. CONVERT FLOAT IN FAC
+
+       LI   R0,X$CIF
+       LI   R1,FAC+SNUM
+       MOV  *R1,R2
+       XOP  @TEN,0
+       MOVB @CSIDRL,@SID(R7)
+
+*    ASSRAD ASSIGNS THE NUMBER IN FAC TO THE SYMBOL
+*    ON THE STACK
+
+ASSRAD CB   @SID(R9),@FAC+SID IS THIS FOR REAL?
+       JNE  ASSERR            NO, STRING AND REAL
+       MOV  @SYMP(R9),R4      * GET THE PAGE
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SYMA(R9),R0      * GET THE 13 BIT ADDRESS
+       AI   R0,>6000          * MAKE IT 16
+
+       LI   R1,FAC+SNUM       GET SOURCE ADDRESS
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+ASSCOM MOV  *R1,*R0
+       AI   R9,-STKSZ         POP THE STACK
+       CLR  R0                INDICATE NO ERRORS
+       RT
+       PAGE
+*    MUST BE RADIX99 ON STACK. CONVERT INTEGER IN FAC
+
+ASSRI5 LI   R0,X$CFI
+       LI   R2,FAC+SNUM
+       XOP  @TEN,0
+       MOV  R1,@SNUM+FAC
+       MOVB @CSIDIN,@SID+FAC
+
+*    WHAT:  ASSIGN AN INTEGER VALUE TO A SYMBOL
+
+ASSINT MOV  @SYMP(R9),R4      GET THE PAGE
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SYMA(R9),R0      GET THE 13 BIT ADDRESS
+       AI   R0,>6000          MAKE IT 16
+       LI   R1,SNUM+FAC
+       JMP  ASSCOM
+
+       PAGE
+
+*    ASSIGN A STRING TO A STRING
+*
+*    1.     PERM STRING TO PERM STRING
+*    2.     TEMP STRING TO PERM STRING
+
+ASSSTR DECT R10
+       MOV  R11,*R10
+
+       MOV  @SLEN(R9),R0      * IS THE SYMBOL ALREADY ASSIGNED TO A NON 0 STRING
+       JEQ  ASSG53            * JUMP IF ZERO, NEVER ASSIGNED
+
+*    MAP IN THE STRING AND FREE THE OLD STRING SPACE
+
+       MOV  @STRP(R9),R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA(R9),R1      GET 13 BIT ADDRESS
+       CLR  @>A000-6(R1)      CLEAR OLD BACKPOINTER PAIR
+       CLR  @>A000-4(R1)
+
+*    CHECK IF FAC CONTAINS A TEMP STRING
+
+ASSG53 CB   @CSIDVS,*R7       * CHECK IF A TEMP STRING
+       JEQ  ASTR$2            * JUMP IF YES
+
+*    DONT HAVE A TEMP STRING. ALLOCATE A NEW STRING,
+*    AND ASSIGN TO LEFT VARIABLE
+
+ASSG54 MOV  @SLEN+FAC,R1      GET THE STRING LENGTH
+       JEQ  ASTR$4            JUMP IF NULL
+       BL   @ALLOCS           GET THE STRING SPACE
+
+*    MAP STRING ONE TO >6000
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+FAC,R1      * GET 13 BIT SOURCE ADDRESS
+       AI   R1,>6000          * MAKE IT 16
+
+*    STRING TWO ALREADY MAPPED IN, SO JUST GET 16 BIT ADDRESS
+
+       MOV  @STRREF+2,R2      * GET 13 BIT DEST ADDRESS
+       AI   R2,>A000          * MAKE IT 16
+
+       MOV  @SLEN+FAC,R3      * GET LENGTH
+       BL   @FASMVW           * COPY STRING
+
+*    NOW SET THE BACK/FORWARD POINTER
+*    RE-MAP IN THE SYMBOL PAGE TO >6000
+
+       LI   R2,STRREF         * RIGHT HAND IS IN STRREF
+
+ASTR$5 MOV  @SYMP(R9),R4      GET THE OWNER
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SYMA(R9),R3      GET 13 BIT ADDRESS
+
+       MOV  @2(R2),R4         PUT 13 BIT ADDRESS IN FOR LATER USE
+
+       MOV  R4,@>6000+2(R3)      SET 13 BIT ADDRESS
+       MOV  *R2,@>6000(R3)       SET PAGE ADDRESS
+       JEQ  ASTR$3             IF PAGE IS ZERO THEN STRING IS NULL
+       MOV  @SYMP(R9),@>A000-6(R4)  WRITE SYMBOLS PAGE
+       MOV  @SYMA(R9),@>A000-4(R4)  WRITE SYMBOLS ADDRESS
+
+ASTR$3 CLR  R0                * INDICATE NO ERRORS
+       AI   R9,-STKSZ         * POP THE STACK
+       MOV  *R10+,R11
+       RT
+
+*    THE STRING IN FAC IS A TEMPORARY STRING
+*    JUST ASSIGN IT TO THE STRING IN ARG
+
+ASTR$2 LI   R2,FAC+STRP       * RIGHT HAND IS IN FAC
+       MOV  *R2,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+       JMP  ASTR$5            * DO THE ASSIGN USING STRING IN FAC
+
+ASTR$4 CLR  R0                * MAKE A NULL STRING ENTRY
+       CLR  R1
+       STWP R2                * NOW R2 POINTS TO R0,R1
+       JMP  ASTR$5            * AND DO THE ASSIGN

@@ -1,0 +1,181 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.RES
+*
+*  NAME:    RESEQUENCY COMMAND
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*CBH83  BYTE >83               TAIL
+*CBH8A  BYTE >8A               DIM
+*CBH93  BYTE >93               DATA
+*CBH9A  BYTE >9A               REMARK
+*CBHA3  BYTE >A3               IMAGE
+*CBHC7  BYTE >C7               QUOTED STRING
+*CBHC8  BYTE >C8               UNQUOTES STRING
+*CBHC9  BYTE >C9               LINE NUMBER
+*CBHF2  BYTE >F2
+
+RES$13 LI   R0,ERRBLN         >32767 FOR RESEQUENCE
+RES$17 BL   @ERROR
+
+RES$16 LI   R0,ERRLNF
+       JMP  RES$17
+
+RES    DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       BL   @CHKPRG           CHECK IF PROGRAM AND IF PROTECTED
+
+       BL   @AUTON            GET THE DEFAULT
+       MOV  @SLINE,@WSMBLK    ASSUME START AT BEGINNING OF PROGRAM
+       CLR  @WSMBLK+2         PASS ONE FLAG
+       MOV  R0,R0             IS THERE A THIRD ARG?
+       JEQ  RES$01            NO
+       MOV  @CURLIN,@FAC+SNUM  WHERE TO SEARCH FROM
+       MOV  @CURINC,@CURLIN
+       MOV  R1,@CURINC
+       C    @FAC+SNUM,@CURLIN  MAKE SURE NEW LINE # => THEN CURRENT START
+       JH   RES$13
+       BLWP @SRCHLN
+       MOV  @CLINE,@WSMBLK    DID WE FIND IT?
+       JEQ  RES$16            NO, SO ERROR OUT
+RES$01 MOV  @WSMBLK,R0
+       S    @ELINE,R0
+       SRL  R0,2              DIVIDE BY 4 (4 BYTE PER LINE NUMBER)
+*
+*    FIRST SCAN THE PROGRAM TEXT LOOKING FOR
+*    LINE NUMBER OCCURANCES
+*
+*   FIRST TEST IF THE LINE NUMBERS WILL EXCEED 32767
+
+       MPY  @CURINC,R0        # OF LINES
+       A    @CURLIN,R1        OFFSET COMPENSATION
+       JLT  RES$13            NEGATIVE
+       JOC  RES$13            CARRY
+       MOV  R0,R0             OVERFLOW?
+       JNE  RES$13            YES
+
+RES$32 MOV  @SLINE,@CLINE
+RES$02 MOV  @CLINE,R1
+
+       BL   @FASTPG           USE MAPPING INSTEAD OF MOVING
+       INCT R1                NOW POINT TO POINTER TO PROGRAM
+       MOV  *R1,R1
+       MOV  R1,@ARG+2
+       BL   @FASTPG           NOW POINTING TO PGM STATEMENT
+       MOV  R1,R15
+
+*    CHECK THE CHARACTER AT THE BEGINNING OF THE LINE
+
+       MOVB *R15+,R8          GET A CHARACTER
+       CI   R8,>8A00          DIM
+       JEQ  NXTLN
+       CI   R8,>A300          IMAGE
+       JEQ  NXTLN
+       CI   R8,>9A00          REM
+       JEQ  NXTLN
+       CI   R8,>9300          DATA
+       JEQ  NXTLN
+       JMP  RES$05
+
+RES$10 MOVB *R15+,R8          GET THE NEXT CHARACTER
+       JEQ  NXTLN             YES -
+
+RES$05 CI   R8,>C700          STRING ?
+       JEQ  RES$03            YES - SKIP IT
+       CI   R8,>C800          NON - QUOTED STRING ?
+       JNE  RES$04            NO
+RES$03 MOVB *R15+,R8          YES - GET THE STRING LENGTH
+       SRL  R8,8              ALIGN REGISTER
+       A    R8,R15            ADD TO PROG POINTER
+       CLR  R8                CLEAR OUR MESS
+       JMP  RES$10
+
+RES$04 CI   R8,>C900          LINE NUMBER
+       JEQ  RES$11            YES SO GET IT
+       CI   R8,>8300          AT A TAIL ?
+       JEQ  RES$JU            YES         WAS NXTLN
+       JMP  RES$10            SKIP CHAR
+RES$JU MOVB *R15,R8        XXX
+       CI   R8,>B700          XXX      ADDED FOR HEX$  >E383
+       JEQ  RES$10               XXX
+       JMP  NXTLN                   XXX
+RES$11 MOVB *R15+,@FAC+4       YES -
+       MOVB *R15+,@FAC+5
+       DECT R15               BACK UP THE POINTER
+
+       ABS  @WSMBLK+2         ARE WE IN PASS ONE OR 2?
+       JEQ  RES$90            PASS ONE
+
+       MOV  @FAC+4,R1         SAVE POINTER TO LINE NUMBER
+       CI   R1,>7FFF
+       JEQ  RES$10            LINE # DID NOT EXIST SO LEAVE IT ALONE
+       MOV  R1,R2
+       ANDI R2,>1FFF
+       ORI  R2,>A000
+       SRL  R1,13
+       MOVB @PGMMAP(R1),@MAP9A
+       MOVB @PGMMAP+1(R1),@MAP9C
+       MOV  *R2,R4               GET THE LINE NUMBER
+       JMP  RES$92
+
+
+RES$90 MOV  @CLINE,@ARG       SAVE CLINE
+       BLWP @SRCHLN           SEARCH
+       MOV  @CLINE,R4         FOUND IT ?
+       JNE  RES$21            YES
+       LI   R4,>7FFF          SET TO END
+
+*    NOW WE CHANGE THE LINE NUMBER IN THE PGM STATEMENT DIRECT
+
+RES$21 MOV  @ARG+2,R1         REMAP IN THE PGM PAGE
+       BL   @FASTPG
+       MOV  @ARG,@CLINE       RESTORE CLINE
+
+RES$92 MOVB R4,*R15+          WRITE A BYTE
+       SWPB R4                NOW DO LOW BYTE
+       MOVB R4,*R15+          INCREMENT POINTER
+       JMP  RES$10
+
+
+NXTLN  S    @CW04,@CLINE      POINT TO NEXT PGM LINE
+       JNC  RES$08            IF ELINE=0 THEN MIGHT TAKE THIS JUMP
+       C    @CLINE,@ELINE     AT THE END
+       JHE  RES$02
+
+* ALL DONE, SO IS IT PASS ONE OR PASS TWO?
+
+       ABS  @WSMBLK+2
+       JEQ  RES$08            IS PASS 1
+       CLR  R0                PASS 2 SO ALL DONE, RETURN
+       MOV  *R10+,R11
+       RT
+
+*    NOW UPDATE THE LINE NUMBER TABLE
+*    FIRST MAP IT IN
+
+RES$08 MOV  @ELINE,R2         MAP IN LINE NUMBER TABLE
+       MOV  @WSMBLK,R1
+       S    R2,R1             DIFFERENCE
+       MOV  R2,R3
+       SRL  R3,13
+       AI   R3,PGMMAP
+       LI   R0,MAP96
+       MOVB *R3+,*R0+
+       MOVB *R3+,*R0+
+       MOVB *R3+,*R0+
+       MOVB *R3,*R0
+       ANDI R2,>1FFF
+       ORI  R2,>6000
+       A    R2,R1             SET R1
+       MOV  @CURLIN,R0        GET THE THE FIRST LINE NUMBER
+
+RES$09 MOV  R0,*R1
+       A    @CURINC,R0        ADD THE INCREMENT
+       AI   R1,-4             UPDATE THE LINE NUMBER POINTER
+       C    R1,R2             AT THE END
+       JHE  RES$09            NO
+       SETO @WSMBLK+2         SECOND PASS
+       B    @RES$32
+

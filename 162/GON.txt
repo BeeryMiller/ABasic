@@ -1,0 +1,409 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.GO
+*
+*  NAME:    NUD ROUTINES GO GO CODE
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+ONERR  B    @NONERR
+ONWARN B    @NONWAR
+ONBRK  B    @NONBRK
+
+ONEXT  MOVB *R12+,R8          GET NEXT CHARACTER
+       CI   R8,>8D00          IS IT A KEY TOKEN
+       JNE  ONMSE             JUMP IF NO
+       MOVB *R12+,R8          GET NEXT CHAR
+       B    @NONKEY           GO TO IT
+
+ONMSE  CI   R8,>8E00          CHECK IF MOUSE
+       JNE  GOTO91            JUMP IF NO
+       MOVB *R12+,R8          GET NEXT CHARACTER
+       B    @NONMSE
+
+*    NUD ROUTINE FOR "GO"
+
+GO     CLR  @GSINDX           SET UP DUMMY "ON" INDEX
+       JMP  ON30              MERGE WITH ON CODE
+
+*
+*   NUD ROUTINE FOR "ON"
+*   FIRST CHECK THE TYPE OF "ON"
+
+ON     CI   R8,WARN$*256      WARNING TOKEN
+       JEQ  ONWARN
+
+       CI   R8,ERROR$*256     ERROR TOKEN
+       JEQ  ONERR
+
+       CI   R8,BREAK$*256     BREAK TOKEN
+       JEQ  ONBRK
+
+       CI   R8,EXTOK$*256     EXTENDED TOKEN
+       JEQ  ONEXT
+
+*    MUST BE NORMAL ON
+
+       BL   @PARSE            * PARSE UP TO COMMA
+       BYTE COMMA$
+CSIDGS BYTE SIDGOS
+
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  GOTO90            JUMP IF YES
+
+ON10   BL   @FTOI             CONVERT TO INTEGER
+       MOV  R0,R0             TEST ERROR CODE
+       JNE  RPTE38            IF OVERFLOW
+       MOV  @SNUM+FAC,@GSINDX
+       JGT  ON20              MUST BE POSITIVE
+
+*    SOME ERROR CODES HERE
+
+RPTE38 LI   R0,ERRIOR
+       BL   @ERROR
+
+GOTO90 BL   @RPTE07           SNM
+
+GOTO91 BL   @RPTE03           SN
+
+RPTE18 LI   R0,ERRRWG
+       BL   @ERROR
+
+*    ON CODE CONTINUED
+
+ON20   CI   R8,GO$*256        IS IT A "GO"
+       JNE  ON40              NO CHECK OTHERS
+       MOVB *R12+,R8          GET NEXT CHARACTER
+ON30   CI   R8,TO$*256        IS IS A "GO TO"
+       JEQ  GOTO50
+       CI   R8,SUB$*256       IS IS A "SUB"
+       JMP  ON50
+
+ON40   CI   R8,GOTO$*256      GOTO
+       JEQ  GOTO50            JUMP IF YES
+       CI   R8,GOSUB$*256     CHECK IF GOSUB
+ON50   JNE  GOTO91            JUMP IF NO
+       MOVB *R12+,R8          GET NEXT CHARACTER
+       JMP  GOSUB2
+
+*   NUD ROUTINE FOR "GOSUB"
+
+GOSUB  CLR  @GSINDX           SET UP DUMMY "ON" INDEX
+
+*   BUILD STACK MARK
+
+GOSUB2 MOVB @CSIDGS,R0        * LOAD STACK MARK
+       BL   @BLDMRK           * BUILD STACK ENTRY
+       MOV  @GSINDX,@06(R9)   * SAVE THE GS INDEX
+       JMP  GOTO20
+
+*    NUD ROUTINE FOR "GOTO"
+
+GOTO   CLR  @GSINDX           SET UP DUMMY "ON" INDEX
+
+*    COMMON CODE FOR GOTO/GOSUB THEN/ELSE STATEMENTS
+
+GOTO20 CI   R8,LN$*256        IS IS A LINE NUMBER TOKEN
+       JNE  GOTO92            SYNTAX ERROR
+
+GETL10 MOVB *R12+,@SNUM+FAC   GET HIGH BYTE
+       MOVB *R12+,@SNUML+FAC  GET LOW BYTE
+       DEC  @GSINDX           COUNT FOR "ON"
+       JGT  GOTO40            LOOP IF NOT THERE
+
+*    SEARCH LINE NUMBER TABLE
+
+       MOV  @CLINE,@08+FAC    SAVE THE CURRENT LINE
+       BLWP @SRCHLN           SEARCH LINE TABLE
+       MOV  @CLINE,R0         CHECK IF LINE IS FOUND
+       JEQ  GOTO93            LINE NOT FOUND
+       INCT R10               POP GOTO FROM STACK
+       B    @EXEC10           RE-ENTER EXEC CODE DIRECTLY
+
+GOTO92 BL   @RPTE03
+
+GOTO93 MOV  @08+FAC,@CLINE    RESTORE THE CURRENT LINE NUMBER
+RPTE22 LI   R0,ERRLNF
+       BL   @ERROR
+
+*    KEEP SEARCHING FOR CORRECT LINE NUMBER
+
+GOTO40 MOVB *R12+,R8          GET THE NEXT CHARACTER
+       JEQ  RPTE38            AT END OF THE LINE
+       CI   R8,SSEP$*256      AT STATEMENT SEP ?
+       JEQ  RPTE38            JUMP IF YES
+       CI   R8,TREM$*256      AT TAIL REMARK
+       JEQ  RPTE38            JUMP IF YES
+       CI   R8,COMMA$*256     GOT A COMMA ?
+       JNE  GOTO91            JUMP IF NO
+GOTO50 MOVB *R12+,R8          GET NEXT CHARACTER
+       JMP  GOTO20            AND CHECK INDEX VALUE
+
+       PAGE
+*
+*    NAME:  RETURN
+*
+*    WHAT:  NUD ENTRY FOR RETURN
+*
+*    CHECK THE TOP ENTRY ON THE STACK
+
+RETURN CB   @SID+EENTRY,@CSIDER
+       JEQ  RETU40
+
+RET154 CB   @SID(R9),@CSIDGS  * CHECK IF GOSUB
+       JEQ  RETU30            * JUMP IF YES
+
+       CB   @SID(R9),@CSIDUM  * CHECK IF SUB ENTRY
+       JEQ  RPTE18            * JUMP IF YES
+RETU20 AI   R9,-STKSZ         * POP THE STACK
+       C    R9,@VSLOW         * CHECK BOTTOM OF STACK
+       JLE  RPTE18            * RETURN WITHOUT GOSUB
+       JMP  RET154            * LOOK SOME MORE
+
+*    NUD:   GOSUB ENTRY
+*
+*  SYNTAX:  RETURN [EOL]
+*           RETURN LINE NUMBER
+
+RETU30 CLR  @GSINDX
+       MOVB R8,R8
+       JEQ  RETU35
+       CI   R8,TREM$*256
+       JH   RETU50
+
+*    AT THIS POINT IT SHOULD BE ONLY A RETURN
+*    GET GOSUB STACK MARK. RESTORE ENVIRNOMENT
+*    AND CONTINUE ON THE LINE
+
+RETU35 MOV  @SLIN(R9),@CLINE  * RESTORE CLINE POINTER
+       MOV  @SPLN(R9),@PGMLN  * RESTORE PROGRAM LINE NUMBER
+
+       BL   @GETPGM           * GET PROGRAM LINE
+
+       MOV  @SPGM(R9),R12     * RESTORE PROGRAM POINTER
+
+       AI   R9,-STKSZ         * POP THE ENTRY OFF THE STACK
+       MOV  @10+STKSZ(R9),R0  * TEST GOSUB ENTRY
+       JNE  RETU36            * JUMP IF FUNC/MOUSE
+
+       B    @SKPS01           * AND SKIP TO EOS
+
+RETU36 INCT R10               * REMOVE PARSE CALL
+       B    @EXEC11           * RETURN
+
+       PAGE
+
+*    ERROR ENTRY
+*
+*    SYNTAX: RETURN [ EOL ]
+*            RETURN [ LINE NO. ]
+*            RETURN [ NEXT ]
+
+RETU40 MOVB R8,R8
+       JEQ  RETU54
+       CI   R8,TREM$*256
+       JEQ  RETU54
+       CI   R8,SSEP$*256
+       JEQ  RETU54
+
+*    NOW CHECK FOR LINE NUMBER
+
+       CLR  @GSINDX           CLEAR INDEX
+       CI   R8,LN$*256        CHECK IF LINE NUMBER ?
+       JNE  RETU38            NO
+       CLR  @EENTRY
+       JMP  GETL10            YES - TREAT LIKE GOTO
+
+*    NOW CHECK FOR A NEXT TOKEN
+
+RETU38 CI   R8,NEXT$*256      * CHECK IF NEXT TOKEN
+       JNE  RETU50
+
+       MOV  @SLIN+EENTRY,@CLINE
+       MOV  @SPLN+EENTRY,@PGMLN
+
+       BL   @GETPGM           * GET PROGRAM LINE
+
+       MOV  @SPGM+EENTRY,R12
+
+       CLR  @EENTRY
+       MOV  @10+EENTRY,R0     * TEST GOSUB ENTRY
+       JNE  RETU49            * JUMP IF FUNC/MOUSE
+
+       B    @SKPS01           * AND SKIP TO EOS
+
+RETU49 INCT R10               * REMOVE PARSE CALL
+       B    @EXEC11           * RETURN
+
+RETU50 BL   @RPTE03
+
+RETU54 MOV  @SLIN+EENTRY,@CLINE
+       MOV  @SPLN+EENTRY,@PGMLN
+
+       BL   @GETPGM
+
+       MOV  @SPGM+EENTRY,R12
+
+       CLR  @EENTRY
+       JMP  RETU49
+
+       PAGE
+*
+*    NAME:  NONWAR
+*
+*  SYNTAX:  ON WARNING PRINT
+*           ON WARNING STOP
+*                      NEXT
+*
+
+NONWAR MOVB *R12+,R8
+       CI   R8,PRINT$*256
+       JNE  ONW01
+       SZC  @WPBIT,@PFLAG
+       SZC  @WSBIT,@PFLAG
+       JMP  ONWRN5
+
+ONW01  CI   R8,STOP$*256
+       JNE  ONW03
+       SZC  @WPBIT,@PFLAG
+       SOC  @WSBIT,@PFLAG
+       JMP  ONWRN5
+
+ONW03  CI   R8,NEXT$*256
+       JNE  ONW04
+       SOC  @WPBIT,@PFLAG
+       JMP  ONWRN5
+
+ONW04  BL   @RPTE03           LOAD THE ERROR CODE
+
+ONWRN5 MOVB *R12+,R8          GET NEXT CHARACTER
+ONW05  B    @CONT             AND CONTINUE
+
+ONW06  LI   R0,ERRLNF         LOAD THE ERROR CODE
+ONW07  BL   @ERROR            AND REPORT IT !
+
+       PAGE
+*
+*    NAME:  NONERR
+*
+*    WHAT:  ON-ERROR NUD
+*
+
+NONERR MOVB *R12+,R8          GET THE NEXT CHAR
+       CI   R8,LN$*256        IS IT A LINE NUMBER TOKEN ?
+       JNE  ONERR3            NO - CHECK SOME MORE
+       MOVB *R12+,@SNUM+FAC   GET HIGH BYTE
+       MOVB *R12+,@SNUML+FAC  GET THE LOW BYTE
+       MOVB *R12+,R8
+       MOV  @CLINE,@06+FAC    SAVE THE CURRENT LINE
+       BLWP @SRCHLN           SEARCH FOR THE LINE NUMBER
+       MOV  @CLINE,R0         SAVE CURRENT LINE POINTER
+       MOV  @06+FAC,@CLINE    RESTORE CLINE
+       MOV  R0,@ERRLN         CHECK CURRENT POINTER
+       JEQ  ONW06             IF ZERO INVALID LINE NUMBER
+       B    @CONT             AND CONTINUE
+
+ONERR3 CI   R8,STOP$*256      IS IT A STOP TOKEN ?
+       JNE  ONW04             NO -
+       CLR  @ERRLN            YES - BACK TO THE DEFAULT
+       JMP  ONWRN5
+
+       PAGE
+*
+*    NAME:  NONBRK
+*
+*    WHAT:  ON BREAK STATEMENT
+*
+
+NONBRK MOVB *R12+,R8          GET THE NEXT TOKEN
+       CI   R8,STOP$*256      IS IT A STOP ?
+       JNE  ONBK01            NO - CHECK SOME MORE
+       SZC  @BBIT,@PFLAG      YES - RESET STOP FLAG
+       JMP  ONWRN5            USE COMMON CODE TO RETURN
+
+ONBK01 CI   R8,NEXT$*256      * CHECK IF NEXT TOKEN ?
+       JNE  ONW04             * JUMP IF NO - SYNTAX ERROR
+       SOC  @BBIT,@PFLAG      * YES SET THE BIT
+       JMP  ONWRN5            USE COMMON CODE TO RETURN
+
+       PAGE
+*
+*    NAME:  NONKEY
+*
+*    WHAT:  ON KEY STATEMENT
+*           THIS ROUTINE PARSES THE LINE NUMBER AND UPDATE THE
+*           LIST
+*
+*  SYNTAX:  ON KEY(NE) GOSUB XXXX
+*
+
+NONKEY BL   @PARONE           PARSE KEY NUMBER
+       JEQ  NONK05            JUMP IF YES
+
+       BL   @FTOI             CONVERT IT
+
+       BL   @RANGE            ONLY 10 FUNCTION KEYS ALLOWED
+       DATA 1,MAXFK           chg from 10 to 15 (MAXFK-2)See equsys
+
+       CI   R8,GOSUB$*256     * CHECK IF GOSUB TOKEN
+       JNE  NONK06            * JUMP IF NO
+
+NONK04 MOVB *R12+,R8          * GET NEXT CHAR
+       CI   R8,LN$*256        * TEST IF LINE NUMBER
+       JNE  NONK06            * JUMP IF NO
+
+       MOVB *R12+,R3          * GET LINE # HIGH BYTE
+       SWPB R3
+       MOVB *R12+,R3          * GET LINE # LOW  BYTE
+       SWPB R3
+
+       MOVB *R12+,R8          * GET NEXT CHARACTER
+
+       MOV  @SNUM+FAC,R1      * GET THE FUNCTION KEY
+       SLA  R1,2              * TIMES BY 2
+       DECT R1                * BACK UP FOR ZERO INDEX
+       MOV  R3,@FKKEY(R1)     * WRITE THE LINE #
+
+       B    @CONT
+
+NONK05 BL   @RPTE07           SNM
+NONK06 BL   @RPTE03           SN
+NONK07 BL   @RPTE30           BV
+CBH9D  BYTE >9D
+
+       PAGE
+*
+*    NAME:  NONMSE
+*
+*    WHAT:  ON MOUSE STATEMENT. THIS ROUTINE GETS
+*           THE LINE NUMBER AND UPDATES THE LIST.
+*
+*  SYNTAX:  ON MOUSE(NE) GOSUB XXXX
+*
+
+NONMSE BL   @PARONE           PARSE KEY NUMBER
+       JEQ  NONK05            JUMP IF YES
+
+       BL   @FTOI             CONVERT IT
+
+       BL   @RANGE            ONLY THREE MOUSE KEYS
+       DATA 1,3
+
+       CI   R8,GOSUB$*256     CHECK IF GOSUB
+       JNE  NONK06            JUMP IF NO
+
+NONM04 MOVB *R12+,R8          * GET NEXT CHAR
+       CI   R8,LN$*256        * TEST IF LINE NUMBER
+       JNE  NONK06            * JUMP IF NO
+
+       MOV  @FAC+SNUM,R1
+       DEC  R1
+       SLA  R1,1               *chg 2 to 1 # of bytes shifted
+       MOVB *R12+,@MKKEY(R1)   * GET LINE # HIGH BYTE
+       MOVB *R12+,@MKKEY+1(R1)     * GET LINE # LOW  BYTE
+
+       MOVB *R12+,R8          GET NEXT CHARACTER
+
+       B    @CONT
+

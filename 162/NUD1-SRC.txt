@@ -1,0 +1,152 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    \162\NUD1/SRC
+*
+*  NAME:    NUDS PART ONE
+*
+*  VERSION: 3\0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*TOPL15 EQU  >0114
+*TOPL35 EQU  >0116
+*FKNMES EQU  >0010
+
+FILE0  EQU  $                 RD152
+       UNL
+       COPY "162\RD152"
+       LIST
+FILE0B EQU  $                 DATAREFS
+       UNL
+       COPY "160\DATAREFS"
+       LIST
+FILE1  EQU  $                 EQUSYS
+       UNL
+       PAGE
+       COPY "160\EQUSYS"
+       LIST
+FILE2  EQU  $                 EQUTOKEN
+       UNL
+       PAGE
+       COPY "160\EQUTOKEN"
+       LIST
+FILE3  EQU  $                 EQUXOP
+       UNL
+       PAGE
+       COPY "160\EQUXOP"
+       LIST
+FILE4  EQU  $                 EQUERR
+       UNL
+       PAGE
+       COPY "160\EQUERR"
+       LIST
+FILE5  EQU  $                 EQUSTACK
+       UNL
+       PAGE
+       COPY "160\EQUSTACK"
+       LIST
+FILE6  EQU  $                 VARY1
+       UNL
+       PAGE
+       COPY "160\VARY1"
+       LIST
+FILE7  EQU  $                 VARY2
+       UNL
+       PAGE
+       COPY "160\VARY2"
+       LIST
+FILE8  EQU  $                 VARY3
+       UNL
+       PAGE
+       COPY "160\VARY3"
+       LIST
+FILE9  EQU  $                 OV152
+       UNL
+       PAGE
+       COPY "160\OV152"
+       LIST
+
+       AORG >2000
+
+*FILE12 EQU  $                 PGMLINK
+*      UNL
+*      PAGE
+*      COPY "152\PGMLINK"
+*      LIST
+FILE14 EQU  $                 RAND
+       UNL
+       PAGE
+       COPY "162\RAND"
+       LIST
+FILE15 EQU  $                 CALLNUD
+       UNL
+       PAGE
+       COPY "162\CALLNUDN"
+       LIST
+FILE16 EQU  $                 FORNEXT
+       UNL
+       PAGE
+       COPY "162\FORNEXT"
+       LIST
+FILE17 EQU  $                 GON
+       UNL
+       PAGE
+       COPY "162\GON"
+       LIST
+FILE18 EQU  $                 IF
+       UNL
+       PAGE
+       COPY "162\IF"
+       LIST
+FILE19 EQU  $                 LED
+       UNL
+       PAGE
+       COPY "162\LED"
+       LIST
+FILE20 EQU  $                 NUDS
+       UNL
+       PAGE
+       COPY "162\NUDS"
+       LIST
+FILE21 EQU  $                 UDF
+*      UNL
+       PAGE
+       COPY "162\UDF"
+       LIST
+FILE22 EQU  $                 WHILE
+       UNL
+       PAGE
+       COPY "162\WHILE"
+       LIST
+FILE23 EQU  $                 LET
+       UNL
+       PAGE
+       COPY "162\LET"
+       LIST
+FILE24 EQU  $                 NUMFUNC
+       UNL
+       PAGE
+       COPY "162\NUMFUNC"
+       LIST
+FILE25 EQU  $                 STRFUNC
+       UNL
+       PAGE
+       COPY "162\STRFUNC"
+       LIST
+FILE26 EQU  $                 NMOUSE MOUSE, FREESPACE, CLS
+       UNL
+       PAGE
+       COPY "162\NMOUSE"
+       LIST
+FILE30 EQU  $                 SAVBAS
+       UNL
+       PAGE
+       COPY "160\EQUPAB"
+*      COPY "164\SAVBAS"
+       LIST
+FILE31 EQU  $
+       UNL
+       PAGE
+       COPY "168\EFKINT"
+       LIST
+P2END  EQU  $-2
+       END

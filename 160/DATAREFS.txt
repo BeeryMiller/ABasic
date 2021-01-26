@@ -1,0 +1,124 @@
+* NOW FOR THE DATA REF'S
+
+       REF  UDFBIT
+       REF  PBIT
+       REF  TBIT   EQU  $                 * TRACE BIT
+       REF  BMASK  DATA >8000
+       REF  BMASK2
+       REF  BMASK4
+
+       REF  IFBIT  EQU  $
+       REF  CBH40  EQU  $
+       REF  RNBIT  EQU  $                 * RUN BIT
+       REF  LTBIT  EQU  $                 * LTRACE BIT
+       REF  UDSBIT DATA >4000
+
+       REF  PTBIT  EQU  $                 * PROTECTION
+       REF  H2000  EQU  $
+       REF  CW2000 DATA >2000
+
+       REF  SHBIT  EQU  $
+       REF  CW1000 DATA >1000
+
+       REF  FKABIT EQU  $
+       REF  CW0800 DATA >0800
+       REF  RADBIT
+       REF  H0400  EQU  $
+       REF  MSABIT DATA >0400
+*      DATA >0200
+       REF  INTBIT
+       REF  ANBIT  DATA >0100             * AUTO NUMBER BIT
+
+       REF  BBIT   EQU  $                 * BREAK ALLOWED/DETECTED
+       REF  CW0080 EQU  $
+       REF  ARBIT  DATA >0080
+       REF  WPBIT  DATA >0040             * WARNING PRINT
+       REF  CW32   EQU  $
+       REF  WSBIT  DATA >0020             * WARNING STOP
+       REF  CW16   EQU  $
+       REF  CBH10  EQU  $+1
+*      DATA >0010
+
+       REF  EIGHT  EQU  $
+       REF  CBH08  EQU  $+1
+       REF  MDBIT  EQU  $
+       REF  CW08   DATA >0008
+
+
+       REF  SMSBIT EQU  $
+       REF  FOUR   EQU  $
+       REF  CW04   DATA >0004
+       REF  CBH04  EQU  $-1
+
+       REF  TWO    EQU  $
+       REF  CW02   DATA >0002
+       REF  CBH02  EQU  $-1
+
+       REF  ONE    EQU  $
+       REF  CW01   DATA >0001
+       REF  CBH01  EQU  $-1
+
+       REF  CW00   DATA >0000
+       REF  CBH00  EQU  $-1
+
+*    SOME CONSTANTS
+
+       REF  PRNBIT DATA >C040             * PROGRAM/RUN/WRN PRINT
+       REF  HE000  DATA >E000
+       REF  CW28   DATA 28
+       REF  CW24   DATA 24
+       REF  CW40   DATA 40
+       REF  CBH14  EQU  $+1
+       REF  CW14   DATA 14
+       REF  CW8100 DATA >8100
+       REF  CW255  EQU  $
+       REF  CWFF   DATA >00FF
+       REF  CBHFF  EQU  $-1
+       REF  CW100  DATA 100
+       REF  CW110  DATA 110
+       REF  CW450  DATA 450
+       REF  CW247  DATA 247
+
+       REF  STRMAX DATA MAXSTR
+
+*    CONSTANTS FOR STACK IDS
+
+       REF  CSIDIN BYTE SIDINT            INTEGER CODE
+       REF  CSIDRL BYTE SIDRAD            RADIX
+       REF  CSIDST BYTE SIDSTR            STRING
+
+       REF  CSIDVS BYTE SIDVS             VALUE SPACE
+       REF  CSIDPT BYTE SIDPTR            SYMBOL POINTER
+       REF  CSIDDM BYTE SIDDIM            ARRAY SUBSCRIPTS
+
+*    CONSTANTS FOR XOPS
+
+       EVEN
+       REF  CBH03  EQU  $+1
+       REF  CW03   EQU  $
+       REF  THREE  DATA >0003
+
+       REF  CBH05  EQU  $+1
+       REF  CW05   EQU  $
+       REF  FIVE   DATA >0005
+
+       REF  SIX    DATA >0006
+
+       REF  SEVEN  DATA >0007
+
+       REF  CW09   EQU  $
+       REF  NINE   DATA >0009
+
+       REF  CW10   EQU  $
+       REF  H000A  EQU  $
+       REF  TEN    DATA >000A
+       REF  TWLVE  DATA >000C
+
+       REF  OFFSET BYTE >60
+
+       EVEN
+       REF  SPSTR  BYTE >01               SPACE STRING
+       REF  SPACE  BYTE >20               JUST A SPACE
+*             BYTE 0
+
+

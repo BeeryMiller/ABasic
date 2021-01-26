@@ -1,0 +1,190 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.151.MATHIN
+*
+*    WHAT:  MATH PACKAGE INTERFACE
+*
+*  VERSION: 3.0 - 10/26/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    R0 - CONTAINS OPERATION CODE
+*         IT IS ASSUMED THAT THE CALLING FUNCTION
+*         CHECKED FOR STRINGS
+*
+*     ENTRIES ARE "MATH" AND "MATHSK"
+*
+*
+
+MATHSK MOV  R9,R3             * STACK OPERATION
+       AI   R9,-STKSZ         * POP THE STACK
+       JMP  MATH01
+
+MATH   LI   R3,ARG            * ARG/FAC OPERATION
+MATH01 MOV  R0,R5             * SAVE OP-CODE
+       MOV  *R3,R1            * GET LEFT TYPE
+       A    *R7,R1            * ADD RIGHT TYPE
+       ANDI R1,>000E          * MASK OUT
+
+       B    @MTHTBL(R1)
+
+MATHER SETO R0
+       RT
+
+*    TYPES DONT MATCH, CONVERT RIGHT HAND ARGUMENT
+*
+*    LEFT     RIGHT
+*
+*    R3       R7
+*
+*    INT      RAD (CFI)
+*    RAD      INT (CIF)
+
+MATH12 CB   @SID(R3),@CSIDIN  CHECK IF LEFT IS AN INTEGER
+       JNE  MATH11            JUMP IF NO
+
+       LI   R0,X$CFI          LOAD XOP CODE
+       LI   R2,FAC+SNUM
+       XOP  @TEN,0
+
+       MOVB @CSIDIN,@SID+FAC  INDICATE IT IS AN INTEGER
+
+       MOV  R1,@SNUM+FAC      COPY THE INTEGER
+
+MATH40 SLA  R5,1              TIMES BY 2
+       B    @MTBL(R5)         GET ADDRESS
+
+MATH11 MOV  R0,R5
+       LI   R0,X$CIF          LOAD XOP CODE
+       LI   R1,FAC+SNUM       FAC PLUS 4
+       MOV  *R1,R2            GET THE INTEGER
+       XOP  @TEN,0            CONVERT IT
+
+       MOVB @CSIDRL,@SID+FAC  INDICATE ITS RADIX99
+       MOV  R5,R0
+
+*     R0 -  XOP DATA TYPE
+*     R1 -  DESTINATION       FAC
+*     R2 -  SOURCE ONE        FAC
+*     R3 -  SOURCE TWO        FAC/STK
+
+MATH19 LI   R1,FAC+SNUM       * GET COPY OF FAC
+       MOV  R1,R2             * COPY
+       AI   R3,SNUM           * POINT TO SOURCE VALUE SPACE
+       CI   R0,X$FCMP         * DO A FAST COMPARE
+       JEQ  MATH21            * IF NEC
+
+       XOP  @TEN,0            GO TO IT
+       STST R4                STORE STATUS
+MATH20 CLR  R0                INDICATE NO ERRORS
+       RT                     AND RETURN
+
+FASCOM
+MATH21 C    *R3,*R2+          ARE THEY EQUAL?
+       JNE  MATH22            NO, SO RETURN
+       MOV  *R3+,R0           ARE THEY BOTH ZERO?
+       JEQ  MATH22
+       JLT  MATH23
+       C    *R3+,*R2+
+       JNE  MATH22
+       C    *R3+,*R2+
+       JNE  MATH22
+       C    *R3+,*R2+
+MATH22 STST R4
+       CLR  R0
+       RT
+
+MATH23 C    *R2+,*R3+
+       JNE  MATH22
+       C    *R2+,*R3+
+       JNE  MATH22
+       C    *R2+,*R3+
+       STST R4
+       CLR  R0
+       RT
+
+MTHTBL JMP  MATHER            0 - ERROR
+       JMP  MATH40            2 - INT MATH
+       JMP  MATH12            4 - MIXED
+       JMP  MATHER            6 - ERROR
+       JMP  MATH19            8 - RADIX 99
+
+       PAGE
+
+*    NAME:  INTADD
+*
+*    WHAT:  INTEGER ADDITION
+
+INTADD A    @SNUM(R3),@SNUM+FAC
+       JNO  MATH20            IF NO OVERFLOW
+
+*    WARNING CALL
+
+MATHWN LI   R0,WRNNO          LOAD WARNING
+       DECT R10
+       MOV  R11,*R10
+       BL   @WARN             REPORT IT AS A WARNING
+       CLR  R0                INDICATE NO ERRORS
+       MOV  *R10+,R11
+       RT                     AND RETURN
+
+
+*    NAME:  INTSUB
+*
+*    WHAT:  INTEGER SUBTRACTION
+
+INTSUB MOV  @SNUM(R3),R2      GET ARG
+       S    @SNUM+FAC,R2      SUBTRACT FAC
+       JNO  INTS10            JUMP IN NO OVERFLOW
+       MOV  R2,@SNUM+FAC      COPY IT BACK
+       JMP  MATHWN            ISSUE WARNING
+
+INTS10 MOV  R2,@SNUM+FAC      SAVE IT
+       JMP  MATH20            AND RETURN
+
+
+*    NAME:  INTMPY
+*
+*    WHAT:  INTEGER MULTIPLY
+
+INTMPY MOV  @SNUM(R3),R0      GET THE INTEGER
+       MPY  @SNUM+FAC,R0      TIMES BY FAC
+       MOV  R1,@SNUM+FAC
+       XOR  R1,R0
+       ANDI R0,>8000
+       JEQ  MATH20
+       JMP  MATHWN
+
+
+*    NAME:  INTDIV
+*
+*    WHAT:  INTEGER DIVIDE
+
+INTDIV MOV  @SNUM+FAC,R2
+       JEQ  MATH20            DIVISION BY ZERO
+       CLR  R0
+       MOV  @SNUM(R3),R1
+       JEQ  INTDI1            QUOTIENT IS 0
+*      DIVS R2                R2 BY R0,R1
+       DATA >0182             IS THE SAME AS THE ABOVE
+INTDI1 MOV  R0,@SNUM+FAC
+*      JNO  MATH20
+*      JMP  MATHWN
+       JMP  MATH20
+
+
+*    NAME:  CMPARG
+*
+*    WHAT:  COMPARE INTEGER
+
+INTCMP C    @SNUM(R3),@SNUM+FAC
+       STST R4
+       JMP  MATH20
+
+
+MTBL   JMP  INTCMP
+       JMP  INTSUB
+       JMP  INTADD
+       JMP  INTMPY
+       JMP  INTDIV
+

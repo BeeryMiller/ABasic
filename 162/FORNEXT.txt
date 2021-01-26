@@ -1,0 +1,403 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.FORNEXT
+*
+*  NAME:    FOR - NEXT STATEMENT
+*
+*  VERSION: 3.00 - 10/19/86   BASE 2.1 SPEED UP
+*           3.01 - 02/15/87
+*           3.02 - 02/23/87
+*
+*-------------------------------------------------------------------------
+*
+*    THE FIRST ARGUMENT TO A FOR IS A VARIABLE
+*    SO CHECK IF IT IS
+
+NFOR   MOVB R8,R8             TEST CURRENT CHARACTER
+       JLT  NFOR40            JUMP IF TOKEN
+
+NFOR1  BL   @PSYM             GET THE SYMBOL
+       CB   @SID+FAC,@CSIDST  CHECK IF A STRING
+       JEQ  BERR60            JUMP IF YES
+
+NFOR1Z CI   R8,EQUAL$*256     * TEST FOR EQUAL TOKEN
+       JNE  NFOR41            * JUMP IF NO
+
+*    SEARCH STACK FOR ANOTHER FOR ENTRY
+*    WITH THE SAME LOOP VARIABLE. IF ONE
+*    IS FOUND REMOVE IT
+
+       MOV  R9,R3             COPY STACK POINTER
+
+NFOR1A C    R3,@VSLOW         CHECK STACK UNDERFLOW
+       JLE  NFOR1E            FINISHED WITH STACK SCAN
+
+       CB   @SID(R3),@CSIDFR  IS STACK ENTRY A FOR
+       JNE  NFOR1B            NO 8-BYTE REGULAR ENTRY
+
+       C    @-STKSZ*3+SYMP(R3),@SYMP+FAC
+       JNE  NF10
+       C    @-STKSZ*3+SYMA(R3),@SYMA+FAC   DO THEY MATCH
+       JEQ  NFOR1C            YES
+NF10   AI   R3,-STKSZ*4       SKIP THIS ENTRY
+       JMP  NFOR1A            LOOP SOME MORE
+
+NFOR1B CB   @SID(R3),@CSIDUM  HIT A SUBPROGRAM ENTRY
+       JEQ  NFOR1E            YES DONT SCAN ANY MORE
+       AI   R3,-STKSZ         SKIP B-BYTE STACK ENTRY
+       JMP  NFOR1A            LOOP
+
+*    FOUND MATCHING LOOP VARIABLE
+*    MOVE STACK DOWN 32 BYTES
+
+NFOR1C MOV  R3,R4             POINT TO TOP OF THE FOR LOOP
+       AI   R4,-STKSZ*3       POINT TO TOP OF THE FOR NEXT ENTRY
+       MOV  R9,R2             COPY STACK POINTER
+       S    R3,R2             CALC # OF BYTES TO MOVE
+       JEQ  NFOR1D            ZERO BYTES SKIP MOVE
+
+       AI   R3,STKSZ          CORRECT THE SOURCE ADDRESS
+NFOR1F MOV  *R3+,*R4+         MOVE A WORD
+       DECT R2                DECREMENT COUNTER
+       JNE  NFOR1F            LOOP IF NOT DONE
+NFOR1D AI   R9,-STKSZ*4       ADJUST TOP OF STACK
+
+*    AT THIS POINT THE VARIABLE IS IN FAC
+*    NOW PUSH IT ON THE STACK AND CONTINUE PARSE
+
+NFOR1E MOVB *R12+,R8          GET NEXT CHAR
+       BL   @PSHPRS           PUSH SYMBOL ID
+       BYTE TO$               PARSE THE INITIAL VALUE
+CSIDFR BYTE SIDFOR
+
+**     BL   @ASSGN            ASSIGN THE NUMERIC VALUE
+**     MOV  R0,R0             CHECK IF ASSIGN GOT AN ERROR
+**     JNE  BERR7             YES
+
+       LI   R1,FAC            SAVE VALUE
+       LI   R2,SVFA
+       LI   R3,16
+       BL   @FASMVW
+
+       CI   R8,TO$*256        * CHECK FOR TO TOKEN
+       JNE  NFOR40            * JUMP IF NO
+**     AI   R9,STKSZ          NO - SAVE THE VARIABLE   VAR NOW ON STACK
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+
+       BL   @PARSE            PARSE TO STEP$
+CBHB2  BYTE STEP$
+CBHC8  BYTE >C8
+
+       CB   @SID+FAC,@CSIDST  * CHECK IF WE GOT A STRING
+       JEQ  BERR61            * JUMP IF YES
+       BL   @PSHFAC           * SAVE THE LIMIT       LIMIT NOW ON STACK
+
+       BL   @EOSTMT           CHECK FOR EOL
+       JEQ  NFOR2             YES - DEFAULT
+
+       CI   R8,STEP$*256      * CHECK FOR STEP TOKEN
+       JNE  NFOR42            * JUMP IF NO
+       MOVB *R12+,R8          * GET NEXT CHARACTER
+       BL   @PARSE            * PARSE LIMIT
+CBH83  DATA TREM$*256
+
+       CB   @SID+FAC,@CSIDST  * CHECK IF STRING
+       JEQ  BERR62            * JUMP IF YES
+
+       MOV  @SNUM+FAC,R0      * TEST THE INCREMENT
+       JNE  NFOR3             * JUMP IF NON-ZERO
+       AI   R9,-2*STKSZ       * ADJUST THE STACK FOR THE ERROR
+
+BERRBV BL   @RPTE30           * REPEORT ERROR
+
+*    SOME ERROR ROUTINES
+
+BERR62 AI   R9,-STKSZ         ADJUST STACK
+BERR61 AI   R9,-STKSZ
+BERR60 BL   @RPTE07           STRING NUMBER MIS-MATCH
+
+RPTE09 LI   R0,ERRMUV         LOAD ERROR CODE
+BERR7  BL   @ERROR
+
+NFOR44 AI   R9,-2*STKSZ       ADJUST STACK
+NFOR42 AI   R9,-STKSZ         ADJUST THE STACK
+NFOR41 AI   R9,-STKSZ         ADJUST THE STACK
+NFOR40 BL   @RPTE03           SYNTAX ERROR
+
+
+*    NO STEP VALUE, SO USE DEFAULT
+*    TEST THE INITIAL VARIABLE TYPE AND PLACE THE
+*    CORRECT TYPE. THE DEFAULT IS ONE.
+
+NFOR2  AI   R9,STKSZ
+       MOV  R9,R0
+       LI   R1,GETC2
+       CB   @-STKSZ*3+SID(R9),@CSIDIN
+       JEQ  NFOR2A
+       LI   R1,GETC1
+
+NFOR2A BL   @MOVSTK
+       JMP  NFOR2B
+
+NFOR3  BL   @PSHFAC
+
+NFOR2B AI   R9,-STKSZ*2
+
+       LI   R1,SVFA
+       LI   R2,FAC
+       LI   R3,16
+       BL   @FASMVW
+
+       BL   @ASSGN
+       MOV  R0,R0
+       JNE  BERR7
+
+       AI   R9,STKSZ*3
+
+       MOVB @CSIDFR,R0        LOAD STACK ID
+       BL   @BLDMRK           AND BUILD MARK
+       MOV  R9,@SVFORL        SAVE THE CURRENT STACK LEVEL
+
+*    NOW CHECK TO ENSURE ALL VARIABLES ARE THE SAME
+
+       AI   R9,-STKSZ*3       CHECK VARIABLE
+       CB   @SID(R9),@CSIDRL  CHECK IF REAL
+       JEQ  NFOR3A            JUMP IF YES
+
+*    AT THIS POINT THE VARIABLE IS AN INTEGER
+*    CHECK ALL STACK ENTRIES FOR INTEGER
+
+*    CHECK THE LIMIT FOR INTEGER
+
+       AI   R9,STKSZ          POINT TO NEXT
+       CB   @SID(R9),@CSIDIN  CHECK IF INTEGER
+       JEQ  NFOR3B            JUMP IF YES
+       BL   @FTOIS            CONVERT FLOAT TO INTEGER
+
+*    CHECK THE STEP FOR INTEGER
+
+NFOR3B AI   R9,STKSZ          POINT TO NEXT
+       CB   @SID(R9),@CSIDIN  CHECK IF INTEGER
+       JEQ  NFOR3C            JUMP IF YES
+       BL   @FTOIS
+       JMP  NFOR3C
+
+*    THE VARIABLE IS A REAL
+*    CHECK ALL STACK ENTRIES FOR REAL
+
+*    CHECK THE LIMIT FOR REAL
+
+NFOR3A AI   R9,STKSZ          POINT TO NEXT
+       CB   @SID(R9),@CSIDRL  CHECK IF RADIX99
+       JEQ  NFOR3E            JUMP IF YES
+       BL   @ITOFS            CONVERT IT
+
+*    CHECK THE STEP
+
+NFOR3E AI   R9,STKSZ          POINT TO NEXT
+       CB   @SID(R9),@CSIDRL  CHECK IF RADIX99
+       JEQ  NFOR3C            JUMP IF YES
+       BL   @ITOFS            CONVERT IT
+
+*    CHECK TO SEE IF EXECUTE LOOP AT ALL
+
+NFOR3C MOV  @SVFORL,R9        GET THE STACK POINTER VALUE
+       AI   R9,-STKSZ*3       BACK UP TO THE VARIABLE
+
+       BLWP @GVSSTK           * GET VALUE SPACE STACK
+
+       AI   R9,STKSZ          SET STACK PTR TO LIMIT ENTRY
+       CB   @SID+FAC,@CSIDIN  CHECK IF INTEGER
+       JNE  NFOR3F            JUMP IF NO
+
+       C    @SNUM(R9),@SNUM+FAC
+       STST R4                STORE RESULT
+       JMP  NFOR3G            JOIN LATTER CODE
+
+NFOR3F LI   R0,X$FCMP
+*      MOV  R9,R3
+*      AI   R9,-STKSZ         * POP THE STACK
+       BL   @MATHSK           * DO COMPARISON
+
+NFOR3G COC  @BMASK4,R4       TEST EQUAL BIT
+       JEQ  NFOR03            EQUAL, DO LAST ITERATION
+       MOV  @SVFORL,R3        GET THE STACK
+       AI   R3,-STKSZ         SET POINTER TO STACK STEP ENTRY
+
+       MOVB @SNUM(R3),R1      CHECK NEGATIVE STEP
+       JLT  NFOR05            IF A DECREMENT
+
+       COC  @BMASK2,R4       CHECK OUT OF LIMIT
+       JNE  NFOR07            ITS OUT OF LIMIT
+NFOR03 MOV  @SVFORL,R9        LEAVE THE ENTRY ON
+       B    @CONT             RESULT IS WITH IN LIMIT
+
+NFOR05 COC  @BMASK2,R4
+       JNE  NFOR03            RESULT IS WITHIN LIMIT
+
+*    INITIAL VALUE IS NOT WITHIN THE LIMIT
+*    THEREFORE, THE LOOP IS NOT EXECUTED
+*    AT ALL. MUST SKIP THE CODE IN THE BODY
+*    OF THE LOOP.
+
+NFOR07 MOV  @SVFORL,R9        SAVE THE STACK
+       MOV  @CW01,@FNNEST     FOR/NEXT PAIR COUNTER
+NFOR09 BL   @EOLINE           CHECK END OF THE LINE
+       JEQ  NFOR13            IS END OF THE LINE
+       MOVB *R12+,R8          GET FIRST TOKEN ON LINE
+NFOR10 CI   R8,NEXT$*256      * CHECK IF NEXT TOKEN
+       JNE  NFOR11            * JUMP IF NOT
+
+       DEC  @FNNEST           DECREMENT COUNTER
+       JNE  NFOR12            IF NOT MATCHING NEXT
+       MOVB *R12+,R8          GET FIRST CHAR OF LOOP VARIABLE
+       JLT  NF277             IF TOKEN  THEN SYNTAX ERROR
+       BL   @PSYM             GET SYMBOL POINTER
+       MOV  @SVFORL,R9
+       AI   R9,-STKSZ*4       POP OFF THE STACK ENTRY FOR THE FOR NEXT LOOP
+       C    @STKSZ+SYMP(R9),@SYMP+FAC MATCH ?
+       JNE  RPTE14            NO REPORT ERROR (ERRFNN)
+       C    @STKSZ+SYMA(R9),@SYMA+FAC MATCH ?
+       JNE  RPTE14
+       B    @CONT             AND CONTINUE
+NF277  B    @NFOR44
+
+ERRFN  A    @CW04,@CLINE
+ERRFN1 AI   R9,-STKSZ*4       POP OFF THE FOR NEXT ERROR
+RPTE14 LI   R0,ERRFNN         LOAD ERROR CODE
+       BL   @ERROR            AND REPORT IT !
+
+
+NFOR11 CB   R8,@CBHA1         HIT A SUB
+       JEQ  ERRFN1            YES CANT FIND MATCHING NEXT
+       CB   R8,@CBH8C         FOR ?
+       JNE  NFOR20            NO CHECK SOME MORE
+       INC  @FNNEST           INCREMENT DEPTH
+       JMP  NFOR12
+
+NFOR20 CB   R8,@CBHC9         LINE NUMBER
+       JH   NFOR12            JUMP IF HIGER
+       JNE  NFOR30            JUMP IF NOT EQUAL
+       INCT R12               SKIP THE LINE NUMBER
+       JMP  NFOR12
+
+NFOR30 CB   R8,@CBHC7         CHECK IF STRING
+       JL   NFOR12            JUMP IF LOWER
+       JNE  NFOR32            JUMP IF NO
+NFOR31 MOVB *R12+,R1          GET STRING LENGTH
+       SRL  R1,8              ALIGN REGISTER FOR ADD
+       A    R1,R12            UPDATE PGM POINTER
+       JMP  NFOR12
+
+NFOR32 CB   R8,@CBHC8         CHECK IF NUMERIC CONSTANT
+       JEQ  NFOR31            JUMP IF YES
+
+NFOR12 MOVB *R12+,R8          GET NEXT CHARACTER
+       JEQ  NFOR13            AT END OF LINE
+       BL   @EOSTMT           AT END OF STATEMENT?
+       JNE  NFOR20            KEEP LOOKING
+       JMP  NFOR09            GO CHECK END OF LINE
+
+NFOR13 MOVB @PFLAG,R0         TEST PROGRAM BIT
+       JLT  NFOR14            JUMP IF YES
+       JMP  ERRFN1            JUMP IF NOT IN A PROGRAM
+
+NFOR14 S    @CW04,@CLINE      YES - CONTINUE
+       C    @CLINE,@ELINE     AT THE END
+       JL   ERRFN1            YES - NOT FOUND
+
+       BL   @GETPGM           READ PROGRAM LINE
+
+       MOVB *R12+,R8          GET NEXT CHARACTER
+       JMP  NFOR10            AND CONTINUE LOOKING
+
+       PAGE
+
+*
+*    NAME:  NNEXT
+*
+*    WHAT:  NEXT NUD
+*
+
+*    NEXT4 AND NEXT2A WERE MOVED FROM IN LINE TO HERE
+*    IN AN EFFORT TO MAKE THE NORMAL PATH THROUGH
+*    THE NEXT CODE AS STRAIGHT OF A LINE AS POSSIBLE.
+
+NEXT4  AI   R9,-STKSZ*4       POINT TO NEXT LOOP VARIABLE
+       C    R9,@VSLOW         AT THE END
+       JH   NEXT2             NO
+RPTE13 LI   R0,ERRNWF         LOAD ERROR CODE
+       BL   @ERROR            AND REPORT IT !
+
+
+NNEXT  BL   @PSYM             GET THE SYMBOL POINTER
+       C    R9,@VSLOW         CHECK FOR STACK BOTTOM
+       JLE  RPTE13            IF AT BOTTOM NEXT WITHOUT FOR
+
+NEXT2  CB   @SID(R9),@CSIDFR  CHECK IF FOR MARK
+       JNE  RPTE13            NOT THE STACK IS IN THE WRONG PLACE
+
+       C    @-STKSZ*3+SYMP(R9),@SYMP+FAC EQUAL ?
+       JNE  NEXT4             NO
+       C    @-STKSZ*3+SYMA(R9),@SYMA+FAC EQUAL ?
+       JNE  NEXT4             NO
+
+       MOV  @-3*STKSZ+SYMP(R9),R4  MAP IN AT >6000
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @-3*STKSZ+SYMA(R9),R1
+       AI   R1,>6000               MAKE 16 BIT
+
+       CB   @-3*STKSZ+SID(R9),@CSIDIN
+       JNE  NEXT2B                    IT IS FLOAT
+
+       A    @-STKSZ+SNUM(R9),*R1
+       MOV  @-STKSZ+SNUM(R9),R0
+       JLT  NXIN00                           TREAT NEGATIVE DIFFERENTLY
+       C    *R1,@-2*STKSZ+SNUM(R9)
+       JGT  NXIN01                           ALL DONE
+       B    @STKCON
+
+
+NXIN00 C    @-2*STKSZ+SNUM(R9),*R1
+       JGT  NXIN01                           ALL DONE
+       B    @STKCON
+
+
+NEXT2B MOV  R1,R3             OUTPUT
+       MOV  R9,R2
+       AI   R2,-STKSZ+SNUM
+       LI   R0,X$FADD
+       XOP  @TEN,0            ADD IT
+       AI   R2,-STKSZ
+       BL   @FASCOM           STATUS RETURNED
+
+*      COC  @BMASK+4,R4       CHECK EQUAL BIT
+       JEQ  NEXT5             EQUAL, DO LAST ITERATION
+
+       MOVB @-STKSZ+SNUM(R9),R0  IS THE STEP NEGATIVE?
+       JLT  NEXT6             JUMP IF IT WAS A DECREMENT
+       COC  @BMASK2,R4       CHECK IF OUT OF LIMIT
+       JEQ  NXIN01            OUT OF LIMIT
+NEXT5  B    @STKCON
+
+
+NEXT6  COC  @BMASK2,R4
+       JEQ  NEXT5
+NXIN01 AI   R9,-STKSZ*4       POP THE STACK
+       B    @CONT
+
+       PAGE
+GETC1  BYTE SIDVS             RADIX 99  1
+       BYTE SIDRAD
+       DATA 0
+       DATA >4001
+       DATA 0,0,0,0,0
+
+GETC2  BYTE SIDVS            INTEGER  1
+       BYTE SIDINT
+       DATA 0
+       DATA >0001
+       DATA 0,0,0,0,0
+

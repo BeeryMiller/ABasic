@@ -1,0 +1,52 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.151.GETPGM
+*
+*    NAME:  GETPGM
+*
+*-------------------------------------------------------------------------
+
+GET$10 SOC  @WPBIT,@XFLAG     * SET BIT IN FLAG
+       JMP  GET$11            * BACK TO IT
+
+GETPGM DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+*      INC  @CNTPGM
+
+       MOV  @CLINE,R1         GET THE LINE POINTER
+       BL   @FASTPG           MAP THE LINE AT >6000->9FFF
+
+*    R1 - POINTS TO THE LINE NUMBER
+
+       MOV  *R1+,@PGMLN       * READ THE LINE NUMBER
+       JLT  GET$10            * JUMP IF BREAK BIT SET
+       SZC  @WPBIT,@XFLAG
+GET$11 MOV  *R1,R1            PTR TO PGM LINE TO R1
+       DEC  R1
+       BL   @FASTPG           MAP IN PGM LINE ITSELF
+
+*    R1 - POINTS TO PROGRAM STATEMENT
+*    BACK UP PROGRAM POINTER AND POINT TO LENGTH
+
+       MOVB *R1+,R3           * GET LINE LENGTH IN R3
+       JNE  GET$12
+       LI   R3,163*256        * LONGEST POSSIBLE PGM LENGTH
+GET$12 SRL  R3,8              * ALIGN REGISTER
+       MOV  R3,@BUF3L         * SAVE BUFFER LENGTH
+       LI   R12,CRNBUF        * R12 IS PROGRAM REGISTER
+       MOV  R12,R2            * COPY FOR MOVE
+
+*    CALL FASMVB(CHAR *SRC, CHAR *DST, INT N)
+*                R1         R2         R3
+*
+       BL   @FASMVB           * MOVE IT TO THE CRUNCH BUFFER
+
+       CLR  R8                * CLEAR CHAT
+       ANDI R2,>FFFE          * MAKE IT EVEN
+       CLR  *R2+              * WRITE 4 BYTES OF ZEROS
+       CLR  *R2+
+
+       MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN
+

@@ -1,0 +1,78 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.MERGE
+*
+*  NAME:    MERGE COMMAND
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+MERGE  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       DEC  @ARGC             CHECK ARGUMNET COUNT
+       JEQ  MERG$2            NOT ENOUGH
+       BL   @CLOSEA
+       BL   @INITPB           INITIALIZE PAB
+       MOV  @ARGV1,R1
+       BL   @TSTARG           TEST ARGUMENT
+       JMP  MERG$1            NUMERIC ITS AN ERROR
+
+CMDE09 LI   R0,ERRIFN
+MERG$4 BL   @ERROR
+
+MERG$1 BL   @EDITIN           PERFORM EDIT INITIALIZATION
+
+       MOV  @ARGV1,R1         PUSH ADDRESS
+       BL   @GFILEN           GET FILE NAME
+
+       LI   R1,MRGPAB
+       BL   @SETDFP           LOAD 14 BYTES OF THE DEFAULT PAB
+
+       XOP  @EIGHT,0          PERFORM OPEN
+       MOV  @DEFPAB+ECODE,R0       ERROR ?
+       JNE  MERG$9              BAD OPEN, SO TRY DV 80
+
+*  READ INTO BUF3L + CRUNCH BUFFER
+
+MERG$5 CLR  R5                NO ERROR
+       BL   @READPB           PERFORM IO IF ERROR, DON'T RETURN
+       MOV  @BUF3L,R4         LINE NUMBER OR END
+       CI   R4,>FFFF          COMPARE FIRST RECORD
+       JEQ  MERG$3            GOT AN EOF ITS AN ERROR
+
+       MOV  @DEFPAB+CHRCNT,R3
+       DECT R3                SUBTRACT LINE #
+*      MOVB R2,@EDITR         MOVE FOR EDIT  ?????????????????????????????
+       MOV  R3,@BUF3L         LENGTH OF STATEMENT
+       MOV  R4,@FAC+4         COPY THE LINE NUMBER
+
+       BL   @EDITLN           DO EDIT FUNCTION
+       MOV  R0,R0
+       JEQ  MERG$5
+       SETO R5                ERROR IN THE STATEMENT JUST READ
+
+MERG$3 BL   @CLOSPB           PERFORM IO
+       MOV  R5,R5
+       JNE  MERG$6
+MERG$8 CLR  @ERRCOD           INDICATE NO ERRORS
+       MOV  *R10+,R11         ANR RETURN
+       RT
+
+MERG$6 B    @CMDE07
+
+MERG$2 B    @CMDE01
+
+MERG$9 LI   R1,LOD3PB
+       BL   @SETDFP
+       BL   @DOIOCL
+
+       BL   @LOAD32
+       MOV  R0,R0
+       JNE  MERG$4
+       JMP  MERG$8
+
+MRGPAB DATA >0014             VARIABLE,DISPLAY,INPUT,SEQUENTIAL
+       DATA 0,BUF3L           NO ERROR, CRUNCH BUFFER
+       DATA 0                 NO RECORD NUMBER
+       DATA 163               LOGICAL RECORD LENGTH
+       DATA 0,0               CPU RAM AND NO CHARACTER COUNT

@@ -1,0 +1,176 @@
+*-------------------------------------------------------------------------
+*
+*   FILE:   WDS1.151.CONVNUM
+*
+*   NAME:   CONTAINS THE CONVERSION ROUTINES
+*           POINT NUMBER
+*
+*  VERSION: 3.0 - 10/26/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  FTOI
+*
+*    WHAT:  CONVERTS A FLOAT TO INTEGER
+*
+*    ENTRY: BL   @CNVINT
+*
+*    INPUT: FAC4-11  CONTAINS A FLOATING NUMBER
+*
+*   OUTPUT: FAC4     INTEGER
+*
+
+FTOIS  MOV  R9,R2             GET THE STACK ADRESS
+       AI   R2,SNUM           PLUS 4
+       LI   R0,X$CFI          LOAD XOP CODE
+       XOP  @TEN,0
+
+       MOV  R1,@SNUM(R9)      COPY THE INTEGER
+       MOVB @CSIDIN,@SID(R9)  INDICATE ITS INTEGER
+*      CLR  R0                NO ERRORS   (ERROR RETURNED IN R0)
+       RT                     AND RETURN
+
+FTOI   CB   @SID+FAC,@CSIDIN  CHECK IF WE GO AN INTEGER ALREADY
+       JEQ  FTOI5             YES
+
+*      R0 = XOP CODE
+*      R2 = SOURCE            FAC
+
+       LI   R0,X$CFI          LOAD XOP CODE
+       LI   R2,FAC+SNUM       FAC+4
+       XOP  @TEN,0
+
+       MOVB @CSIDIN,@SID+FAC  INDICATE IT IS AN INTEGER
+
+       MOV  R1,@SNUM+FAC      COPY THE INTEGER
+       RT                     ERROR IN R0 ALREADY SO RETURN IT
+
+*FTOI10 SETO R0                INDICATE OVERFLOW
+*      RT
+
+       PAGE
+*
+*    NAME:  ITOF
+*
+*    WHAT:  CONVERT A INTEGER TO FLOAT
+*
+*    ENTRY: BL   @ITOF
+*
+*    INPUT: FAC4     INTEGER
+*
+*   OUTPUT: FAC4-11  CONTAINS A FLOATING NUMBER
+*
+
+ITOFS  MOV  R9,R1             INTEGER IS ON STACK
+       AI   R1,SNUM           POINT TO VALUE SPACE
+       LI   R0,X$CIF          LOAD XOP CODE
+       MOV  @SNUM(R9),R2      GET INTEGER
+       XOP  @TEN,0
+       MOVB @CSIDRL,@SID(R9)  INDICATE ITS REAL
+
+FTOI5  CLR  R0                INDICATE NO ERRORS
+       RT                     AND RETURN
+
+ITOF   CB   @SID+FAC,@CSIDRL  CHECK IF WE GOT A REAL ALREADY
+       JEQ  ITOF5             JUMP IF YES
+
+*      R0 = XOP
+*      R1 = ^RESULT
+*      R2 = INTEGER
+
+ITOF4  LI   R0,X$CIF          LOAD XOP CODE
+       LI   R1,FAC+SNUM       FAC PLUS 4
+       MOV  @SNUM+FAC,R2      GET THE INTEGER
+       XOP  @TEN,0            CONVERT IT
+
+       MOVB @CSIDRL,@SID+FAC  INDICATE ITS AN INTEGER
+
+ITOF5  CLR  R0                INDICATE NO ERRORS
+       RT                     AND RETURN
+
+*ITOF10 DECT R10               MAKE ROOM
+*      MOV  R11,*R10          SAVE RETURN
+*
+*      LI   R0,WRNNO
+*      BL   @WARN             YES ISSUE WARNING...
+*
+*      MOV  *R10+,R11         GET RETURN ADDRESS
+*      RT                     AND RETURN TO CALLER
+
+
+       PAGE
+*
+*  ENTRY:   ITOD    (SIGNED 16 BIT NUMBER)
+*
+*  INPUT:   R1  - INTEGER
+*           R2  - ^BUFFER   RETURNS  STRING LENGTH AT R2 FOLLOWED BY STRING
+*
+*     LOCAL REGISTER
+*  REG      DESCRIPTION
+*   0
+*   1       INTEGER
+*   2       POWERS OF TEN TABLE
+*   3       NUMBER OF ENTRIES IN PRSTEN
+*   4       OUTPUT BUFFER POINTER
+*   5       CHARACTER COUNTER
+*   6       ADDER FOR SIGN
+*   7       LENGTH OF SIGN IF ANY
+*
+
+ITOD   DATA UREG2,$ITOD
+
+$ITOD  CLR  R5                CLEAR CHARACTER COUNTER
+       CLR  R7                NO SIGN
+       LI   R2,PRSTEN         POWERS OF TEN TABLES
+       MOV  *R2+,R3           GET THE NUMBER OF ENTRIES
+
+*    GET ARGUMENTS
+
+       MOV  @04(R13),R4       GET THE STRING BUFFER FROM R2
+       MOV  R4,R6             COPY IT FOR LATTER (LENGTH)
+       INC  R4                POINT TO START OF STRING
+       MOV  @02(R13),R1       GET THE INTEGER FROM R1
+       JEQ  ITOD$5            IF ZERO NOTHING TO DO
+
+*  THE FOLLOWING ARE NEW INSTRUCTIONS TO HANDLE NEGATIVE NUMBERS
+*-------------------------------------------------------------------------------
+       JGT  ITOD$1            IT IS POSITIVE
+       MOVB @DASH,*R4+
+       INC  R7                1 CHAR FOR THE "-"
+       ABS  R1                MAKE IT POSITIVE
+*-------------------------------------------------------------------------------
+
+ITOD$1 CLR  R0                FOR THE DIVIDE
+       DIV  *R2+,R0
+       MOV  R0,R0             CHECK FOR ZERO
+       JNE  ITOD$2            JUMP IF A ERROR
+       MOV  R5,R5             ANY THING IN THE BUFFER
+       JEQ  ITOD$3            NO
+ITOD$2 AI   R0,'0'            MAKE IT ASCII
+       SWPB R0                ALIGN FOR MOVE
+       MOVB R0,*R4+           MOVE IT
+       INC  R5                INCREMENT STRING COUNTER
+ITOD$3 DEC  R3                DECREMENT P.O.T. POINTER
+       JNE  ITOD$1            IF NOT DONE
+
+ITOD$5 MOV  R5,R5             TEST IF ANY THING IN THE BUFFER
+       JNE  ITOD$6            YES
+       LI   R3,1              NO MAKE IT ONE CHAR LONG
+       CLR  R0                AND PUT A ZERO THERE
+       JMP  ITOD$2
+
+ITOD$6 A    R7,R5             ADD IN THE SIGN IF ANY
+       SWPB R5                ALIGN THE REGISTER
+       MOVB R5,*R6            WRITE STRING LENGTH
+       RTWP                   AND RETURN
+
+*    POWERS OF TEN TABLE
+
+PRSTEN DATA 5
+       DATA 10000
+       DATA 1000
+       DATA 100
+       DATA 10
+PWRTEN DATA 1
+
+DASH   TEXT '-'

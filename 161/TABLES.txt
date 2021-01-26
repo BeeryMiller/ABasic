@@ -1,0 +1,158 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.TABLES
+*
+*  NAME:    TABLES
+*
+*  VERSION: 3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+*    STATEMENT TABLE
+
+STMTTB DATA NONUD             80  SPARE
+       DATA NONUD             81  ELSE
+       DATA SMTSEP            82
+       DATA NUDND1            83  TAIL
+       DATA IF                84  IF
+       DATA GO                85  GO
+       DATA GOTO              86
+       DATA GOSUB             87
+       DATA RETURN            88
+       DATA NUDEND            89
+       DATA NUDEND            8A
+       DATA END               8B
+       DATA NFOR              8C  FOR
+       DATA NLET              8D  LET
+       DATA NBREAK            8E  BREAK
+       DATA NUNBRK            8F  UNBREAK
+       DATA NTRACE            90  TRACE
+       DATA LTRACE            91  LTRACE
+       DATA INPUT             92  INPUT
+       DATA NUDND1            93  DATA
+       DATA RESTOR            94  RESTOR
+       DATA NRNDMZ            95  RANDOMIZE
+       DATA NNEXT             96  NEXT
+       DATA NREAD             97  READ
+       DATA STOP              98  STOP
+       DATA DELETE            99  DELETE
+       DATA NUDND1            9A  REM
+       DATA ON                9B
+       DATA PRINT             9C  PRINT
+       DATA CALL              9D  CALL
+       DATA NUDEND            9E  OPTION
+       DATA OPEN              9F  OPEN
+       DATA CLOSE             A0  CLOSE
+       DATA STOP              A1  UDS
+       DATA DISPLY            A2  DISPLAY
+       DATA NUDND1            A3  IMAGE
+       DATA ACCEPT            A4  ACCEPT
+       DATA NONUD             A5  ERROR
+       DATA NONUD             A6  WARNING
+       DATA SUBXT             A7  SUB EXIT
+       DATA SUBXT             A8  SUB END
+       DATA NRUN              A9  RUN
+       DATA LINPUT            AA  LINPUT
+       DATA NWHILE            AB  WHILE
+       DATA NWEND             AC  WEND
+       DATA EXNUD             AD  EXTENDED NUD
+       DATA NUDND1            AE  DEF INT
+       DATA NUDND1            AF  DEF REAL
+
+       PAGE
+*
+*    NAME:  NUD TABLE
+*
+
+NTAB   DATA NLPR              B7
+       DATA NONUD             B8
+       DATA NONUD             B9
+       DATA NONUD             BA
+       DATA NONUD             BB
+       DATA NONUD             BC
+       DATA ONOT              BD
+       DATA NONUD             BE
+       DATA NONUD             BF
+       DATA NONUD             C0
+       DATA NPLUS             C1
+       DATA NMINUS            C2
+       DATA NONUD             C3
+       DATA NONUD             C4
+       DATA NONUD             C5
+       DATA NONUD             C6
+       DATA NQTSTR            C7  QUOTED STRING
+       DATA NUMCON            C8  UNQUOTED STRING NUMERIC
+       DATA NONUD             C9  LINE NUMBER
+       DATA EOF               CA
+       DATA NABS              CB
+       DATA NATN              CC
+       DATA NCOS              CD
+       DATA NEXP              CE
+       DATA NINT              CF
+       DATA NLOG              D0
+       DATA NSGN              D1
+       DATA NSIN              D2
+       DATA NSQR              D3
+       DATA NTAN              D4
+       DATA NLEN              D5
+       DATA NCHR$             D6
+       DATA NRND              D7
+       DATA NSEG$             D8
+       DATA NPOS              D9
+       DATA NVAL              DA
+       DATA NSTR$             DB
+       DATA NASC              DC
+       DATA NPI               DD
+       DATA NREC              DE
+       DATA NMAX              DF
+       DATA NMIN              E0
+       DATA NRPT$$            E1
+       DATA VALHX             E2
+       DATA EXNUD             E3  EXTENDED FUNCTION
+       DATA TERMCH            E4
+NTABLN EQU  $-NTAB
+
+EXNTAB DATA NONUD             80
+       DATA NRGHT$            81
+       DATA NLEFT$            82
+       DATA NHEX$             83
+       DATA NTIME$            84
+       DATA NDATE$            85
+       DATA NMOD              86
+       DATA NSWAP             87
+       DATA NCINT             88
+       DATA NONUD             89
+       DATA NONUD             8A
+       DATA NREAL             8B
+       DATA NUDND1            8C - SKIP THIS
+       DATA NFKEY             8D
+       DATA NMOUSE            8E
+       DATA NCLSN             8F
+       DATA NFREE             90
+
+*    SET THE FOLLOWING TO THE LAST ENTRY PLUS ONE IN THE TABLE
+
+EXHIGH DATA >9000
+
+       PAGE
+
+*
+*    NAME:  LED TABLE
+*
+*
+
+LTAB   DATA CONCAT            B8 STRING CONCATENATION
+       DATA NOLED             B9
+       DATA OOR               BA
+       DATA OAND              BB
+       DATA OXOR              BC
+       DATA NOLED             BD
+       DATA EQUALS            BE
+       DATA LESS              BF
+       DATA GREATR            C0
+       DATA LPLUS             C1
+       DATA LMINUS            C2
+       DATA TIMES             C3
+       DATA DIVIDE            C4
+       DATA LEXP              C5
+LTABEN EQU  $-LTAB

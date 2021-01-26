@@ -1,0 +1,203 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.LED
+*
+*  NAME:    LED ROUTINES
+*
+*  VERSION: 3.00 - 10/19/86   BASE LINE
+*           3.01 - 02/15/87
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  LESS THAN
+*
+
+LESS   MOV  @CW02,@LEDTYP     LESS THAN CODE
+       CI   R8,GREAT$*256     TEST FOR GREATER THAN
+       JNE  LT10              NO
+       DECT @LEDTYP           MUST BE LESS THAN
+       JMP  LT15              JUMP TO COMMON CODE
+
+*
+*    NAME:  GREATER THAN
+*
+
+GREATR MOV  @CW04,@LEDTYP     GREATER THAN CODE
+LT10   CI   R8,EQUAL$*256     TEST FOR EQUAL
+       JNE  LTST01
+LT15   MOVB *R12+,R8          GET NEXT CHARACTER
+       JMP  LEDLE             JUMP TO TEST
+
+*
+*    NAME:  EQUALS
+*
+
+EQUALS SETO @LEDTYP
+LEDLE  INC  @LEDTYP
+LTST01 BL   @PSHPRS           PUSH FAC AND PARSE TO
+       DATA GREAT$*256
+       MOV  @LEDTYP,R4        GET LED TYPE
+       MOVB @LTSTAB(R4),R14   GET ADDRESS BIAS TO BRANCH TO
+       SRA  R14,8             RIGHT JUSTIFY
+
+       CB   @SID(R7),@CSIDST  CHECK IF STRING
+       JEQ  LTST20            JUMP IF YES
+
+       CB   @SID(R7),@CSIDIN  CHECK IF INTEGER
+       JEQ  LTST40            JUMP IF YES
+
+       CB   @SID(R9),@CSIDRL
+       JEQ  LTST14
+       BL   @ITOFS
+LTST14 CLR  R0                LOAD FCMP OP-CODE
+       MOV  R9,R3             ONES ON THE STACK
+       AI   R9,-STKSZ         POP THE STACK
+       AI   R3,SNUM           POINT TO NUMBER
+       MOV  R7,R2             THE OTHER IN IS FAC
+       AI   R2,SNUM           POINT TO NUMBER
+       XOP  @TEN,0
+LTST15 B    @LTSTXX(R14)      USE APPROPRIATE ROUTINE
+
+*    INTEGER COMPARE
+
+LTST40 CB   @SID(R9),@CSIDIN  CHECK IF INTEGER
+       JEQ  LTST41            JUMP IF YES
+       BL   @FTOIS            CONVERT STACK
+LTST41 MOV  R9,R3             ONES ON THE STACK
+       AI   R9,-STKSZ         POP THE STACK
+       C    @SNUM(R3),@SNUM(R7)
+       B    @LTSTXX(R14)
+
+LTSTXX EQU  $
+LTSTGE JGT  LTRUE
+LTSTEQ JEQ  LTRUE
+LFALSE CLR  R4                FALSE - IS A ZERO
+       JMP  LTST90
+
+LTSTNE JEQ  LFALSE
+LTRUE  LI   R4,>BFFF          TRUE  - IS A MINUS ONE
+LTST90 MOV  R7,R3             STORE RESULT IN FAC
+       MOV  @CSTR30,*R3+      00
+       CLR  *R3+              02
+       MOV  R4,*R3+           04 EXP AND FIRST BYTE
+       CLR  *R3+              06
+       CLR  *R3+              08
+       CLR  *R3               10
+       B    @CONT             AND CONTINUE
+
+LTSTLE JEQ  LTRUE
+LTSTLT JLT  LTRUE
+       JMP  LFALSE
+
+LTSTGT JGT  LTRUE
+       JMP  LFALSE
+
+*
+*    DATA TABLE FOR OFFSETS FOR TYPES
+*
+
+LTSTAB BYTE LTSTEQ-LTSTXX     EQUAL            (0)
+       BYTE LTSTNE-LTSTXX     NOT EQUAL        (1)
+       BYTE LTSTLT-LTSTXX     LESS             (2)
+       BYTE LTSTLE-LTSTXX     LESS OR EQUAL    (3)
+       BYTE LTSTGT-LTSTXX     GREATER          (4)
+       BYTE LTSTGE-LTSTXX     GREATER OR EQUAL (5)
+
+       PAGE
+
+*
+*    NAME:  STRING COMPARISION
+*
+
+LTST20 CB   @SID(R9),@CSIDST
+       JNE  LEDSNM
+       BL   @POPARG           GET LEFT STRING IN ARG
+       MOV  @SLEN+FAC,R5
+       JEQ  CSTR20
+       MOV  @SLEN+ARG,R4
+       JEQ  CSTR20            IF ZERO SRT STATUS WITH LENGTH
+
+       C    R5,R4
+       JLT  CSTR10            JUMP IF LEN2 < LEN1
+       MOV  R4,R5             SWAP LEN1,LEN2
+
+CSTR10 MOV  @STRP+ARG,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+ARG,R1
+       AI   R1,>6000
+
+       MOV  @STRA+FAC,R2
+       AI   R2,>A000
+
+CSTR11 CB   *R1+,*R2+
+       JNE  LTST15            RETURN WITH STATUS <>
+       DEC  R5
+       JGT  CSTR11
+CSTR20 C    @SLEN+ARG,@SLEN+FAC  STATUS SET BY LENGTH COMPARE
+       JMP  LTST15
+
+CSTR30 BYTE SIDVS
+       BYTE SIDRAD
+
+*
+*    NAME:  PLUS
+*
+
+LPLUS  BL   @PSHPRS
+       BYTE MINUS$            UP TO ANOTHER MINUS
+CBH85  BYTE >85
+       LI   R0,X$FADD         ADDRESS OF ROUTINE
+
+*
+*    NAME:  COMMON CODE
+*
+
+LEDEX  BL   @MATHSK           USE A DIFFERENT ENTRY POINT
+
+       MOV  R0,R0             TEST FOR OVERFLOW
+       JNE  LEDERR            IF OVERFLOW - ERROR
+
+LEDEND B    @CONT
+
+LEDERR LI   R0,WRNNO          LOAD WARNING CODE
+       BL   @WARN             ISSUE MESSAGE
+       JMP  LEDEND
+
+LEDSNM BL   @RPTE07           REPORT ERROR (STR-NUM MISMATCH)
+
+*
+*    NAME:  MINUS
+*
+
+LMINUS BL   @PSHPRS           PUSH AND PARSE
+       BYTE MINUS$            STOP AT MINUS OR LESS
+CBH8E  BYTE >8E               CONSTANT BYTE THREE
+       LI   R0,X$FSUB         LOAD ROUTINE CODE
+       JMP  LEDEX             USE COMMON CODE
+
+*
+*    NAME:  TIMES
+*
+
+TIMES  BL   @PSHPRS           PUSH AND PARSE
+       BYTE DIVI$             STOP AT DIVIDE OR LESS
+CBHC0  BYTE >C0
+       LI   R0,X$FMPY         LOAD ROUTINE CODE
+       JMP  LEDEX             USE COMMON CODE
+
+*
+*    NAME:  DIVIDE
+*
+
+DIVIDE BL   @PSHPRS           PUSH AND PARSE
+       DATA DIVI$*256         STOP AT DIVIDE OR LESS
+       LI   R0,X$FDIV         LOAD ROUTINE CODE
+       JMP  LEDEX             USE COMMON CODE
+
+

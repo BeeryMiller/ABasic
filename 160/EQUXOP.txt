@@ -1,0 +1,149 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.150.EQUXOP
+*
+*    NAME:  XOPS
+*
+* VERSION:  3.0 - 10/30/86    BASE LINE
+*           3.1 - 03/30/87
+*
+*-------------------------------------------------------------------------
+
+*    I / O    S U P P O R T
+
+$OPEN  EQU  >0000        00   OLD
+$CLOSE EQU  >0100        01   SAVE
+$READ  EQU  >0200        02   OPEN
+$WRITE EQU  >0300        03   CLOSE
+$REST  EQU  >0400        04   WRITE
+$LOAD  EQU  >0500        05   READ
+$SAVE  EQU  >0600        06   RESTORE
+$DELET EQU  >0700        07   STATUS
+$DELE  EQU  >0800        08   DELETE
+$STAT  EQU  >0900        09   STATUS
+$BREAD EQU  >0A00        10   RAW READ
+$BWRIT EQU  >0B00        11   RAW WRITE
+$PROT  EQU  >0C00        12   CHANGE PROTECTION
+$RENAM EQU  >0D00        13   RENAME FILE
+$FORMT EQU  >0E00        14   FIRMAT
+
+       PAGE
+
+*
+*    MATH LIBRARY        XOP 10
+*
+
+*    FOLLOWING ARE FLOATING POINT MATH
+*    RIGHT ARG IN ARG
+*    LEFT  ARG IN FAC
+
+X$FCMP EQU  >0000        00   COMPARE
+X$FSUB EQU  >0001        01   SUBTRACT
+X$FADD EQU  >0002        02   ADD
+X$FMPY EQU  >0003        03   MPY
+X$FDIV EQU  >0004        04   DIV
+
+*    TRINSIC FUNCTIONS CODES
+
+X$PWR  EQU  >0005        05
+X$EXP  EQU  >0006        06
+X$LOG  EQU  >0007        07
+X$SQR  EQU  >0008        08
+X$COS  EQU  >0009        09
+X$SIN  EQU  >000A        10
+X$TAN  EQU  >000B        11
+X$ATN  EQU  >000C        12
+X$GRIN EQU  >000D        13
+
+*    CONVERSION XOP'S
+
+X$CFI  EQU  >000E
+X$CIF  EQU  >000F
+X$CSIN EQU  >0010
+X$CSN  EQU  >0011
+X$CNS  EQU  >0012
+
+
+       PAGE
+*
+*    VIDEO LIBRARY       6,0
+*
+
+X$SVM  EQU  >00               SET VIDEO MODE
+X$GVM  EQU  >01               GET VIDEO MODE
+
+X$SCP  EQU  >02               SET CURSOR POSITION
+X$GCP  EQU  >03               GET CURCOR POSITION
+
+X$SDP  EQU  >04               SET DISPLAY PAGE
+X$GDP  EQU  >05               GET DISPLAY PAGE
+
+X$SWU  EQU  >06               SCROLL WINDOW UP
+X$SWD  EQU  >07               SCROLL WINDOW DOWN
+X$SWL  EQU  >08               SCROLL WINDOW LEFT
+X$SWR  EQU  >09               SCROLL WINDOW RIGHT
+
+X$WCC  EQU  >0A               WRITE CHAR COLOR
+X$GCC  EQU  >0B               READ CHAR COLOR
+
+X$SBC  EQU  >0C
+X$SCPL EQU  >0D               SET COLOR PALETT
+X$SPC  EQU  >0E               SET PIXEL COLOR
+X$GPC  EQU  >0F
+
+X$SVC  EQU  >10
+X$CS   EQU  >11
+X$HBM  EQU  >12
+X$HBC  EQU  >13
+X$LBM  EQU  >14
+X$LBC  EQU  >15
+
+X$BSU  EQU  >16
+X$BSD  EQU  >17
+X$BSL  EQU  >18
+X$BSR  EQU  >19
+
+X$SDEF EQU  >1A               DEFINE
+X$SDEL EQU  >1B               DELETE
+X$SLOC EQU  >1C               LOCATE
+X$SMOT EQU  >1D               MOTION
+X$SCOL EQU  >1E               COLOR
+X$SPAT EQU  >1F               PATTERN
+
+X$SMAG EQU  >20               MAGNIFY
+X$SPOS EQU  >21               POSITION
+X$SCOI EQU  >22               COINC
+X$SPD  EQU  >23               PAT DEF
+X$CPD  EQU  >24               CHAR PAT DEF
+X$SM   EQU  >25               SET MARGINS
+X$GM   EQU  >26               GET MARGINS
+X$WTTY EQU  >27               WRITE TTY
+X$RCS  EQU  >28               RESTORE CHAR SET
+X$SFB  EQU  >29               SET FORGROUND/BACKGROUND
+X$WCS  EQU  >2A               WRITE CHAR STRING
+X$PS   EQU  >2B               PRINT SCREEN
+X$HCC  EQU  >2C               HCHAR CHAR COLOR
+X$VCC  EQU  >2D               VHCAR CHAR COLOR
+X$HCHR EQU  >2E               HCHAR
+X$VCHR EQU  >2F               VCHAR
+
+X$SETM EQU  >30               SET MOUSE
+X$GETM EQU  >31               GET MOUSE
+X$GETR EQU  >32               GET RELATIVE
+X$SND  EQU  >33               SOUND
+X$SNDS EQU  >34               SOUND STATUS
+X$VWTR EQU  >35               WRITE TO VDP REGISTER
+
+X$SEDG EQU  >3A               SET EDGE COLOR
+
+*    DATE/TIME XOPS
+
+X$CKT  EQU  0                 CHECK TIME
+X$CTS  EQU  1                 CONVERT TIME
+X$CST  EQU  2                 GET TIME STRING
+
+X$CKD  EQU  3
+X$CDS  EQU  4
+X$CSD  EQU  5
+
+X$PRFN EQU  8                 PARSE FILE NAME FORM LOGICAL TO PHYSICAL

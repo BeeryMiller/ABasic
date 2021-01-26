@@ -1,0 +1,30 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.INTRND
+*
+*  NAME:    INITIALIZE RANDOM NUMBER GENERATOR
+*
+*  VERSION: 3.0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+*
+*    NAME:  INITIALIZE RANDOM NUMBER GENERATOR
+*
+
+INTRND LI   R1,X2SEED         SOURCE ADDRESS
+       LI   R2,RNDX2          DESTINATION ADDRESS
+       LI   R3,32             WORD COUNT
+       B    @FASMVW           FAST MOVE WORD
+
+
+X2SEED BYTE SIDVS,SIDRAD,>00,>00
+       BYTE >42,>03,>23,>15
+       BYTE >00,>00,>00,>00
+       BYTE >00,>00,>00,>00
+
+X1SEED BYTE SIDVS,SIDRAD,>00,>00
+       BYTE >43,>02,>3E,>2A
+       BYTE >17,>00,>00,>00
+       BYTE >00,>00,>00,>00
+

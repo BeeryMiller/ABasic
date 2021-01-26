@@ -1,0 +1,163 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    \164\CMD/SRC
+*
+*  NAME:    COMMANDS
+*
+*  VERSION: 3\0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+FILE0  EQU  $                 RD164
+       UNL
+       COPY "164\RD154"
+       LIST
+FILE0B EQU  $                 DATAREFS
+       UNL
+       COPY "160\DATAREFS"
+       LIST
+FILE1  EQU  $                 160\EQUSYS
+       UNL
+       PAGE
+       COPY "160\EQUSYS"
+       LIST
+FILE2  EQU  $                 160\EQUTOKEN
+       UNL
+       PAGE
+       COPY "160\EQUTOKEN"
+       LIST
+FILE3  EQU  $                 160\EQUXOP
+       UNL
+       PAGE
+       COPY "160\EQUXOP"
+       LIST
+FILE4  EQU  $                 160\EQUERR
+       UNL
+       PAGE
+       COPY "160\EQUERR"
+       LIST
+FILE5  EQU  $                 160\EQUSTACK
+       UNL
+       PAGE
+       COPY "160\EQUSTACK"
+       LIST
+*FILE6  EQU  $                 160\PG7LINK
+*      UNL
+*      PAGE
+*      COPY "160\PG7LINK"
+*      LIST
+FILE7  EQU  $                 160\VARY1
+       UNL
+       PAGE
+       COPY "160\VARY1"
+       LIST
+FILE8  EQU  $                 160\VARY2
+       UNL
+       PAGE
+       COPY "160\VARY2"
+       LIST
+FILE9  EQU  $                 160\OV154
+       UNL
+       PAGE
+       COPY "160\OV154"
+       LIST
+FILE10 EQU  $                 160\VARY3
+       UNL
+       PAGE
+       COPY "160\VARY3"
+       LIST
+FILE11 EQU  $                 160\EQUPAB
+       UNL
+       PAGE
+       COPY "160\EQUPAB"
+       LIST
+
+       AORG >2000
+
+*FILE12 EQU  $                 PGMLINK
+*      UNL
+*      PAGE
+*      COPY "154\PGMLINK"
+*      LIST
+FILE13 EQU  $                 CMDINTRP
+       UNL
+       PAGE
+       COPY "164\CMDINT56N"
+       LIST
+FILE14 EQU  $                 CMDTBL
+       UNL
+       PAGE
+       COPY "164\CMDTBL"
+       LIST
+FILE15 EQU  $                 CMDSUP
+       UNL
+       PAGE
+       COPY "164\CMDSUP"
+       LIST
+FILE16 EQU  $                 DIR
+       UNL
+       PAGE
+       COPY "164\DIR"
+       LIST
+FILE17 EQU  $                 RES
+       UNL
+       PAGE
+       COPY "164\RESN"
+       LIST
+FILE18 EQU  $                 EDIT
+       UNL
+       PAGE
+       COPY "164\EDITN"
+       LIST
+FILE19 EQU  $                 OLD
+       UNL
+       PAGE
+       COPY "164\OLD"
+       LIST
+FILE20 EQU  $                 LIST
+       UNL
+       PAGE
+       COPY "164\LIST"
+       LIST
+FILE21 EQU  $                 LSTONE
+       UNL
+       PAGE
+       COPY "164\LSTONEN"
+       LIST
+FILE22 EQU  $                 MERGE
+       UNL
+       PAGE
+       COPY "164\MERGE"
+       LIST
+FILE23 EQU  $                 MISC
+       UNL
+       PAGE
+       COPY "164\MISC"
+       LIST
+FILE24 EQU  $                 SAVE
+       UNL
+       PAGE
+       COPY "164\SAVE"
+       LIST
+FILE25 EQU  $                 RUN
+       UNL
+       PAGE
+       COPY "164\RUN"
+       LIST
+FILE26 EQU  $                 DELETE
+       UNL
+       PAGE
+       COPY "164\DELETE"
+       LIST
+FILE27 EQU  $                 INIT
+       UNL
+       PAGE
+       COPY "164\INITN"
+       LIST
+FILE28 EQU  $                 ERROR MESSAGES
+       UNL
+       PAGE
+       COPY "164\CMDERRMSG"
+       LIST
+P4END  EQU  $-2
+       END
+

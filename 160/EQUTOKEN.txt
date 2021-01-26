@@ -1,0 +1,149 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.150.EQUTOKEN
+*
+*  NAME:    TOKEN EQUATES
+*
+* VERSION:  3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*
+*
+*      EQU  >80
+ELSE$  EQU  >81
+SSEP$  EQU  >82
+TREM$  EQU  >83
+IF$    EQU  >84
+GO$    EQU  >85
+GOTO$  EQU  >86
+GOSUB$ EQU  >87
+RETUR$ EQU  >88
+DEF$   EQU  >89
+DIM$   EQU  >8A
+END$   EQU  >8B
+FOR$   EQU  >8C
+LET$   EQU  >8D
+BREAK$ EQU  >8E
+UNBRK$ EQU  >8F               IS CLS NOW
+TRACE$ EQU  >90
+UNTRA$ EQU  >91
+INPUT$ EQU  >92
+DATA$  EQU  >93
+RESTO$ EQU  >94
+*      EQU  >95
+NEXT$  EQU  >96
+READ$  EQU  >97
+STOP$  EQU  >98
+DELET$ EQU  >99
+REM$   EQU  >9A
+ON$    EQU  >9B
+PRINT$ EQU  >9C
+CALL$  EQU  >9D
+OPTIO$ EQU  >9E
+OPEN$  EQU  >9F
+CLOSE$ EQU  >A0
+SUB$   EQU  >A1
+DISPL$ EQU  >A2
+IMAGE$ EQU  >A3
+ACCEP$ EQU  >A4
+ERROR$ EQU  >A5
+WARN$  EQU  >A6
+SUBXT$ EQU  >A7
+SUBND$ EQU  >A8
+RUN$   EQU  >A9
+*      EQU  >AA
+*      EQU  >AB
+*      EQU  >AC
+EXTOK$ EQU  >AD               * EXTENDED NUD TOKEN
+DEFIN$ EQU  >AE
+REAL$  EQU  >AF               REAL
+THEN$  EQU  >B0               THEN
+TO$    EQU  >B1               TO
+STEP$  EQU  >B2               STEP
+COMMA$ EQU  >B3               ,
+SEMIC$ EQU  >B4               ;
+COLON$ EQU  >B5               :
+RPAR$  EQU  >B6               )
+LPAR$  EQU  >B7               (
+CONC$  EQU  >B8               &
+*      EQU  >B9
+OR$    EQU  >BA               OR
+AND$   EQU  >BB               AND
+XOR$   EQU  >BC               XOR
+NOT$   EQU  >BD               NOT
+EQUAL$ EQU  >BE               =
+LESS$  EQU  >BF               <
+GREAT$ EQU  >C0               >
+PLUS$  EQU  >C1               +
+MINUS$ EQU  >C2               -
+MULT$  EQU  >C3               *
+DIVI$  EQU  >C4               /
+CIRCU$ EQU  >C5               ^
+EXPON$ EQU  >C5
+*      EQU  >C6
+STRIN$ EQU  >C7               QUOTED STRING
+UNQST$ EQU  >C8               UNQUOTED STRING
+NUM$   EQU  UNQST$            NUMERICAL STRING
+LN$    EQU  >C9               GROM NUMERIC CONSTANT
+EOF$   EQU  >CA
+ABS$   EQU  >CB
+ATN$   EQU  >CC
+COS$   EQU  >CD
+EXO$   EQU  >CE
+INT$   EQU  >CF
+LOG$   EQU  >D0
+SGN$   EQU  >D1
+SIN$   EQU  >D2
+SQR$   EQU  >D3
+TAN$   EQU  >D4
+LEN$   EQU  >D5
+CHR$   EQU  >D6
+RND$   EQU  >D7
+SEG$$  EQU  >D8
+POS$   EQU  >D9
+VAL$   EQU  >DA
+STR$$  EQU  >DB
+ASC$   EQU  >DC
+PI$    EQU  >DD
+REC$   EQU  >DE
+MAX$   EQU  >DF
+MIN$   EQU  >E0
+RPT$   EQU  >E1
+VALHX$ EQU  >E2
+*      EQU  >E3
+TERMC$ EQU  >E4
+*      EQU  >E5
+ALPHA$ EQU  >E6
+LALPH$ EQU  >E7
+NUMER$ EQU  >E8
+DIGIT$ EQU  >E9
+UALPH$ EQU  >EA
+SIZE$  EQU  >EB
+ALL$   EQU  >EC
+USING$ EQU  >ED
+BEEP$  EQU  >EE
+ERASE$ EQU  >EF
+AT$    EQU  >F0
+BASE$  EQU  >F1
+*      EQU  >F2               CONTINUE
+VARIA$ EQU  >F3
+RELAT$ EQU  >F4
+INTER$ EQU  >F5
+SEQUE$ EQU  >F6
+OUTPU$ EQU  >F7
+UPDAT$ EQU  >F8
+APPEN$ EQU  >F9
+FIXED$ EQU  >FA
+PERMA$ EQU  >FB
+TAB$   EQU  >FC
+NUMBE$ EQU  >FD
+VALID$ EQU  >FE
+*      EQU  >FF
+*
+*
+BLINK$ EQU  >94
+INVRT$ EQU  >96
+CLIP$  EQU  >95
+
+

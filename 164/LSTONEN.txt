@@ -1,0 +1,264 @@
+LSTONE DECT R10
+       MOV  R11,*R10
+
+* KEY WORD ON PAGE 4
+
+       MOVB @MEMTBL+4,@MAP94
+
+       MOV  @CLINE,R1         * CONTAINS THE LINE NUMBER TO LIST
+
+       BL   @GETPGM           * GET BASIC PGM STATEMENT
+
+       LI   R5,>2020          * USE R5 AS A SPACE REGISTER
+       MOV  @PGMLN,R1
+       ANDI R1,>7FFF          * STRIP BREAK BIT
+       LI   R2,TMPBUF
+       BLWP @ITOD
+       LI   R4,STRBUF+1
+       BL   @LNCOPY
+
+       MOVB R5,*R4+           * OUTPUT A SPACE
+
+       CLR  R8                * START WITH ZERO REG
+
+LSTO12 MOVB *R12+,R8
+       JLT  LST043
+       JEQ  LST029
+       MOVB R8,*R4+
+       JMP  LSTO12
+
+LST041 MOVB *R12+,*R4+
+       JNE  LST041
+       DEC  R4
+
+LST029 LI   R0,STRBUF+1       GET THE START
+       S    R0,R4             SUBTRACT THE END
+       SWPB R4
+       MOVB R4,@STRBUF        WRITE THE LENGTH
+       MOV  *R10+,R11
+       RT
+
+LST043 BL   @CPYKW
+       CI   R8,>8300
+       JEQ  LST041
+       CI   R8,>9A00
+       JEQ  LST041
+       CI   R8,>B300
+       JEQ  LST060
+CBHB7  EQU  $+2
+       CI   R8,>B700
+       JEQ  LST060
+       CI   R8,>BE00
+       JEQ  LST060
+       CI   R8,>AD00
+       JNE  LST058
+       CI   R15,>8D00
+       JNE  LST058
+       CB   *R12,@CBHB7
+       JEQ  LST060
+
+LST058 MOVB R5,*R4+
+
+LST042
+LST060 MOVB *R12+,R8          * GET NEXT
+       JLT  LST049            * JUMP IF TOKEN
+       JEQ  LST029            * JUMP IF EOL
+       MOVB R8,*R4+
+       JMP  LST060
+
+LST049 BL   @CPYKW            * COPY KEY WORD
+
+*    NOW DETERMINE IF WE NEED A SPACE AFTER
+
+       CI   R8,>8200          * STATEMENT SEP
+       JEQ  LST106
+       CI   R8,>8300
+       JEQ  LST041
+       CI   R8,>A900
+       JLE  LSTO20
+       CI   R8,>AF00
+       JLE  LST042
+       CI   R8,>CA00
+       JHE  LST045
+CBHB5  EQU  $+2
+       CI   R8,>B500
+       JEQ  LSTO18
+       CI   R8,>B300
+CBHB3  EQU  $-2
+       JL   LSTO20
+       CI   R8,>BA00
+       JL   LST042
+       CI   R8,>BD00
+       JH   LST042
+
+LSTO20 CB   @-1(R4),R5        * TEST IF A SPACE
+       JEQ  LST042            * YES
+       JMP  LST058
+
+LSTO21 CB   *R12,@CBHB6       * IS NEXT CHARACTER A
+       JEQ  LST042
+       JMP  LSTO20
+
+LSTO18 CB   @-1(R4),@CBH3A    * WAS THE LAST CHAR A COLON
+       JNE  LST042            * NO
+       CB   *R12,@CBHB5       * IS NEXT CHAR A COLON
+       JNE  LST042
+       JMP  LST058
+
+LST045 CI   R8,>DE00
+       JEQ  LSTO21
+       CI   R8,>E300
+       JEQ  LSTO20
+       CI   R8,>EC00
+       JL   LST042
+       JEQ  LSTO21
+       CI   R8,>F000
+       JL   LSTO20
+       CI   R8,>F100
+       JEQ  LSTO20
+       CI   R8,>F300
+       JL   LST042
+       CI   R8,>FA00
+       JH   LST042
+       CB   *R12,@CBHB3
+       JNE  LSTO20
+       JMP  LST042
+
+LST106 MOVB R5,*R4+
+       JMP  LSTO12
+
+       PAGE
+*
+*    OUTPUT A UNQUOTED STRING
+*
+LSTO23 MOVB *R12+,R3
+       SRL  R3,8
+       BL   @CPYPST
+       JMP  KEYEND
+*
+*    OUTPUT A QUOTED STRING
+*
+LSTO24 MOVB @CBH22,*R4+
+       MOVB *R12+,R3
+       SRL  R3,8
+       JEQ  LSTO25
+       BL   @CPYPST
+LSTO25 MOVB @CBH22,*R4+
+       JMP  KEYEND
+
+*    OUTPUT A LINE NUMBER
+
+LSTO3  MOVB *R12+,R1
+       SWPB R1
+       MOVB *R12+,R1
+       SWPB R1
+       LI   R2,TMPBUF
+       BLWP @ITOD
+       BL   @LNCOPY
+       JMP  KEYEND
+
+LST05  CLR  R15
+       MOVB *R12+,R15         GET THE NEXT TOKEN
+       MOV  R15,R3
+       ANDI R3,>7F00          MASK OUT MS BIT
+       SRL  R3,7              THIS MAKES IT AN INDEX
+       LI   R1,LSTEXK         GET THE EXTENDED TABLE ADDRESS
+       A    R3,R1             ADD IN THE OFFSET
+       MOV  *R1,R0            NOW GET THE STRING ADDRESS
+       MOV  R0,R1             COPY STRING ADDRESS
+       INC  R1                SKIP TOKEN
+       MOVB *R1+,R2           GET STRING LENGTH
+       SRL  R2,8              ALIGN
+       JMP  COPY
+
+*    HAS TO BE A NORMAL KEYWORD
+
+CPYKW  DECT R10
+       MOV  R11,*R10
+       CI   R8,>AD00
+       JEQ  LST05
+       JL   LST176
+       CI   R8,>B200
+       JLE  LST181
+       CI   R8,>BD00
+       JH   LST165
+       CI   R8,>BA00
+       JL   LST44
+       JMP  LST182
+
+LST165 CI   R8,>C500
+       JLE  LST44
+       CI   R8,>C700
+       JEQ  LSTO24
+       CI   R8,>C900
+       JEQ  LSTO3
+       CI   R8,>C800
+       JEQ  LSTO23
+       CI   R8,>E300
+       JEQ  LST05
+LST44  MOV  R8,R3
+       ANDI R3,>7F00
+       SRL  R3,7
+       LI   R1,LSTKWT
+       A    R3,R1
+       MOV  *R1,R0
+       MOV  R0,R1
+       INC  R1
+       MOVB *R1+,R2
+       SRL  R2,8
+COPY   MOVB *R1+,*R4+
+       DEC  R2
+       JNE  COPY
+KEYEND MOV  *R10+,R11
+
+       RT
+
+LST176 CI   R8,>8700
+       JLE  LST182
+       CI   R8,>9600
+       JEQ  LST182
+       CI   R8,>9B00
+       JEQ  LST182
+       JMP  LST44
+
+LST181 CI   R8,>AF00
+       JLE  LST44
+
+LST182 CB   R5,@-1(R4)
+       JEQ  LST44
+       MOVB R5,*R4+
+       JMP  LST44
+
+       PAGE
+*
+*    NAME:  CPYSTR
+*
+*    WHAT:  COPY STRING
+
+CPYPST MOV  R12,R1
+       A    R3,R12
+       MOV  R4,R2
+       A    R3,R4
+       B    @FASMVB
+
+
+*    NAME:  LNCOPY
+*
+*    WHAT:  COPIES THE LINE NUMBER
+
+LNCOPY LI   R1,TMPBUF
+       MOVB *R1+,R2
+       SRL  R2,8
+COPY1  MOVB *R1+,*R4+
+       DEC  R2
+       JNE  COPY1
+       RT
+
+MINUS  EQU  $
+DASH   BYTE >2D               -
+QUOTE  EQU  $
+CBH22  BYTE >22               QUOTE
+COLON  EQU  $
+CBH3A  BYTE >3A
+CBHB6  BYTE >B6
+

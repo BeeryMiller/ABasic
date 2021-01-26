@@ -1,0 +1,56 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.WINDOW
+*
+*  NAME:    WINDOW MANAGER
+*
+*  VERSION: 3.0 - 11/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  SROLL
+*
+*    WHAT:  SCROLL THE WINDOW
+*
+*    CALL:  CALL SROLL()
+*
+
+SROLL  LI   R1,1              SCROLL ONE ROW
+       JMP  CLR10             JOIN COMMON CODE
+
+*
+*    NAME:  CLRWIN
+*
+*    WHAT:  CLEAR THE CURRENT WINDOW
+*
+*    CALL:  CLRWIN()
+
+CLRWIN CLR  R1                INDICATE WE WANT TO CLEAR
+CLR10  LI   R0,X$SWU          LOAD OP CODE
+       MOV  @SCRTOP,R2        ROW UPPER LEFT
+       MOV  @LMARGN,R3        COL UPPER LEFT
+       MOV  @SCRBOT,R4        ROW NUMBER LOWER RIGHT
+       MOV  @WWIDTH,R5        COL NUMBER LOWER RIGHT
+       A    R3,R5
+       DEC  R5
+       LI   R6,>0020
+       MOV  @FB,R7            FOREGRND COL/BACKGND COL
+       XOP  @SIX,0
+
+       LI   R7,FAC            RESTORE R7
+
+*    NOW SET THE CURSOR TO THE BOTTOM LINE
+
+STCBOT LI   R0,X$SCP          LOAD OP-CODE
+       MOV  @WHIGHT,R1        GET LOWER RIGHT ROW
+       DEC  R1
+       MOV  R1,@CROW
+*      MOV  R1,@HROW          DON'T RESET THE HOME ROW BECAUSE OF SCROLL
+
+       CLR  R2                USE COL
+       MOV  R2,@CCOL
+*      MOV  R2,@HCOL          DON'T RESET THE HOME COL BECAUSE OF SCROLL
+       XOP  @SIX,0            DO IT
+
+       RT                     AND RETURN TO THE CALLER
+

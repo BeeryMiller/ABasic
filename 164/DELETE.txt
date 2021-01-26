@@ -1,0 +1,80 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS2.154.DELETE
+*
+*  NAME:    DELETE COMMAND
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+*    NAME:  DELET
+*
+*    WHAT:  THIS ROUTINE WILL DELETE LINE NUMBERS FROM
+*           A BASIC PROGRAM
+*
+*  SYNTAX:  DELETE [ LINE # ]
+*                  [ START  ] [ END ]
+
+DELET  DECT R10
+       MOV  R11,*R10
+       BL   @CHKPRG
+       DEC  @ARGC
+       JEQ  CMDE01
+
+       LI   R15,2
+       MOV  @ARGV(R15),R1
+       BL   @TSTALE
+       JMP  CMDE00
+
+       BL   @GLINE            SETS UP THE CORRECT START AND STOP LINE NUMBERS
+
+       LI   R5,WSM
+       CLR  *R5+              # OF BYTES TO MOV THE LNT UP (WSM)
+       MOV  @CURLIN,R0        FIRST LINE TO DELETE
+       S    @CURINC,R0        LAST ONE TO DELETE
+       AI   R0,4
+       MOV  R0,*R5+           THE DISTANCE OF THE MOVE (WSM+2)
+       SRL  R0,2              DIVIDE BY 4
+       MOV  R0,*R5+           THE NUMBER OF LINES TO MOVE (WSM+4)
+       MOV  R0,@WSM+8         SAVE FOR LATER USE
+       C    R0,@LNECNT        IS IT THE ENTIRE PROGRAM?
+       JHE  DELET9            YES
+       MOV  @CURINC,R0
+       MOV  R0,@CLINE         START WITH LAST LINE NUMBER
+       S    @ELINE,R0
+       MOV  R0,*R5            # OF BYTES TO MOVE UP (WSM+6)
+
+DELET1 MOV  @CLINE,R1
+       BL   @FASTPG
+       MOV  *R1,@DELEDL       REPORT LINE # TO BE DELETED
+       BL   @DELTX            UPDATE LNT AND DELETE TEXT
+       A    @CW04,@CLINE      GET READY FOR NEXT LINE
+       INC  @LNECNT           LINE COUNT HAS NOT CHANGED YET
+       DEC  @WSM+4            ARE WE THROUGH?
+       JNE  DELET1            NOT YET
+
+*  ALL DONE, CLINE POINTS TO ONE TOO MANY
+
+       S    @WSM+8,@LNECNT    UPDATE LINE COUNT
+       MOV  @CLINE,R0
+       DEC  R0
+       MOV  R0,@FAC+4
+       S    @WSM+2,R0
+       MOV  R0,@FAC+2         FROM
+       MOV  @WSM+6,@FAC+6     THE NUMBER OF BYTES TO MOVE
+       JEQ  DELET2            NONE, SO ALL DONE
+       BL   @MOVEUP
+DELET2 A    @WSM+2,@ELINE     UPDATE ELINE
+
+       CLR  R0
+       MOV  *R10+,R11
+       RT
+
+DELET9 B    @DELTX4           RESET THE COUNTERS AND POINTERS
+
+CMDE01 LI   R0,ERRMRG         MISSING ARGUMENTS
+       JMP  LDEL11
+
+CMDE00 LI   R0,ERRANN         ARGUMENT NOT NUMERIC
+LDEL11 BL   @ERROR

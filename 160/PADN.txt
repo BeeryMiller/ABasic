@@ -1,0 +1,69 @@
+       DEF  FASMVB
+       DEF  FASMVW
+       DEF  MOVSTK
+       DEF  MOVE4
+       DEF  FASP11
+       DEF  FASEXN
+       DEF  FASCON
+*      REF  LTAB
+LTAB   EQU  0
+       COPY "160\EQUSYS"
+       COPY "160\VARY2"
+       AORG >F040
+*===============================================================================
+*
+*      THESE ROUTINES BELONG IN FAST PAD RAM
+*           THEY ARE:
+*              1\ MOVE WORDS  R1, FROM R2, TOO, R3 NUMBER OF BYTES
+*              2\ MOVE BYTES
+*              3\ MAP A PROGRAM PAGE IN AT >6000
+*              4\ MOVE TO OR FROM STACK
+*
+*
+*      THE TOTAL NUMBER OF BYTES AVAILABLE IN THIS RAM TO PERFORM THIS IS 64
+*===============================================================================
+
+*
+*   8 BYTES
+*      FAST MOVE BYTE ROUTINE
+*
+FASMVB MOVB *R1+,*R2+
+       DEC  R3
+       JNE  FASMVB
+       RT
+*
+*   8 BYTES
+*      FAST MOVE WORDS ROUTINE
+*
+FASMVW MOV  *R1+,*R2+
+       DECT R3
+       JGT  FASMVW
+       RT
+*
+*  18 BYTES
+*      FAST MOVE TO OR FROM STACK
+*           ALWAYS WORD BOUNDARY R1, FROM R9 STACK POINTER
+*
+MOVSTK MOV  *R1+,*R0+    DO ALL 8 WORDS
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+MOVE4  MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1,*R0      ONLY UPDATE VALUE STACK POINTER
+       RT
+*
+*    CONTINUE TO NEXT ROUTINE 28 BYTES
+*
+*
+FASCON MOV  @LTAB(R8),R5      4
+       CLR  R8                2
+FASEXN MOVB *R12+,R8          2
+FASP11 MOVB @MEMTBL+2,@MAP92  6
+       CI   R5,>4000          4
+       JL   P11A              2
+       MOVB @MEMTBL+3,@MAP94  6
+P11A   EQU  $                 2    28 BYTES
+       B    *R5
+       END

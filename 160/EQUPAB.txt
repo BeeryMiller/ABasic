@@ -1,0 +1,30 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.150.EQUPAB
+*
+*  NAME:    EQUATES FOR PAB
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+OPCODE EQU  0            1    I/O OPCODE
+MFLAG  EQU  1            1    MODE FLAGS
+ECODE  EQU  2            1    ERROR CODE
+BAHIGH EQU  3            1
+BALOW  EQU  4            2
+LRN    EQU  6            2    LOGICAL RECORD NUMBER
+RECNUM EQU  6
+LRC    EQU  8            2    LOGICAL RECORD LENGTH
+MEMTYP EQU  10           1
+CCHIGH EQU  11           1    CHARACTER COUNT HIGH
+CHRCNT EQU  12           2    CHAR COUNT
+STATBY EQU  14           1    RECORD NUMBER
+NAMEL  EQU  15           1    NAME LENGTH
+NAME   EQU  16           40   NAME BUFFER
+
+IOCONT EQU  56           1    IO CONTINUE
+FILENO EQU  57           1    BASIC FILE NUMBER
+INTOFF EQU  58           2    POINTER INTO BUFFER
+PABBUF EQU  60           4    32 BIT ADDRESS POINTER TO DATA BUFFER
+PABEND EQU  PABBUF            END OF PAB

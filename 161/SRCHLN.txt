@@ -1,0 +1,151 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.SRCHLN
+*
+*  NAME:    BINARY LINE NUMBER SEARCH
+*
+*  ENTRY:   BLWP @SRCHLN
+*
+*  INPUT:   FAC+SNUM -  CONTAINS THE REQUESTED LINE NO.
+*
+*  OUTPUT:  CLINE    -  NON-ZERO  ITS THE ADDRESS IN THE LINE TABLE
+*                                 ALSO, ADDRESS PLACED IN CALLERS R0
+*
+*                       ZERO      LINE NOT FOUND
+*
+*
+*           NHLNUM   -  WHEN LINE NOT FOUND, THE NEXT HIGHEST NUMBER
+*
+*           NLLNUM   -  WHEN LINE NOT FOUND, THE NEXT LOWEST NUMBER
+*
+*  REGISTER USAGE    -  UREG2, R1-R9,R12
+*
+*  VERSION: 3.00 - 10/26/86    BASE LINE
+*           3.01 - 02/25/87
+*                - 07/27/87    PUT IN MAPPING (LP)
+*-------------------------------------------------------------------------
+SRCHLN DATA UREG2,SRCHL       MAP PROGRAM IN DATA AREA 2
+
+SRCHL  MOV  @FAC+SNUM,R8      GET THE LINE NUMBER
+
+*      INC  @CNTSLN
+
+       MOV  @SLINE,R5         GET THE START LINE NUMBER
+       JEQ  S02A              IF START IS ZERO NOTHING THERE
+       MOV  @ELINE,R4         GET THE END
+       JEQ  S02A              IF THE END IS ZERO NOTHING THERE
+       S    R4,R5             TO CALCULATE R5 LATER ON
+
+*
+*      NOW MAP IN THE LINE NUMBER TABLE
+*           WE ARE GUARENTTED THAT IT IS < 32K BYTES
+*           THEREFORE, MAP THE FIRST 4 PGM PAGES AT
+*            >6000->DFFF
+*
+       MOV  R4,R1             POINTER TO PROGRAM MAP PAGES
+
+       MOV  R4,R12            SAVE FOR LATER USE
+       ANDI R12,>E000         COMPENSATE FOR MAP LOCATION
+       AI   R12,->6000
+
+       SRL  R1,13             GET PAGE
+       AI   R1,PGMMAP         OFFSET INTO PGM PAGE TABLE
+       LI   R2,MAP96          LOAD IN THE MAPPER
+       MOVB *R1+,*R2+
+       MOVB *R1+,*R2+
+       MOVB *R1+,*R2+
+       MOVB *R1,*R2
+*      ANDI R5,>1FFF          NOW CONVERT TO BASE >6000
+       ANDI R4,>1FFF
+*      ORI  R5,>6000
+       ORI  R4,>6000
+       A    R4,R5
+       MOV  R5,R9             SAVE FOR LATER USE
+       MOV  R4,R6
+
+*
+*    USED TO FIND THE NUMBER OF ENTRIES IN THE LINE TABLE
+*
+*    R5 = (R5-R4)/4
+
+       S    R4,R5             ELINE - SLINE
+       SRL  R5,2              DIVIDE BY 4
+       MOV  R5,R3             INITIALIZE L
+       CLR  R1                INITIALIZE F
+
+*           F  <= L
+*    WHILE (R1 <= R3)
+
+S01    C    R1,R3
+       JGT  S02A              NOT IN TABLE
+
+*    M  = (F  + L )/ 2
+*    R2 = (R1 + R3)/ 2
+
+       MOV  R3,R2
+       A    R1,R2
+       SRL  R2,1              DIV BY 2
+
+       MOV  R2,R5
+       SLA  R5,2              CONVERT TO OFFSET IN TABLE
+       A    R6,R5             CONVERT TO POINTER INTO TABLE
+
+       MOV  *R5,R7
+       ANDI R7,>7FFF
+       C    R7,R8             R8 CONTAINS THE LINE NUMBER DESIRED
+       JEQ  S03
+       JL   S02
+
+*    F  = M  + 1
+*    R1 = R2 + 1
+
+       INC  R2                MUST BE LESS
+       MOV  R2,R1
+       JMP  S01
+
+*    L  = M  - 1
+*    R3 = R2 - 1
+
+S02    DEC  R2                MUST BE GREATER
+       MOV  R2,R3
+       JMP  S01               RETURN
+
+* LINE NOT FOUND
+
+S02A   CLR  @CLINE
+
+       MOV  R5,R4
+       MOV  R3,R3
+       JLT  RTNIT        LINE AFTER END OF PROGRAM
+
+       C    R5,R9
+       JLT  MIDLIN       LINE SOMEWHERE IN MIDDLE OF PROGRAM
+
+* TO BE HERE, R5 EQUALS SLINE
+* NOW, CHECK LINE NUMBERS
+
+       C     R8,R7        LINE BEFORE START OF PROGRAM
+       JLT   RTNIT
+
+MIDLIN MOV   R1,R4
+       MOV   R3,R5
+       SLA   R4,2
+       SLA   R5,2
+       A     R6,R4
+       A     R6,R5
+
+RTNIT  A     R12,R4
+       A     R12,R5
+       MOV   R4,@NLLNUM
+       MOV   R5,@NHLNUM
+       RTWP
+
+*
+*    FOUND IT RETURN THE LINE NUMBER IN CLINE
+*
+S03    A    R5,R12            COMPENSATE FOR OFFSET
+       MOV  R12,@CLINE
+       INCT R5                NOW GET PGM LINE PTR
+       MOV  *R5,*R13          PUT IN CALLERS R0
+       RTWP
+

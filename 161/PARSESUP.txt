@@ -1,0 +1,176 @@
+*    NAME:  PARSE FIRST
+
+PARFST CI   R8,>B700          CHECK IF LEFT PAREN
+       JNE  PARFS1
+PARF01 MOVB *R12+,R8
+       DECT R10
+       MOV  R11,*R10
+       BL   @PARSE
+       BYTE RPAR$
+CSIDUM BYTE SIDUSM
+       JMP  PARL02
+
+PARFS1 LI   R0,ERRSNL
+PARE01 BL   @ERROR
+
+*    PARSE MIDDLE ARGUMENT
+
+PARMID CI   R8,>B300          IS IT A COMMA?
+       JEQ  PARF01            YES, SO CONTINUE
+PARLS1 LI   R0,ERRSNC         MISSING COMMA
+       JMP  PARE01            NO, SO ERROR
+
+*    PARSE LAST ARGUMENT
+
+PARLST CI   R8,>B300          COMMA?
+       JNE  PARLS1            NO
+PARL01 MOVB *R12+,R8
+       DECT R10
+       MOV  R11,*R10
+
+       BL   @PARSE
+       BYTE RPAR$
+CSIDFR BYTE SIDFOR
+
+       LI   R0,ERRSNR
+       CI   R8,>B600          IS IT A RIGHT PAREN?
+       JNE  PARE01            NO, ERROR
+       MOVB *R12+,R8
+PARL02 MOV  *R10+,R11
+       CB   @SID+FAC,@CSIDST
+       RT
+
+*    PARSE ONE ARGUMENT
+
+PARONE CI   R8,>B700          ENSURE LEFT PAREN
+       JEQ  PARL01
+       JMP  PARFS1            NO, SO ERROR
+
+       PAGE
+*
+*    NAME:  ACCPAR
+*
+*    WHAT:  ACCUMULATE THE PARAMETERS
+*
+
+ACCPAR DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       CLR  @PARCNT           CLEAR THE ARG COUNTER
+       CLR  @PARENC           CLEAR THE PAREN COUNTER
+
+CLNK11 MOVB *R12+,R8          GET THE NEXT CHARACTER
+
+*    FIRST CHECK IF PASS BY VALUE
+*    BY CHECKING IF WE GOT A LEFT PAREN.
+*    NEXT CHECK IF WE SHOULD HAVE A LEFT PAREN.
+*    LAST CHECK IF A FUNCTION
+*    ANSWER=YES - PASS BY VALUE
+*    ANSWER=N0  - PASS BY REFERENCE
+
+       CI   R8,>B700          LEFT PAREN
+       JEQ  CLNK14
+
+*    NEXT CHECK IF A TOKEN, YES PASS BY VALUE
+
+       MOVB R8,R8             TEST IF TOKEN
+       JLT  CLNK15            JUMP IF YES
+
+*    NOW MAKE SURE ITS A SIMPLE VARIABLE
+*    IF YES - PASS BY REFERENCE
+*    IF NO  - PASS BY VALUE
+
+       BL   @LSCAN            SCAN LINE
+       MOV  R0,R0             TOKEN ?
+       JEQ  CLNK15            YES
+
+*    NO MUST BE A SYMBOL
+
+       BL   @PSYM             GET A SYMBOL POINTER
+CLNK16 BL   @PSHFAC           PUSH THE SYM POINTER
+       INC  @PARCNT           INCREMENT ARG COUNTER
+
+CLNK12 CI   R8,>B300          AT A COMMA ?
+       JEQ  CLNK11            YES, DO IT AGAIN
+
+       CI   R8,>B600          NOT A COMMA CHECK FOR RIGHT PAREN
+       JEQ  CLNK13            YES - ITS OK
+
+       BL   @RPTE03           REPORT ERROR (ERRSN)
+
+CLNK13 MOV  *R10+,R11         AND JOIN COMMON CODE
+       MOV  @PARCNT,R0
+       RT
+
+CLNK14 BL   @PARSE
+       BYTE RPAR$
+       BYTE 0
+       MOVB @CSIDVS,*R7       POINTER
+       JMP  CLNK16
+
+
+CLNK15 BL   @PARSE            PARSE IT
+       BYTE RPAR$
+CBHC9  BYTE >C9
+
+       CB   @SID+FAC,@CSIDST  CHECK FOR STRING
+       JEQ  CLNK16
+       MOVB @CSIDVS,*R7       SCOPE = VALUE SPACE
+       JMP  CLNK16            AND JOIN COMMON CODE
+
+       PAGE
+*
+*    NAME:  LSCAN
+*
+*    WHAT:  SCANS AN PARAMETER AND DETERMINES
+*           IF PARAMTER IS POINTER OR VALUE
+*
+
+*    THE PROGRAM LINE IS ALREADY IN THE
+*    CRUNCH BUFFER. JUST SCAN THE LINE
+
+
+LSCAN  MOV  R12,R0            GET THE PROGRAM POINTER
+
+LSCAN1 MOVB *R0+,R1           AND READ A BYTE
+
+       CB   R1,@CBHB7         LEFT PAREN
+       JEQ  LSCAN6            AN ARRAY
+
+       CB   R1,@CBHB6         RIGHT PAREN
+       JEQ  LSCAN2            AT THE END
+
+       CB   R1,@CBHB3         COMMA ?
+       JEQ  LSCAN2            YES END OF PARAMETER
+
+       MOVB R1,R1             TOKEN ?
+       JGT  LSCAN1            NO - SYMBOL
+
+LSCAN5 CLR  R0                YES RETURN
+       RT
+
+LSCAN9 MOVB R1,R1             IS IT A CHARACTER?
+       JGT  LSCAN5            YES
+LSCAN6 MOVB *R0+,R1           AND READ IT (TOKEN)
+       CB   R1,@CBHB6         AT RIGHT PAREN?
+       JNE  LSCAN9            NO
+LSCAN2 SETO R0                NO TOKEN
+       RT
+
+       PAGE
+*
+*    NAME:  RANGE
+*
+*   WHAT:   CHECK IF THE NUMBER IF FAC FALLS WITH THE
+*           VALUES
+
+RANGE  C    @SNUM+FAC,*R11+   CHECK LOW
+       JL   RANERR
+
+       C    @SNUM+FAC,*R11+   CHECK HIGH
+       JH   RANERR
+
+       RT
+
+RANERR LI   R0,ERRBV
+       BL   @ERROR
+

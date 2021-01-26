@@ -1,0 +1,112 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.CMDSUP
+*
+*  NAME:    COMMAND SUPPORT
+*
+*  VERSION: 3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    AUTO NUMBER GENERATION
+*
+*    SCANS THE ARGUMNET LIST
+*    FOR THE NUM, AND RES COMMANDS FOR
+*    LINE NUMBERS. LEAVES THE FIRST LINE NUMBER
+*    CURLIN, AND THE SECOND NUMBER IN CURINC
+*
+
+AUTON  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  @CW100,@CURLIN    DEFAULT LINE #
+       MOV  @CW10,@CURINC     DEFAULT INCREMENT
+       DEC  @ARGC             CHECK THE NUMBE OF ARGUMENTS
+       JEQ  AUT02             ONLY ONE SO USE DEFAULT
+
+       CLR  R15
+       BL   @AUTO00           FIRST ARG
+       MOV  R1,@CURLIN
+       DEC  @ARGC
+       JEQ  AUT01
+       BL   @AUTO00           SECOND ARG
+       MOV  R1,@CURINC
+       DEC  @ARGC
+       JEQ  AUT01
+       BL   @AUTO00           THIRD ARG
+       SETO R0                WE HAVE A THIRD VALUE
+       JMP  AUT01             AND RETURN
+
+
+AUTO00 DECT R10
+       MOV  R11,*R10
+       INCT R15
+       MOV  @ARGV(R15),R1     PUSH ADDRESS
+       BL   @TSTARG           TEST ARG
+       JMP  AUTERR            NON - NUMERIC
+       BL   @CONVRT           CONVERT IT
+       MOV  R1,R1                DIGITS GOTTEN
+       JEQ  AUT$13            NO
+AUT02  CLR  R0
+AUT01  MOV  *R10+,R11
+       RT
+
+AUT$13 B    @CMDE02
+
+AUTERR B    @CMDE00           ARGUMENT NOT NUMERIC
+
+CMDE08 LI   R0,ERRIO
+       BL   @ERROR
+       PAGE
+*
+*    NAME:  CONVERT ARGUMENT TO NUMBER
+*
+*    REG:   DESCRIPTION
+*    R15    ARGUMENT POINTER
+*
+
+
+CONVRT MOV  @ARGV(R15),R2     GET STRING ADDRESS
+       MOVB *R2+,R3           GET STRING LENGTH
+       SRL  R3,8              ALIGN REGISTER
+CONVR1 LI   R0,X$CSIN         LOAD OP CODE
+       XOP  @TEN,0            CONVERT IT
+       MOV  R1,@FAC+SNUM      SAVE IT IN FAC
+       RT                     AND RETURN
+
+       PAGE
+CLOSEA MOVB @MEMTBL+3,@MAP94  MAP IN THE NUD2 PAGE
+       MOV  @>4000,R1         CLOSAL DOES THE RETURN
+       B    *R1
+
+       PAGE
+*
+*    NAME:  OPENPB, WRITPB,CLOSPB
+*
+*    WHAT:  FILE SUPPORT ROUTINES
+*
+
+OPENPB LI   R0,$OPEN          LOAD OPERATION CODE
+OPEN05 MOVB R0,@DEFPAB+OPCODE  PUT IN THE OPCODE
+
+DOIOCL LI   R0,DEFPAB
+       MOVB *R0,@IOERR+1      STORE OPCODE IN CASE OF ERROR
+       XOP  @EIGHT,0          PERFORM IO
+       MOVB @DEFPAB+ECODE,@IOERR   CHECK FOR ERRORS
+       JNE  CMDE08            REPORT IT
+       RT                     AND RETURN TO CALLER
+
+READPB LI   R0,$READ
+       JMP  OPEN05
+
+WRITPB LI   R0,$WRITE         LOAD OPERATION CODE
+       JMP  OPEN05            AND JOIN COMMON CODE
+
+CLOSPB LI   R0,$CLOSE         LOAD OPERATION CODE
+       JMP  OPEN05
+
+
+SETDFP LI   R2,DEFPAB         SET THE POINTER
+       MOV  R2,R0             SET R0 CORRECTLY
+       LI   R3,14
+       MOVB *R1,@IOERR+1      SAVE OPCODE IN THE ERROR WORD
+       B    @FASMVW           DO IT AND RETURN FROM THERE

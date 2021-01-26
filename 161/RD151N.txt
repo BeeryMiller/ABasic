@@ -1,0 +1,416 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS2.151.RD151
+*
+*  NAME:    REF/DEF
+*
+*  WRITTEN: 3.0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+*-------------------------------------------------------------------------
+*
+*    NAME:  WDS2.150.PG7LINK
+*
+*-------------------------------------------------------------------------
+*      REF  CALLTB EQU  >0400        0
+*      REF  KEYTB  EQU  >0402        2
+       REF  ERRTAB EQU  >0404        4
+*      REF  FKLTAB EQU  >0406        6
+*      REF  LSTKWT EQU  >0408        8
+*      REF  PRESCN EQU  >040A        10
+*      REF  CRUNCH EQU  >040C        12
+       REF  EXPTB
+       REF  MSGLM
+       REF  MSGLP
+       REF  MSGLR
+       REF  MSGIN
+       REF  MSGWRN
+
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS2.150.PG2LINK
+*
+*    WHAT:  NUD LINKS
+*
+*-------------------------------------------------------------------------
+       REF  NRNDMZ EQU  >0200
+       REF  NRND   EQU  >0202
+       REF  NWHILE EQU  >0204
+       REF  NWEND  EQU  >0206
+       REF  NBEEP  EQU  >0208
+       REF  IF     EQU  >020A
+       REF  GO     EQU  >020C
+       REF  GOTO   EQU  >020E
+
+       REF  GOSUB  EQU  >0210
+       REF  RETURN EQU  >0212
+       REF  NFOR   EQU  >0214
+       REF  NLET   EQU  >0216
+       REF  NNEXT  EQU  >0218
+       REF  ON     EQU  >021A
+       REF  CALL   EQU  >021C
+       REF  SUBXT  EQU  >021E
+
+       REF  NLPR   EQU  >0220
+       REF  ONOT   EQU  >0222
+       REF  NPLUS  EQU  >0224
+       REF  NMINUS EQU  >0226
+       REF  NQTSTR EQU  >0228
+       REF  NUMCON EQU  >022A
+       REF  NABS   EQU  >022C
+       REF  NATN   EQU  >022E
+
+       REF  NCOS   EQU  >0230
+       REF  NEXP   EQU  >0232
+       REF  NINT   EQU  >0234
+       REF  NLOG   EQU  >0236
+       REF  NSGN   EQU  >0238
+       REF  NSIN   EQU  >023A
+       REF  NSQR   EQU  >023C
+       REF  NTAN   EQU  >023E
+
+       REF  CONCAT EQU  >0240
+       REF  OOR    EQU  >0242
+       REF  OAND   EQU  >0244
+       REF  OXOR   EQU  >0246
+       REF  EQUALS EQU  >0248
+       REF  LESS   EQU  >024A
+       REF  GREATR EQU  >024C
+       REF  LPLUS  EQU  >024E
+
+       REF  LMINUS EQU  >0250
+       REF  TIMES  EQU  >0252
+       REF  DIVIDE EQU  >0254
+       REF  LEXP   EQU  >0256
+       REF  UDF    EQU  >0258
+       REF  NLEN   EQU  >025A
+       REF  NPOS   EQU  >025C
+       REF  NVAL   EQU  >025E
+
+       REF  NASC   EQU  >0260
+       REF  NPI    EQU  >0262
+       REF  NMAX   EQU  >0264
+       REF  NMIN   EQU  >0266
+       REF  VALHX  EQU  >0268
+       REF  TERMCH EQU  >026A
+       REF  NMOD   EQU  >026C
+       REF  NSWAP  EQU  >026E
+
+       REF  NCINT  EQU  >0270
+       REF  NREAL  EQU  >0272
+       REF  NCHR$  EQU  >0274
+       REF  NSEG$  EQU  >0276
+       REF  NRPT$$ EQU  >0278
+       REF  NSTR$  EQU  >027A
+       REF  NHEX$  EQU  >027C
+       REF  NLEFT$ EQU  >027E
+
+       REF  NRGHT$ EQU  >0280
+       REF  NTIME$ EQU  >0282
+       REF  NDATE$ EQU  >0284
+       REF  NFKEY  EQU  >0286
+       REF  NMOUSE EQU  >0288
+       REF  NCLSN  EQU  >028A
+       REF  NFREE  EQU  >028C
+
+*    PAGE 3
+
+       REF  OPEN   EQU  >0300
+       REF  CLOSE  EQU  >0302
+       REF  DELETE EQU  >0304
+       REF  DISPLY EQU  >0306
+       REF  PRINT  EQU  >0308
+       REF  LINPUT EQU  >030A
+       REF  ACCEPT EQU  >030C
+       REF  INPUT  EQU  >030E
+
+       REF  EOF    EQU  >0310
+       REF  NREC   EQU  >0312
+       REF  RESTOR EQU  >0314
+       REF  NREAD  EQU  >0316
+       REF  NBREAK EQU  >0318
+       REF  NUNBRK EQU  >031A
+       REF  NTRACE EQU  >031C
+       REF  LTRACE EQU  >031E
+
+       REF  NRUN   EQU  >0320
+       REF  ETRACE EQU  >0322
+       REF  EXECBK EQU  >0324
+       REF  EXEC6C EQU  >0326
+       REF  FILEIO EQU  >0328
+       REF  EFKINT EQU  >032A
+       REF  EMKINT EQU  >0500
+
+*-------------------------------------------------------------------------
+*
+*    NAME:  WDS2.150.PG4LINK
+*
+*
+*-------------------------------------------------------------------------
+       REF  RUN    EQU  >0102
+       REF  RUN4   EQU  >0104
+       REF  TOPL15 EQU  >0106
+       REF  TOPL35 EQU  >0108
+       REF  TOPL55 EQU  >010E
+
+
+       REF  ENTRY
+       REF  RSTOP
+
+       REF  FASMVB
+       REF  FASMVW
+       REF  FASP11
+       REF  FASEXN
+       REF  FASCON
+       REF  MOVSTK
+       REF  MOVE4
+
+       DEF  LTAB
+
+       DEF  VSLOW
+       DEF  VSHIGH
+
+       DEF  TOPLEV            TOP LEVEL RETURN
+       DEF  GETPGM            GET PROGRAM LINE
+
+       DEF  SYMRED            SYMBOL REDUCTION
+       DEF  PSYM              SYMBOL POINTER
+       DEF  VSYM              SYMBOL VALUE SPACE
+
+       DEF  GETVS             GET VALUE SPACE
+       DEF  GVSSTK            GET VALUE SPACE STACK
+
+       DEF  FNDSUB            SEARCH SUB LIST
+       DEF  FNDSYM            SEARCH SYMBOL LIST
+
+       DEF  PSHFAC            VS PUSH FROM FAC
+       DEF  PSHARG            VS PUSH FROM ARG
+       DEF  POPFAC            VS POP TO FAC
+       DEF  POPARG            VS POP TO ARG
+       DEF  PSHPRS            VS PSH FROM FAC FOLLOW BY PARSE
+
+       DEF  MTOARG            MOVE TO ARG
+       DEF  MTOFAC            MOVE TO FAC
+
+       DEF  PARSE             PARSE
+       DEF  SKPS01
+       DEF  EXEC
+       DEF  EXEC$9
+       DEF  EXEC10            BASIC EXEC
+       DEF  EXEC11            BASIC EXECUTIVE
+       DEF  EXEC16
+
+       DEF  STKCON            * STACK CONTINUE
+       DEF  CONTIN            * CONTINE COMMAND
+       DEF  CONT              * REGULAR CONTINUE
+
+       DEF  EOL               END OF THE LINE
+       DEF  EOSTMT            END OF A STATEMEMT
+       DEF  EOLINE            END OF THE LINE
+
+       DEF  CHKAN,CHKRUN
+       DEF  CHKPRO,CHKPGM
+       DEF  CHKWP,CHKWS
+       DEF  CHKBK
+
+       DEF  CKLPAR            CHECK FOR LEFT PAR
+       DEF  CKRPAR            CHECK FOR RIGHT PAR
+       DEF  CKCOMA            CHECK FOR COMMA
+
+       DEF  ASSG
+       DEF  ASSGN             ASSIGN NUMERICS
+       DEF  ASSGS             ASSIGN STRING
+
+       DEF  MATH
+       DEF  MATHSK
+       DEF  FASCOM            FAST COMPARE ROUTINE *R2,*R3
+
+       DEF  FTOI
+       DEF  FTOIS
+
+       DEF  ITOF
+       DEF  ITOFS
+
+       DEF  ITOD
+
+       DEF  WARN              PRINT WARNING MESSAGE
+       DEF  ERROR             PRINT ERROR MESSAGE
+
+       DEF  SRCHLN            SEARCH LINE NUMBER TABLE
+
+       DEF  GARB
+       DEF  GETSTR            GET STRING SPACE
+       DEF  ALLOCS            BUILD STRING ENTRY
+
+       DEF  STRCMP            STRING COMPARE
+       DEF  STRCAT
+       DEF  STRCPY
+
+       DEF  MEMSET
+       DEF  MEMCPY
+
+       DEF  PARLST            PARSE LAST
+       DEF  PARMID            PARSE MIDDLE
+       DEF  PARFST            PARSE FIRST
+       DEF  PARONE            PARSE ONLY ONE ARG
+
+       DEF  ACCPAR            ACCUMULATE ARGUMENTS
+       DEF  BLDFAC            BUILD FAC
+       DEF  RANGE
+
+       DEF  TONE1
+       DEF  TONE2
+       DEF  STOPSD
+
+       DEF  READLN            SETS KEYBOARD MODE TO 5
+       DEF  READL1            SETS KEYBOARD MODE TO 5
+       DEF  READNA            DOES NOT CHANGE KEYBOARD MODE
+       DEF  READ4A            DOES NOT CHANGE KEYBOARD MODE
+       DEF  SETVRA            SETS THE VARA VARIABLE TO MAX LENGTH IN WINDOW
+       DEF  BLKEBF            BLANK THE EDITB BUFFER
+       DEF  GOTOXY
+
+       DEF  TURNON
+       DEF  TURNOF
+
+       DEF  DPROMP            DISPLAY PROMPT
+       DEF  DREADY            DISPLAY READY MESSAGE
+       DEF  DOPRT             DO PRINT
+       DEF  DOPRT3
+
+       DEF  CBREAK            ADDRESS OF BREAK POINT VECTOR
+
+       DEF  INITPB            INITIALIZE PAB
+
+       DEF  BLDMRK            BUILD STACK MARK
+
+       DEF  SROLL             SCROLL SCREEN
+       DEF  CLRWIN            CLEAR WINDOW
+       DEF  STCBOT            SET CURSOR TO SCREEN BOTTOM
+
+       DEF  INTRND            INITIALIZE RANDOM NUMBER
+
+* NOW FOR THE DATA DEF'S
+
+       DEF  UDFBIT
+       DEF  PBIT
+       DEF  TBIT   EQU  $                 * TRACE BIT
+       DEF  BMASK  DATA >8000
+       DEF  BMASK2
+       DEF  BMASK4
+
+       DEF  IFBIT  EQU  $
+       DEF  CBH40  EQU  $
+       DEF  RNBIT  EQU  $                 * RUN BIT
+       DEF  LTBIT  EQU  $                 * LTRACE BIT
+       DEF  UDSBIT DATA >4000
+
+       DEF  PTBIT  EQU  $                 * PROTECTION
+       DEF  H2000  EQU  $
+       DEF  CW2000 DATA >2000
+
+       DEF  SHBIT  EQU  $
+       DEF  CW1000 DATA >1000
+
+       DEF  FKABIT EQU  $
+       DEF  CW0800 DATA >0800
+       DEF  RADBIT EQU  $
+       DEF  H0400  EQU  $
+       DEF  MSABIT DATA >0400
+*      DATA >0200
+       DEF  INTBIT EQU  $
+       DEF  ANBIT  DATA >0100             * AUTO NUMBER BIT
+
+       DEF  BBIT   EQU  $                 * BREAK ALLOWED/DETECTED
+       DEF  CW0080 EQU  $
+       DEF  ARBIT  DATA >0080
+       DEF  WPBIT  DATA >0040             * WARNING PRINT
+       DEF  CW32   EQU  $
+       DEF  WSBIT  DATA >0020             * WARNING STOP
+       DEF  CW16   EQU  $
+       DEF  CBH10  EQU  $+1
+*      DATA >0010
+
+       DEF  EIGHT  EQU  $
+       DEF  CBH08  EQU  $+1
+       DEF  MDBIT  EQU  $
+       DEF  CW08   DATA >0008
+
+
+       DEF  SMSBIT EQU  $
+       DEF  FOUR   EQU  $
+       DEF  CW04   DATA >0004
+       DEF  CBH04  EQU  $-1
+
+       DEF  TWO    EQU  $
+       DEF  CW02   DATA >0002
+       DEF  CBH02  EQU  $-1
+
+       DEF  ONE    EQU  $
+       DEF  CW01   DATA >0001
+       DEF  CBH01  EQU  $-1
+
+       DEF  CW00   DATA >0000
+       DEF  CBH00  EQU  $-1
+
+*    SOME CONSTANTS
+
+       DEF  PRNBIT DATA >C000             * PROGRAM/RUN/WRN PRINT
+       DEF  HE000  DATA >E000
+       DEF  CW28   DATA 28
+       DEF  CW24   DATA 24
+       DEF  CW40   DATA 40
+       DEF  CBH14  EQU  $+1
+       DEF  CW14   DATA 14
+       DEF  CW8100 DATA >8100
+       DEF  CW255  EQU  $
+       DEF  CWFF   DATA >00FF
+       DEF  CBHFF  EQU  $-1
+       DEF  CW100  DATA 100
+       DEF  CW110  DATA 110
+       DEF  CW450  DATA 450
+       DEF  CW247  DATA 247
+
+       DEF  STRMAX DATA MAXSTR
+
+*    CONSTANTS FOR STACK IDS
+
+       DEF  CSIDIN BYTE SIDINT            INTEGER CODE
+       DEF  CSIDRL BYTE SIDRAD            RADIX
+       DEF  CSIDST BYTE SIDSTR            STRING
+
+       DEF  CSIDVS BYTE SIDVS             VALUE SPACE
+       DEF  CSIDPT BYTE SIDPTR            SYMBOL POINTER
+       DEF  CSIDDM BYTE SIDDIM            ARRAY SUBSCRIPTS
+
+*    CONSTANTS FOR XOPS
+
+       EVEN
+       DEF  CBH03  EQU  $+1
+       DEF  CW03   EQU  $
+       DEF  THREE  DATA >0003
+
+       DEF  CBH05  EQU  $+1
+       DEF  CW05   EQU  $
+       DEF  FIVE   DATA >0005
+
+       DEF  SIX    DATA >0006
+
+       DEF  SEVEN  DATA >0007
+
+       DEF  CW09   EQU  $
+       DEF  NINE   DATA >0009
+
+       DEF  CW10   EQU  $
+       DEF  H000A  EQU  $
+       DEF  TEN    DATA >000A
+       DEF  TWLVE  DATA >000C
+
+       DEF  OFFSET BYTE >60
+
+       EVEN
+       DEF  SPSTR  BYTE >01               SPACE STRING
+       DEF  SPACE  BYTE >20               JUST A SPACE
+
+

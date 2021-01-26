@@ -1,0 +1,217 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.UDF
+*
+*  NAME:    USER DEFINED FUNCTIONS
+*
+*  VERSION: 3.0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+       BYTE 0
+CSIDFS BYTE SIDUFS
+       BYTE 0
+CSIDFM BYTE SIDUFM
+UDFSVE DATA 0
+UDFSVP DATA 0
+
+UDF    MOVB @PFLAG,R0         CHECK IF IN A PROGRAM
+       JLT  UDF$1             YES - CONTINUE
+
+RPTE27 LI   R0,ERROLP         NO - LOAD ERROR CODE
+       JMP  UDF100            AND REPORT IT
+
+RPTE16 LI   R0,ERRRSC         LOAD ERROR CODE
+UDF100 BL   @ERROR            JOIN COMMON CODE
+
+*    SAVE THE UDF ENVIRNOMENT, BUILD THE STE
+
+UDF$1  AI   R9,STKSZ          PUSH THE STACK
+       MOVB @CSIDFS,@SID(R9)  WRITE ID
+       MOV  @UDFNST,@02(R9)   FOR DEBUG PURPOSE
+       MOV  @UDFBEG,@04(R9)   BEGIN POINTER
+       MOV  @UDFEND,@06(R9)   END POINTER
+       CLR  @14(R9)
+       MOV  R9,@UDFBEG        SAVE THE BEGINING
+
+*////////////////////////////////////////////////////////////NOTE 2:
+*      MOV  @FAC,R0           GET THE HEADER
+*
+*    CHECK IF RECURRISIVE FUNCTION CALL
+*
+*      COC  @BMASK+INDX08,R0  CHECK THE BIT
+*      JEQ  RPTE16            YES
+*/////////////////////////////////////////////NO-LONGER CHECKED
+
+       MOV  @02+FAC,R1        GET HEADER
+       ANDI R1,>000F          MASK OUT VSO
+       SLA  R1,1              *2
+       A    R1,@SYMA+FAC      ADD IN VSO
+
+       BL   @PSHFAC           SAVE ORIGINAL UDF
+
+*    MAP IN THE UDF SYMBOL SPACE
+
+       MOV  @SYMP+FAC,R5
+       MOVB @DATBUF(R5),@MAP96
+       MOVB @DATBUF+1(R5),@MAP98
+
+       MOV  @SYMA+FAC,R4      GET 13 BIT ADDRESS
+       AI   R4,>6006
+       MOV  *R4+,R1           * READ THE NUMBER OF ARGS
+       MOV  @UDFBEG,R3        * GET POINTER BACK
+       MOV  R1,@08(R3)        * SAVE THE ARG COUNTER
+       JEQ  UDF$15            * JUMP IF NO ARGUMENTS
+
+* R3,R4,R5 CANT BE CHANGED
+
+       BL   @CKLPAR           * ENSURE A LEFT PAREN
+
+UDF62  MOV  *R4+,R1           * GET THE PAGE
+       MOV  *R4+,R2           * GET THE ADDRESS
+       MOV  R5,@10(R3)
+       MOV  R4,@12(R3)
+       BLWP @BLDFAC           * BUILD A FAC ENTRY FOR SYMBOL
+
+       BL   @PSHFAC           * SAVE SYMBOL POINTER
+
+       CB   @SID+FAC,@CSIDST  * CHECK IF STRING
+       JEQ  UDF$2             * JUMP IF YES
+
+       BLWP @GETVS            * GET SYMBOL VALUE SPACE
+
+UDF$2  BL   @PSHFAC           * SAVE SYMBOL VALUE
+
+       INC  @UDFNST           * INCREMENT UDF NEST COUNTER
+
+       BL   @PARSE            * NOW PARSE THE VALUE
+       BYTE RPAR$,0
+
+       DEC  @UDFNST           * DEC UDF NEST COUNTER
+
+*    ASSIGN THE VALUE TO THE VARIABLE
+
+       MOV  R9,@UDFEND        SAVE THE END
+
+       MOV  @UDFBEG,R9        GET THE START
+
+       MOV  @14(R9),R1
+       LI   R3,STKSZ*2
+       A    R3,R9
+       MPY  R3,R1
+       A    R2,R9
+       BL   @ASSG
+       MOV  R0,R0
+       JNE  UDF100
+       MOV  @UDFEND,R9        RESTORE THE STACK
+
+       CI   R8,COMMA$*256
+       JNE  UDF122
+       MOVB *R12+,R8
+
+       MOV  @UDFBEG,R3
+       INC  @14(R3)
+       C    @14(R3),@08(R3)
+       JHE  UDF120
+
+       MOV  @10(R3),R5
+       MOVB @DATBUF(R5),@MAP96
+       MOVB @DATBUF+1(R5),@MAP98
+
+       MOV  @12(R3),R4
+       JMP  UDF62
+
+UDF120 EQU  $
+
+UDF122 BL   @CKRPAR
+
+*    NOW BUILD UDF MARK
+
+UDF$15 MOVB @CSIDFM,R0        GET THE STACK ID
+       BL   @BLDMRK           BUILD AND PUSH THE STACK MARK
+       MOV  R9,@UDFEND        SAVE STACK LOCATION
+
+       MOV  @UDFBEG,R5        START WITH STE
+       AI   R5,STKSZ          POINT TO UDF
+
+*    MAP IN THE UDF
+
+       MOV  @SYMP(R5),R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SYMA(R5),R4      GET 13 BIT ADDRESS
+       AI   R4,>6000          MAKE IT 16
+
+       MOV  *R4+,@CLINE       RESTORE CLINE
+       MOV  *R4+,@PGMLN       RESTORE PGM LINE NUMBER
+       MOV  *R4,@ARG          SAVE PGM POINTER
+
+       INC  @UDFNST           INCREMENT NEST COUNTER
+
+       BL   @GETPGM           GET THE PROGRAM LINE
+       MOV  @ARG,R12           RESTORE PGM POINTER
+       MOVB *R12+,R8          GET THE CHARACTER
+
+       BL   @PARSE            AND PARSE
+       BYTE TREM$,0
+
+       PAGE
+*
+*    WHAT:  USER DEFINED EXIT
+*           FINISHED WITH THE FUNCTION
+*
+
+UDFEXT MOV  @UDFBEG,R5        GET THE STE ENTRY
+       CLR  @14(R5)
+       MOV  @08(R5),R1        CHECK THE ARGUMENT COUNT
+       JEQ  UDFE10            NO ARGUMNETS
+
+       BL   @PSHFAC           SAVE THE RESULT
+       MOV  R9,@UDFSVE
+
+       MOV  @UDFBEG,R9
+UDFE72 MOV  @14(R9),R1
+       LI   R3,STKSZ*2
+       A    R3,R9
+       MPY  R3,R1
+       A    R2,R9
+       MOV  R9,@UDFSVP
+       AI   R9,STKSZ
+       BL   @POPFAC
+       MOV  @UDFSVP,R9
+       BL   @ASSG
+       MOV  R0,R0
+       JNE  UDFE25
+
+       MOV  @UDFBEG,R9
+       INC  @14(R9)
+       C    @08(R9),@14(R9)
+       JL   UDFE72
+
+       MOV  @UDFSVE,R9
+       BL   @POPFAC           AND RESTORE FAC
+
+UDFE10 MOV  @UDFEND,R9        POINT TO THE UDF MARK
+       MOV  @SLIN(R9),@CLINE  RESTORE CLINE
+       MOV  @SPLN(R9),@PGMLN  RESTORE PGM LINE
+       MOV  @SPGM(R9),@ARG    SAVE PGM POINTER
+       MOV  @UDFBEG,R9        POINT TO STE
+       DEC  @UDFNST           DECREMENT NEST COUNTER
+       JNE  UDFE20            NESTED
+UDFE15 AI   R9,-STKSZ         POP THE STACK
+
+*    CONTINUE WHERE WE LEFT OFF
+
+       BL   @GETPGM           GET THE PROGRAM LINE
+       MOV  @ARG,R12           RESTORE PGM POINTER
+       MOVB *R12+,R8          RESTORE THE CHARACTER
+       B    @CONT             AND CONTINUE
+
+*    RESTORE PREVIOUS ENVIRNOMENT
+
+UDFE20 MOV  @04(R9),@UDFBEG   RESTORE STACK BEGIN
+       MOV  @06(R9),@UDFEND   RESTORE STACK END
+       JMP  UDFE15
+
+UDFE25 BL   @RPTE03           SYNTAX ERROR
+

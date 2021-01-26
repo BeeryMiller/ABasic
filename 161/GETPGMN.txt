@@ -1,0 +1,130 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.151.GETPGM
+*
+*    NAME:  GETPGM
+*
+*-------------------------------------------------------------------------
+
+GETPGM MOV  @CLINE,R1         GET THE LINE POINTER
+       MOV  R1,R2
+       SRL  R2,13
+       MOVB @PGMMAP(R2),@MAP96
+       MOVB @PGMMAP+1(R2),@MAP98
+       ANDI R1,>1FFF
+
+*    R1 - POINTS TO THE LINE NUMBER
+
+       SZC  @WPBIT,@XFLAG     * ASSUME NO BREAK IN THIS INSTRUCTION
+       MOV  @>6000(R1),@PGMLN
+       JGT  GET$11            * JUMP IF BREAK BIT SET
+       SOC  @WPBIT,@XFLAG     * STE BREAK BIT
+GET$11 MOV  @>6002(R1),R1     PTR TO PGM LINE TO R1
+       DEC  R1                ONE LESS TO POINT TO LINE LENGTH
+       MOV  R1,R2
+       SRL  R2,13
+       MOVB @PGMMAP(R2),@MAP96
+       MOVB @PGMMAP+1(R2),@MAP98
+       ANDI R1,>1FFF
+       ORI  R1,>6000          POINT TO LINE LENGTH
+       LI   R12,CRNBUF        INIT R12
+       MOV  R1,R2             MAKE COPY OF R1 FOR ODD/EVEN PARITY
+       MOVB *R1+,R3           GET LENGTH
+       JEQ  GETPG2            IS ONE OF THOSE TRICKY ONES OF LENGTH 0
+       SRL  R3,8              ALIGN REGISTER
+       MOV  R3,@BUF3L
+       ANDI R1,>FFFE          MAKE A WORD
+       INV  R3
+       B    @GETPG1(R3)
+
+GETPG2 ANDI R1,>FFFE
+       MOV  *R1+,*R12+        MOVE IT, THE MAX LENGTH IS 166 BYTES
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1+,*R12+
+       MOV  *R1,*R12
+GETPG1 LI   R12,CRNBUF
+       SRL  R2,1
+       JOC  GETPG3
+       INC  R12
+GETPG3 CLR  R8
+       RT                     AND RETURN
+       TEXT 'DDI SOFTWARE'

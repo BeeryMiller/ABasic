@@ -1,0 +1,121 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.WRITELN
+*
+*  NAME:    WRITE LINE
+*
+*  VERSION: 3.0 - 04/05/87    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*  NAME:    DPROMP
+*
+*  WHAT:    DISPLAY PROMPT
+*
+*  INPUT:   R1 CONTAINS STRING ADDRESS
+*
+*
+*  NAME:    DREADY
+*
+*  WHAT:    DISPLAYS THE READY MESSAGE
+*
+*
+DOPRT3 MOVB *R1,R0            GET LENGTH
+       JEQ  D$10              IS ZERO, SO DO NOTHING
+       MOV  @WHIGHT,R2
+       S    @CROW,R2
+       MPY  @WWIDTH,R2
+       S    @CCOL,R3
+       MOVB *R1,R2
+       SRL  R2,8
+       C    R2,R3
+       JLE  DOPRTA            STRING IS LESS THAN OR EQUAL TO THE REST
+
+       MOV  @WINSIZ,R2
+       S    @CCOL,R2
+       SRL  R0,8
+       C    R2,R0
+       JL   WINTSM            CAN'T FIT
+       A    @CCOL,R0          CALCULATE THE REST
+       CLR  R2
+       MOV  R0,R3
+       DIV  @WWIDTH,R2
+       MOV  R3,R3
+       JEQ  DOPRT9
+       INC  R2
+DOPRT9 MOV  @WHIGHT,R3
+       S    R2,R3
+       MOV  R3,@CROW
+DOPRTA SETO R3
+       JMP  DOPRT5
+
+DREADY LI   R1,MSGRDY
+
+*
+*    CALL DOPRT (CHAR *S1)  UPDATE CURSOR
+*                R1
+
+*    CALL DOPRT3(CHAR *R1)  DON'T UPDATE CURSOR
+*                R1
+
+*    CALL DPROMP(CHAR *S1)
+*                R1
+
+DPROMP
+DOPRT  CLR  R3
+
+DOPRT5 MOVB *R1+,R2           GET THE STRING LENGTH
+       SRL  R2,8
+       JEQ  D$10              IF ZERO NOTHING THER
+
+DOPRT8 MOV  @BLKFLG,R0        TEST IF ANY OPTIONS
+       JEQ  DOPRT7            NO, SO CONTINUE
+       MOV  R1,@TEMPTR
+       MOV  @FB,R1            GET COLORS
+       SWPB R1                SWAP FORGROUND AND BACKGROUND IN CASE
+       MOVB R0,R0             IS IT BLINK?
+       JEQ  DOPR00            NO, IT IS INVERSE
+       SWPB R1
+       ORI  R1,>8080
+DOPR00 LI   R0,X$SFB
+       XOP  @SIX,0
+       MOV  @TEMPTR,R1        GET R1 BACK
+
+DOPRT7 LI   R0,X$WCS          LOAD OP-CODE (WRITE CHAR STRING)
+
+       XOP  @SIX,0
+
+       MOV  @BLKFLG,R2        DO WE NEED TO RESTORE THE COLORS?
+       JEQ  D$11              NO
+       MOV  @FB,R1
+       LI   R0,X$SFB
+       XOP  @SIX,0            RESET THE COLORS AND BLINK OPTIONS
+
+D$11   ABS  R3
+       JNE  DOPRT6            RESET CURSOR CORRECTLY
+
+       LI   R0,X$GCP          GET THE NEW POSITION (GET CURSOR POS)
+       XOP  @SIX,0
+
+       MOV  R0,@CROW
+       MOV  R1,@CCOL
+D$10   RT
+
+
+DOPRT6 MOV  @CROW,R1          RESET THE CURSOR POSITION
+       MOV  @CCOL,R2
+GOTOXY LI   R0,X$SCP
+       XOP  @SIX,0
+       MOV  R1,@CROW
+       MOV  R2,@CCOL
+       RT
+
+WINTSM CLR  @CCOL
+       CLR  @CROW
+       SETO R3
+       JMP  DOPRT5
+
+
+MSGRDY BYTE 9                 LENGTH OF STRING
+       TEXT '* READY *'
+

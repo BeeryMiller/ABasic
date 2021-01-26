@@ -1,0 +1,185 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS2.152.RD152
+*
+*  NAME:    REF DEF FILE
+*
+*  VERSION: 3.0 - 10/21/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+*-------------------------------------------------------------------------
+*
+*    NAME:  WDS2.152.PGMLINK
+*
+*-------------------------------------------------------------------------
+       REF  FKNMES
+
+       DEF  NRNDMZ       0
+       DEF  NRND         2
+       DEF  NWHILE       4
+       DEF  NWEND        6
+       DEF  IF           10
+       DEF  GO           12
+       DEF  GOTO         14
+
+       DEF  GOSUB        16
+       DEF  RETURN       18
+       DEF  NFOR         20
+       DEF  NLET         22
+       DEF  NNEXT        24
+       DEF  ON           26
+       DEF  CALL         28
+       DEF  SUBXT        30
+
+       DEF  NLPR         32
+       DEF  ONOT         34
+       DEF  NPLUS        36
+       DEF  NMINUS       38
+       DEF  NQTSTR       40
+       DEF  NUMCON       42
+       DEF  EFKINT       42
+       DEF  NABS         44
+       DEF  NATN         46
+       DEF  NCOS         48
+
+       DEF  NEXP         50
+       DEF  NINT         52
+       DEF  NLOG         54
+       DEF  NSGN         56
+       DEF  NSIN         58
+       DEF  NSQR         60
+       DEF  NTAN         62
+
+       DEF  CONCAT       64
+       DEF  OOR          66
+       DEF  OAND         68
+       DEF  OXOR         70
+       DEF  EQUALS       72
+       DEF  LESS         74
+       DEF  GREATR       76
+       DEF  LPLUS        78
+
+       DEF  LMINUS       80
+       DEF  TIMES        82
+       DEF  DIVIDE       84
+       DEF  LEXP         86
+       DEF  UDF          88
+       DEF  NLEN         90
+       DEF  NPOS         92
+       DEF  NVAL         94
+
+       DEF  NASC         96
+       DEF  NPI          98
+       DEF  NMAX         100
+       DEF  NMIN         102
+       DEF  VALHX        104
+       DEF  TERMCH       106
+       DEF  NMOD         108
+       DEF  NSWAP        110
+
+       DEF  NCINT        112
+       DEF  NREAL        114
+       DEF  NCHR$        116
+       DEF  NSEG$        118
+       DEF  NRPT$$       120
+       DEF  NSTR$        122
+       DEF  NHEX$        124
+       DEF  NLEFT$       126
+
+       DEF  NRGHT$       128
+       DEF  NTIME$       130
+       DEF  NDATE$       132
+       DEF  NFKEY        134
+       DEF  NMOUSE       136
+       DEF  NCLSN        138
+       DEF  NFREE        140
+
+
+       REF  VSLOW
+       REF  VSHIGH
+
+       REF  FASMVB
+       REF  FASMVW
+       REF  MOVSTK
+
+       REF  ACCPAR            ACCUMULATE PARAMETERS
+       REF  RANGE
+
+       REF  SRCHLN            SEARCH LINE
+
+       REF  BLDFAC
+       REF  MTOARG
+       REF  MTOFAC
+       REF  MATH              MATH SUPPORT
+       REF  MATHSK
+       REF  FASCOM            FAST COMPARE
+
+       REF  GETVS             GET ANY VALUE SPACE
+       REF  GVSSTK
+       REF  PSYM
+
+       REF  GETSTR            GET FAC ENTRY FOR STRING
+*      REF  STRTUP            CONVER TO UPPER CASE
+
+       REF  ERROR
+       REF  WARN
+
+       REF  SKPS01
+       REF  EOSTMT
+       REF  EOLINE
+       REF  EOL
+
+       REF  EXEC
+       REF  EXEC10
+       REF  EXEC11
+       REF  EXEC16
+       REF  PARSE
+
+       REF  ITOD
+       REF  FTOI
+       REF  FTOIS
+       REF  ITOFS
+       REF  ITOF
+
+       REF  CKRPAR            CHECK RIGHT PAREN
+       REF  CKLPAR            CHECK LEFT PAREN
+       REF  CKCOMA            CHECK COMMA
+
+       REF  CONT              CONTINUE PARSE
+       REF  STKCON            CONTINUE PARSE FROM STACK
+
+       REF  GETPGM            GET PROGRAM LINE
+
+       REF  FNDSUB            FIND SUB
+
+       REF  POPARG
+       REF  PSHARG
+       REF  POPFAC
+       REF  PSHFAC
+       REF  PSHPRS
+
+       REF  ASSG              STRAIGHT ASSIGN
+       REF  ASSGN             ASSING NUMERIC
+       REF  ASSGS             ASSIGN STRING
+
+       REF  BLDMRK            BUILD STACK MARK
+
+       REF  TONE1             OUTPUT TONE1
+       REF  TONE2             OUTPUT TONE2
+
+       REF  SROLL             SCROLL THE SCREEN
+       REF  CLRWIN
+
+       REF  GOTOXY
+       REF  DOPRT
+
+       REF  MEMSET
+       REF  TURNON
+       REF  TURNOF
+
+       REF  PARONE            PARSE ONE
+       REF  PARFST            PARSE FIRST
+       REF  PARMID            PARSE MIDDLE
+       REF  PARLST            PARSE LAST
+

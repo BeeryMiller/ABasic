@@ -1,0 +1,146 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.WHILE
+*
+*  NAME:    NUD ENTRY FOR WHILE STATEMENT
+*
+*  VERSION: 3.0 - 09/01/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+CSIDWS BYTE SIDWHS            WHILE START
+CSIDWM BYTE SIDWHM            WHILE END
+CBHAB  BYTE >AB
+
+*    WHILE STATEMENT. THE FIRST THING TO DO IS BUILD
+*    THE WHILE STACK MARK. THEN PARSE THE EXPRESSION AND TEST
+*    IF THE EXPRESSION IS TRUE, OR FALSE. IF TRUE EXECUTE
+*    THE BODY OF THE CODE. IF FALSE LOOK FOR MATCHING WEND.
+
+NWHILE MOVB @PFLAG,R0         IF PROGRAM ?
+       JLT  WH$04             NO - NOT ALLOWED
+       JMP  WH$94
+
+WH$04  MOVB @CSIDWS,R0        LOAD STACK ID
+       BL   @BLDMRK           BUILD THE STACK MARK
+
+WH$05  BL   @PARSE            EVALUATE EXPERSSION
+       BYTE COMMA$,0
+
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  WH$92             JUMP IF YES
+
+*    NOW TEST IF EXPESSION IS TRUE/FALSE
+*    TRUE  -  NON-ZERO
+*    FALSE -  ZERO
+
+       MOV  @SNUM+FAC,R0      GET THE RESULT
+       JEQ  WH$10             FALSE
+
+*    TRUE
+
+       B    @CONT             AND CONTINUE
+
+*    FALSE, FIRST CHECK IF THE NEXT STACK
+*    ENTRY IS A WHILE END. IF YES THAT IS WHERE WE GO
+
+WH$10  CB   @SID(R9),@CSIDWM
+       JEQ  WH$30
+
+*    THIS IS THE FIRST TIME THROUGH
+*    LOOK FOR WHILE END
+
+       MOV  @CW01,@WHNEST     PAIR COUNTER
+WH$20  BL   @EOLINE           CHECK END OF THE LINE
+       JEQ  WH$26             IS END OF THE LINE
+       MOVB *R12+,R8          GET FIRST TOKEN ON LINE
+WH$21  CI   R8,>AC00          CHECK IF WEND
+       JNE  WH$22             NO - SKIP IT
+
+       DEC  @WHNEST           DECREMENT COUNTER
+       JNE  WH$25             IF NOT MATCHING NEXT
+
+*    FOUND MATCHING WHILE/WEND'S
+
+       AI   R9,-STKSZ         POP THE STACK
+       MOVB *R12+,R8
+       B    @CONT             AND CONTINUE
+
+WH$94  A    @CW04,@CLINE
+RPTE01 LI   R0,ERRWWE         LOAD ERROR CODE
+       BL   @ERROR            AND REPORT IT !
+
+WH$22  CI   R8,>A100          CHECK IF SUB ENTRY
+       JEQ  RPTE01            YES CANT FIND MATCHING WHILE
+       CI   R8,>AB00          CHECK WHILE ?
+       JNE  WH$23             NO CHECK SOME MORE
+       INC  @WHNEST           INCREMENT DEPTH
+       JMP  WH$25
+
+WH$23  CI   R8,>C900          LINE NUMBER TOKEN
+       JNE  WH$24             NO CHECK SOME MORE
+       INCT R12               SKIP THE LINE NUMBER
+       JMP  WH$25
+
+WH$24  CI   R8,>C700          STRING ?
+       JNE  WH$25             NOT A STRING.
+       MOVB *R12+,R8          GET NEXT CHARACTER
+       SRL  R8,8
+       A    R8,R12
+       CLR  R8
+
+WH$25  MOVB *R12+,R8          GET NEXT CHARACTER
+       BL   @EOSTMT           AT END OF STATEMENT?
+       JNE  WH$23             KEEP LOOKING
+       JMP  WH$20             GO CHECK END OF LINE
+
+WH$26  S    @CW04,@CLINE      YES - CONTINUE
+       C    @CLINE,@ELINE     AT THE END
+       JL   WH$94             YES - NOT FOUND
+
+       BL   @GETPGM
+       MOVB *R12+,R8          GET A CHARACTER
+       JMP  WH$21             DO IT SOME MORE
+
+WH$30  MOV  @SLIN(R9),@CLINE  RESTORE CLINE
+       MOV  @SPLN(R9),@PGMLN  RESTORE PGM LINE
+
+       BL   @GETPGM           READ THE PROGRAM LINE
+       MOV  @SPGM(R9),R12     RESTORE PGM POINTER
+       MOVB *R12+,R8          GET THE CHAR
+
+       AI   R9,-STKSZ*2       POP MARK AND STE
+
+       B    @CONT
+
+WH$90  BL   @RPTE03           REPORT ERROR
+
+WH$92  BL   @RPTE07           REPORT ERROR
+
+       PAGE
+*
+*    WHAT:  NUD ENTRY FOR WHILE END
+*
+
+NWEND  MOV  R9,R5             COPY STACK POINTER
+       CB   @SID(R5),@CSIDWM  CHECK FOR WHILE END
+       JEQ  NWH$10            YES - USE IT
+
+       MOVB @CSIDWM,R0        NO - BUILD A WHILE END
+       BL   @BLDMRK
+       MOV  R9,R5
+
+NWH$10 AI   R5,-STKSZ         POP THE STACK
+
+       CB   @SID(R5),@CSIDWS  MUST BE A WHILE START
+       JNE  WH$90             NO - ERROR
+
+       MOV  @SLIN(R5),@CLINE  RESTORE CLINE
+       MOV  @SPLN(R5),@PGMLN  RESTORE PGM LINE
+
+       BL   @GETPGM           READ THE PROGRAM LINE
+       MOV  R9,R5             GET THE STACK POINTER
+       AI   R5,-STKSZ         POP TO STE
+       MOV  @SPGM(R5),R12     RESTORE PROGRAM POINTER
+       MOVB *R12+,R8          GET THE CHAR
+       B    @WH$05            AND JOIN THE WHILE CODE
+

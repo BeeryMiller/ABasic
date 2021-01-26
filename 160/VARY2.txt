@@ -1,0 +1,137 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.150.VARY2
+*
+*  NAME:    BASIC VARIABLES PART 2
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+       AORG >F140
+
+IOBUF  BSS  64                IO DATA AREA
+CLLEN  DATA 0                 CHARACTER LIST LENGTH
+CLIST  BSS  14                CHARACTER LIST
+SPTBL  BSS  112               SPRITE TABLE
+
+       AORG >F300
+
+PSEND  BSS  64                BASIC INT PROGRAM STACK
+PSTACK EQU  $-2               PROGRAM STACK
+
+CMDBUF BSS  128               COMMAND TABLE
+
+FAC    BSS  16                FAC
+ARG    BSS  16                ARG
+SYMBUF BSS  16                SYMBOL BUFFER
+WSM    BSS  16                * USED IN 154
+
+*-------    >F400
+
+CALNUD BSS  96                CALL NUD
+WSMBLK BSS  32                FOR OLD/SAVE
+FUNCKL BSS  128               FUNCTION KEY LIST  (UP TO 32 POINTERS)
+DDIR   EQU  4*10+FUNCKL       OKAY, DONE  LIKE KEY(11)
+DPRINT EQU  DDIR+4            OKAY, DONE  LIKE KEY(12)
+
+*-------    >F500
+
+BUFSRT DATA 0
+BUFLEN EQU  $
+EDITR  BSS  172               EDIT RECALL
+PROA$  EQU  $
+FREG   BSS  40                FILL REGISTERS
+SREGS  BSS  42
+
+*-------    >F600
+
+RAMPTR DATA 0
+BUF3L  DATA 0
+CRNBUF BSS  188              CRUNCH BUFFER
+CRNEND EQU  $-2
+CREGS  BSS  32
+PREGS  BSS  32
+
+*-------    >F700
+
+FSTACK EQU  $
+IMGBM3 DATA 0
+IMGBM1 BYTE 0
+IMGBUF BSS  253               IMAGE BUGGER
+
+*-------    >F800
+
+TBUFP  DATA 0                 POINTER
+TBUFL  EQU  $                 LENGTH
+DISBUF BSS  254               DISPLAY BUFFER
+
+*-------    >F900
+
+BBUFP  DATA 0                 POINTER
+BBUFL  EQU  $                 LENGTH
+EDITB  BSS  254               EDIT BUFFER
+
+*-------    >FA00
+
+SBUFP  DATA 0                 POINTER
+CDATA  EQU  $
+BUF4L  EQU  $                 LENGTH
+STRBUF BSS  254               STRING BUFFER
+FSTCKE EQU  $-2
+
+*-------    >FB00
+
+NUD2PG EQU  $+3               * NUD2 PAGE
+CAL1PG EQU  $+5               * "CALL1" PAGE
+CAL2PG EQU  $+6               * "CALL2" PAGE
+ASRTPG EQU  $+6               * ASSEMBLY RETURN PAGE
+STKPG  EQU  $+7               * STACK PAGE
+PGMMAP EQU  $+8               * START OF PROGRAM SPACE
+DATBUF EQU  $+16              * START OF DATA SPACE
+MEMTBL BSS  256
+OLDMAP EQU  $-16              * OLD MAP SPACE
+
+*-------    >FC00
+
+*    DEFAULT PAB
+*    WINDOW PAB
+
+       EVEN
+DEFPAB BSS  64                DEFAULT PAB
+CWIN   BSS  192          192 TO 88
+FKKEY  EQU  CWIN+90      MOVED FROM VARY1
+*                        10 FUNCTION KEYS    |ON/OFF|STOP|
+*                                            | LINE NUM  |
+*                        EFKINT FILE=16 F KEYS  4 BYTES PER KEY
+MKKEY  EQU  FKKEY+64
+*                   \    3 MOUSE KEYS GOSUB LINE NUMBERS  2 BYTES PER KEY
+
+
+*-------    >FD00
+
+BUF6L  DATA 0                 LENGTH WORD
+DATAB  BSS  174               DATA STATEMENT BUFFER
+TMPBUF BSS  80                TEMP BUFFER
+
+*-------    >FE00             OTHER VARIABLES
+
+TEMPTR DATA 0                 TEMP POINTER FOR WRITELN
+BLKFLG BYTE 0                 BLINK FLAG FOR ACCEPT AT
+INVLFG BYTE 0                 INVERSE FLAG FOR ACCEPT AT
+KEYMOS BYTE 0                 FLAG TO DETERMINE ENTRY OF MOUSE ROUTINE
+SMAP94 BYTE 0                 SAVE THE LOCATION OF >4000 PAGE
+MROW3  DATA 0                 MOUSE "MLOC" LOCATION
+MCOL3  DATA 0
+OSTAT  BYTE 0                 PREVIOUS MOUSE KEY PUSH
+       BYTE 0
+MDOSMD BYTE 0                 MDOS SCREEN MODE ON ENTRY
+MDOSBD BYTE 0                 MDOS BACKDROP COLOR ON ENTRY
+MDOSFB DATA 0                 SAVED MDOS F/B SCREEN COLORS
+SVFA   DATA 0,0,0,0           SAVE VARIABLE FOR ASSIGNMENT
+       DATA 0,0,0,0
+*  NOW AT >FE20
+PGMSTT DATA 0                 SAVE THE START OF THE PGM COUNTER IN SYMBOL
+DISFLG DATA 0                 FLAG =0 IF ACCEPT, <>0 IF DISPLAY
+BOTLIN DATA 0                 FLAG =0 IF IN WINDOW, <>0 IF LINES 25 OR 26
+*-------    >FE30             TEMP VALUE STACK
+

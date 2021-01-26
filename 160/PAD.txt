@@ -1,0 +1,67 @@
+       DEF  FASMVB
+       DEF  FASMVW
+       DEF  MOVSTK
+       DEF  FASTPG
+       DEF  MOVE4
+
+       COPY "WDS1.160.EQUSYS"
+       COPY "WDS1.160.VARY2"
+       AORG >F040
+*===============================================================================
+*
+*      THESE ROUTINES BELONG IN FAST PAD RAM
+*           THEY ARE:
+*              1. MOVE WORDS  R1, FROM R2, TOO, R3 NUMBER OF BYTES
+*              2. MOVE BYTES
+*              3. MAP A PROGRAM PAGE IN AT >6000
+*              4. MOVE TO OR FROM STACK
+*
+*
+*      THE TOTAL NUMBER OF BYTES AVAILABLE IN THIS RAM TO PERFORM THIS IS 64
+*===============================================================================
+
+*
+*   8 BYTES
+*      FAST MOVE BYTE ROUTINE
+*
+FASMVB MOVB *R1+,*R2+
+       DEC  R3
+       JNE  FASMVB
+       RT
+*
+*   8 BYTES
+*      FAST MOVE WORDS ROUTINE
+*
+FASMVW MOV  *R1+,*R2+
+       DECT R3
+       JGT  FASMVW
+       RT
+*
+*  18 BYTES
+*      FAST MOVE TO OR FROM STACK
+*           ALWAYS WORD BOUNDARY R1, FROM R9 STACK POINTER
+*
+MOVSTK MOV  *R1+,*R0+    DO ALL 8 WORDS
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+MOVE4  MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1+,*R0+
+       MOV  *R1,*R0      ONLY UPDATE VALUE STACK POINTER
+       RT
+*
+*  26 BYTES
+*      ROUTINE TO QUICKLY MAP IN THE CORRECT PROGRAM PAGE
+*           TO >6000->9FFF
+*
+*
+FASTPG MOV  R1,R2               MAKE COPY
+       SRL  R2,13               GET ONLY PAGE
+       MOVB @PGMMAP(R2),@MAP96  LOAD >6000 MAP PAGE
+       MOVB @PGMMAP+1(R2),@MAP98 LOAD >8000 MAP PAGE
+       ANDI R1,>1FFF            NOW GET POINTER WITHIN PAGE
+       ORI  R1,>6000
+       RT
+
+       END

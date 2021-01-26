@@ -1,0 +1,493 @@
+*
+*    NAME:  PARSE
+*
+*    WHAT:  PARSE A BASIC PROGRAM LINE
+*
+
+EXRTNA DATA EXRTN
+
+PARSE  DECT R10
+       MOV  R11,*R10
+
+P05    MOV  R8,R5
+       JLT  P10
+*
+*    NAME:  VSYM - SYMBOLS VALUE SPACE
+*
+
+VSYM   CLR  R0                * INDICATE ITS AN VALUE SPACE
+       CLR  R1                * CLEAR COUNTER
+       MOV  R12,R2            * SAVE POINTER
+       DEC  R2                * BACK UP TO INCLUDE FIRST CHAR
+
+VSYM$2 INC  R1                * INC COUNTER
+       MOVB *R12+,R8          * GET NEXT CHAR
+       JGT  VSYM$2            * JUMP IF PART OF SYMBOL
+
+*    CALL FNDSYM(INT SYMTYP, CHAR *S1, INT SLEN)
+*                R0,         R2,       R1
+
+       BLWP @FNDSYM           * SEARCH THE SYMBOL TABLE
+       MOV  R0,R0             * FIND IT ?
+       JNE  RPTE35            * JUMP IF NOT FOUND
+
+       MOV  @02+FAC,R1        * GET THE HEADER
+       JLT  VSYM$5            * JUMP IF UDF
+
+       COC  @ARBIT,R1         * CHECK IF ARRAY
+       JNE  CONT              * NO, CONTINUE
+
+       BL   @SYMRED           * REDUCE ARRAY SYMBOL
+       CB   @SID+FAC,@CSIDST  * TEST IF STRING
+       JEQ  CONT              * ALREADY DONE
+       BLWP @GETVS            * GET ITS VALUE SPACE
+       JMP  CONT              * AND RETURN
+
+RPTE35 LI   R0,ERRSYF         ERROR SYMBOL NOT FOUND
+       BL   @ERROR
+
+VSYM$5 MOVB @MEMTBL+2,@MAP92
+       B    @UDF
+
+P10    MOVB *R12+,R8          GET NEXT CHARACTER
+       SRL  R5,7              CHANGE LAST CHARACTER TO OFFSET
+       AI   R5,->B7*2         CHECK FOR LEGAL NUD
+       CI   R5,NTABLN         WITHIN LEGAL NUD ADDRESS
+       JH   NOLEDL            NO - CHECK FOR LEGAL LED
+       MOV  @NTAB(R5),R5      GET NUD OFFSET
+       B    @FASP11
+*P11    MOVB @MEMTBL+2,@MAP92
+*      CI   R5,>4000
+*      JL   P11A
+*      MOVB @MEMTBL+3,@MAP94
+*P11A   B    *R5
+
+       PAGE
+*
+*    NAME:  EXNUD
+*
+*    WHAT:  EXTENDED NUD NUD
+*           LOOKS UP IN THE EXTENDED TABLE
+*           FOR THE NUD TO EXECUTE
+
+EXNUD  MOV  R8,R5             * COPY TOKEN
+       CB   R5,@EXHIGH        * CHECK IF HIGHER
+       JH   ERRSYN
+       ANDI R5,>7F00          * REMOVE TOP BIT AND JUNK
+       SRL  R5,7              * ALIGN REGISTER
+       MOV  @EXNTAB(R5),R5    * GET THE PAGE AND OFFSET
+       B    @FASEXN
+*      JMP  P11
+
+       PAGE
+
+*
+*    NAME:  STKCON
+*
+*    WHAT:  CONTINUES FROM STACK ENTRY
+*
+*           1. GET THE POINTERS
+*           2. COPY THE PROGRAM STATEMENT
+*           3. AND DO A CONTINUE
+
+STKCON MOVB @PFLAG,R0
+       JLT  STK$10
+       JMP  STK$20
+
+STK$10 MOV  @SLIN(R9),@CLINE  RESTORE CURRENT LINE
+       MOV  @SPLN(R9),@PGMLN  RESTORE PROGRAM LINE #
+       BL   @GETPGM           GET THE PROGRAM LINE
+
+STK$20 MOV  @SPGM(R9),R12     RESTORE PROGRAM POINTER
+       MOVB *R12+,R8          GET THE CHARACTER
+
+       PAGE
+*
+*    NAME:  CONT
+*
+*    WHAT:  CONTINUE ROUTINE FOR PARSE
+*
+
+CONT   MOV  *R10,R5           GET LAST ADDRESS FROM STACK
+       CB   *R5,R8            TEST PRECEDENCE
+       JHE  NUDNDL            HAVE PARSED FAR ENOUGH
+       SRL  R8,7              MAKE INTO A TABLE OFFSET
+       AI   R8,->B8*2         MINIMUM TOKEN FOR LED * 2
+       CI   R8,LTABEN         MAXIMUM TOKEN FOR LED * 2
+       JH   NOLEDL            IF OUTSIDE LEGAL LED RANGE ERROR
+       B    @FASCON
+
+*      MOV  @LTAB(R8),R5      GET ADDRESS OF LSD HANDLER
+*      CLR  R8                CLEAR IT FOR GETTING NEW
+*      MOVB *R12+,R8          GET NEXT TOKEN
+*      JMP  P11
+
+NOLEDL B    @NOLED
+
+NUDNDL INCT R10               * POP THE STACK
+       B    @02(R5)           * RETURN TO THE CALLER
+
+       PAGE
+
+*
+*    NAME:  EXEC
+*
+*    WHAT:  EXECUTES ONE OR MORE LINES OF BASIC CODE
+*
+
+EXEC   MOVB @PFLAG,R0         CHECK IF PROGRAM
+       JLT  EXEC1B            YES - PROGRAM
+
+*    NO IMPERATIVE STATEMENT
+
+       BL   @SROLL            SCROLL THE SCREEN
+
+       LI   R12,CRNBUF        IMPERATIVE MODE
+       JMP  EXEC16            JOIN COMMON CODE
+
+EXEC1B MOV  @BLINE,@CLINE     * GET LINE TO START EXECUTION AT
+       BL   @INTRND           * INITIALIZE RANDOM NUMBER GENERATOR
+
+EXEC10 BL   @GETPGM           * READ THE PROGRAM LINE
+
+*    NOW TEST IF ANY EXCEPTIONS ARE SET
+
+EXEC11 MOV  @XFLAG,R0         * TEST FLAG
+       JNE  XHANDR            * JUMP IF ANY BITS SET
+
+CONTIN EQU  $
+EXEC16 MOV  R12,@SMTSRT       * SAVE START OF STATEMENT FOR INPUT
+
+       DECT R10               * MAKE ROOM
+       MOV  @EXRTNA,*R10      * AND PUSH ON STACK
+       MOVB *R12+,R8          * GET CHARACTER
+       JEQ  EXRTN3            * JUMP IF END OF THE LINE
+EXEC17 JLT  EXEC19            * JUMP IF TOKEN
+       LI   R5,NLET           * DO AN ASSIGNMENT
+*      JMP  P11
+       B    @FASP11
+
+EXEC19 MOV  R8,R5             * COPY THE TOKEN
+       ANDI R5,>7F00          * REMOVE HIGH BIT AND JUNK
+       SRL  R5,7              * ALIGN FOR TABLE OFFSET
+       CI   R5,>005E          * CHECK IF HIGHER THAN TABLE MAX
+       JH   ERRSYN            * JUMP IF YES
+       MOV  @STMTTB(R5),R5    * GET THE ADDRESS
+       B    @FASEXN
+*      MOVB *R12+,R8          * GET NEXT CHARACTER
+*      JMP  P11
+
+ERRSYN BL   @RPTE03
+
+       PAGE
+*
+*    PARSE'S CALL TO ITSELF IS HERE
+*
+
+EXRTN  DATA >8382
+       CI   R8,SSEP$*256      * CHECK IF STATEMENT SEP
+       JEQ  EXEC11            * YES CONTINUE
+
+EXRTN2 MOV  @PFLAG,R0         CHECK PROGRAM BIT
+       JLT  EXRTN4            YES - PROGRAM
+       B    @EXEC50           NO - IMPERATIVE MODE
+
+EXRTN4 S    @CW04,@CLINE      * POINT TO NEXT LINE NUMBER
+       C    @CLINE,@ELINE     * TEST IF AT END
+       JHE  EXEC10            * JUMOP IF NO
+       B    @STOP             * JUMP IF YES
+
+EXRTN3 INCT R10               * POP THE STACK
+       JMP  EXRTN2            * AND CONTINUE
+
+*    NUD FOR :: STATEMENT SEP
+
+SMTSEP MOVB R8,R8             * TEST CHAR
+       JEQ  EXRTN2            * AT EOL
+       JMP  EXEC17            * MORE TO DO
+
+       PAGE
+*
+*    NAME:  XHANDR
+*
+*    WHAT:  EXCEPTION HANDLER
+*           TESTS THE BITS IN THE XFLAG
+*           IF TRACE    ON CALLS TRACE
+*           IF FUNK KEY ON CALLS ETRACE
+
+*    CHECK IF TRACE/LTRACE BIT
+
+XHANDR MOVB @MEMTBL+3,@MAP94  * MAP IN THE PAGE IN CASE ANY OF THE CALLS GO
+       ANDI R0,>C000          * MASK OUT TRACE BITS
+       JEQ  XHDR10            * JUMP IF NO
+
+       BL   @ETRACE
+
+*    CHECK IF THE BREAK KEY WAS DETECTED
+
+XHDR10 MOV  @XFLAG,R0         * GET THE FLAG
+       ANDI R0,>00C0          * MASK OUT BITS
+       JEQ  XHDR11            * JUMP IF NO
+       MOV  @PFLAG,R0
+       COC  @BBIT,R0
+       JEQ  XHDR11            *
+
+       BL   @EXECBK
+
+*    CHECK IF FUNC KEY IS ARMED
+
+XHDR11 MOV  @XFLAG,R0         * GET FLAG
+       COC  @FKABIT,R0        * TEST IF FUNCTION KEY IS ARMED
+       JNE  XHDR15            * JUMP IF NO
+
+       BL   @EFKINT
+       MOV  R0,R0
+       JEQ  EXEC10
+       MOV  @XFLAG,R0         * GET FLAG
+
+*    CHECK IF MOUSE IS ARMED
+
+XHDR15 COC  @MSABIT,R0        * TEST IF MOUSE IS ARMED
+       JNE  XHDR20            * NO
+
+       MOVB @MEMTBL+5,@MAP94
+       MOV  @>4000,R5
+       BL   *R5                * SET
+       MOV  R0,R0
+       JEQ  EXEC10
+
+XHDR20 JMP  EXEC16
+
+       PAGE
+*
+*    NAME:  BRKPNT
+*
+*    WHAT:  THIS ENTRY POINT IS FOR BREAK KEY OR BREAK BIT
+*           SET
+*
+*BKINT  MOV  @PFLAG,R0         * GET THE FLAG
+*      COC  @BBIT,R0          * TEST IF BREAKS ARE ALLOWED
+*      JNE  BR$10             * JUMP IF NO
+*      RT
+*
+*
+*    TEST FOR REQUIRED EOS
+*
+
+EOL    MOVB R8,R8
+       JEQ  NUDND1
+       CI   R8,TREM$*256
+       JH   NOLED
+       CI   R8,ELSE$*256
+       JL   NOLED
+
+*    RETURN TO CALLER FROM PARSE
+
+NUDND1 MOV  *R10+,R5
+       B    @02(R5)           RETURN TO THE CALLER
+
+*    SKIP THE PRECEDENCE WORD
+
+NUDEND MOVB R8,R8
+       JEQ  NUDND1
+NUDND2 CI   R8,STRIN$*256
+       JL   NUDND4
+       CI   R8,LN$*256
+       JEQ  SKPLN
+       JL   SKPSTR
+NUDND3 MOVB *R12+,R8
+       JEQ  NUDND1
+       JMP  NUDND2
+
+NUDND4 CI   R8,TREM$*256
+       JH   NUDND3
+       CI   R8,SSEP$*256
+       JL   NUDND3
+       JMP  NUDND1
+
+*    SKIP STRINGS OR NUMERICS
+
+SKPSTR MOVB *R12+,R3
+       SRL  R3,8
+       A    R3,R12
+SKPS01 MOVB *R12+,R8
+       JMP  NUDEND
+
+*    SKIP LINE NUMBERS
+
+SKPLN  INCT R12
+       JMP  SKPS01
+
+NONUD  EQU  $
+NOLED  JMP  RPTE03
+
+
+       PAGE
+*
+*    NORMAL END OF EXECUTION
+*
+
+STOP   EQU  $
+END    EQU  $
+       LI   R0,TOPL55         GO TO DO A CLOSE ALL, AND DISPLAY DREADY
+       MOV  R0,@ERRCOD
+
+       LI   R10,PSTACK
+       MOV  @VSLOW,R9
+
+       BL   @STOPSD
+
+       MOVB @CAL1PG,@MAP94    6  DELETE SPRITES
+       MOV  @>405A,R0         4
+       BL   *R0               2
+
+       LI   R0,X$SMAG         * SET SPRITE MAG FACTOR
+       LI   R1,1
+       XOP  @SIX,0
+
+       MOV  @PFLAG,R0         RESET ALL THE BITS
+       ANDI R0,>2000          EXCEPT PROTECTION
+       MOV  R0,@PFLAG
+
+       MOV  @XFLAG,R0         * TEST IF TRACE IS ON
+       ANDI R0,>4000          * TEST IF
+       JEQ  EXEC$8            * JUMP IF NO
+
+       MOV  @LTPAB,R15
+       AI   R15,>6000
+       MOV  @DPRINT,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOV  @INTOFF(R15),R0
+       JEQ  EXEC$8            NO, BUFFER IS EMPTY
+
+       MOVB @MEMTBL+3,@MAP94
+       BL   @FILEIO
+
+EXEC$8 CLR  @ERRLN            CLEAR ANY ON ERROR
+       CLR  @EENTRY
+       CLR  @CLLEN
+
+EXEC$9 MOVB @MEMTBL+5,@MAP94
+       MOV  @>4052,R1
+       BL   *R1               * RE-SET CHAR SET
+
+       MOV  @ERRCOD,R0        * GET ADDRESS BACK
+
+TOPLEV MOVB @MEMTBL+1,@MAP92  LOAD THE PAGE INTO MEMORY
+       B    *R0               GO TO THE ROUTINE
+
+       PAGE
+*
+*    NAME:  CBREAK
+*
+*    WHAT:  THIS IS THE ROUTINE THAT SETS THE BREAK
+*           KEY DETECTED BIT IN THE BFLAG.
+*           THE ONLY PLACE IT GETS SET IS HERE
+*
+*
+
+CBREAK LIMI 0                 LOCK INTS
+       SOC  @BBIT,@XFLAG      * SET THE BIT
+       LWPI >00F2             LOAD CHECK RETURN VECTOR
+       RTWP                   * AND RETURN
+
+*
+*    NAME:  CKLPAR
+*           CKRPAR
+*           CKCOMA
+*
+*    WHAT:  SYNTAX CHECKERS
+*
+
+CBHB7  EQU  $+2
+CKLPAR CI   R8,LPAR$*256
+       JEQ  CKCOM
+       LI   R0,ERRSNL
+       JMP  RPTEXX
+
+CBHB6  EQU  $+2
+CKRPAR CI   R8,RPAR$*256
+       JEQ  CKCOM
+       LI   R0,ERRSNR
+       JMP  RPTEXX
+
+CBHB3  EQU  $+2
+CKCOMA CI   R8,COMMA$*256
+       JEQ  CKCOM
+       LI   R0,ERRSNC
+       JMP  RPTEXX
+
+CKCOM  MOVB *R12+,R8
+       RT
+
+RPTE03 LI   R0,ERRSN          GENERAL SYNTAX ERROR
+RPTEXX BL   @ERROR
+
+       PAGE
+*
+*    NAME:  CHECK FOR END OF STATEMENT
+*
+*    ENTRY: BL   @EOSTMT
+*
+
+EOSTMT MOVB R8,R8             AT THE END OF A STATEMENT
+       JEQ  EOSTM1            YES
+       JGT  EOSTM1
+       CI   R8,TREM$*256      IS IT A TAIL REMARK
+       JH   EOSTM1
+       CB   R8,R8             SET THE CONDITION BITS
+EOSTM1 RT
+
+
+
+
+
+*
+*    NAME:  CHECK FOR THE END OF THE LINE
+*
+*    ENTRY: BL   @EOLINE
+*
+
+EOLINE MOVB R8,R8             AT THE END OF A LINE
+       JEQ  EOLNE1            YES
+       CI   R8,TREM$*256      NO - IS IT A TAIL TOKEN
+EOLNE1 RT
+
+
+       PAGE
+*
+*    NAME:  CHKAN,CHKPRO,CHKRUN,CHKPGM
+*           CHKWS,CHKWP,CHKBK
+*
+*    WHAT:  CHECKS THE SPECIFIC BIT IN 'FLAG'
+*           AND SETS STATUS BITS BASED ON THE COMPARE
+*
+
+CHKAN  MOV  @PFLAG,R0
+       COC  @ANBIT,R0         AUTO NUMBER
+       RT
+
+CHKRUN MOV  @PFLAG,R0
+       COC  @RNBIT,R0         RUN PROGRAM
+       RT
+
+CHKPRO MOV  @PFLAG,R0         * GET PFLAG
+       COC  @PTBIT,R0         * TEST PROTECTION
+       RT
+
+CHKPGM MOV  @PFLAG,R0         * GET PFLAG
+       COC  @PBIT,R0          * TEST IF BASIC PROGRAM
+       RT
+
+CHKWP  MOV  @PFLAG,R0         * GET EFLAG
+       COC  @WPBIT,R0         * TEST WARN PRINT
+       RT
+
+CHKWS  MOV  @PFLAG,R0         * GET EFLAG
+       COC  @WSBIT,R0         * TEST WARN STOP
+       RT
+
+CHKBK  MOV  @PFLAG,R0         * GET EFLAG
+       COC  @BBIT,R0          * TEST BREAKPOINT BIT
+       RT
+

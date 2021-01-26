@@ -1,0 +1,849 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.CMDINT56
+*
+*  NAME:    COMMAND INTERPRETER START
+*
+*  VERSION: 3.00 - 10/10/86    BASE LINE
+*           3.01 - 02/25/87
+*           3.02 - 03/31/87
+*
+*-------------------------------------------------------------------------
+MAIN
+*
+*  TAKE THE NEXT 5 INSTRUCTIONS OUT FOR WHEN LOADING IN MDOS
+*
+       LI   R0,1              GET A SLOW PAGE FOR PROGRAM FOR LOADING
+TMMTBL LI   R1,2
+       LI   R2,5              *
+       CLR  R3                * SLOW MEM FLAG
+       XOP  @SEVEN,0
+*      LI   R12,>32           SPEED IT UP
+*      SBZ  0
+
+*    GET MEMORY SPACE FOR OUR DATA AREA. THIS MEMORY WILL
+*    MAP INTO >E000 IN OUR MEMORY MAP.
+
+ENTRY
+       LI   R0,1              OP-CODE REQUESTING MEM FOR TASK
+       LI   R1,1              ASK FOR 7 PAGES (IE ONE NEW ONE FOR STACK)
+       LI   R2,7              START HERE IN LOCAL MAP
+       SETO R3                FAST MEMORY FOR STACK
+       XOP  @SEVEN,0
+       MOV  R0,R0             DID WE GET IT?
+       JNE  NEMEM             NO, NOT ENOUGH MEMORY, RETURN TO OS
+
+       LI   R0,4              * OP-CODE TO READ OUR MEMORY MAP
+       LI   R1,TMMTBL         * PUT IN THIS TABLE FOR NOW
+       LI   R2,8              * GET THE FIRST EIGHT
+       LIMI 0                 * CAN'T USE ANYTHING FROM HERE ON
+       XOP  @SEVEN,0
+       MOVB @TMMTBL+7,@MAP9E  * MAP IN >E000 SPACE
+       LIMI 2                 * ENABLE INTERRUPTS
+
+       LI   R1,>F140          * ZERO OUT PAD
+CPAD   CLR  *R1+
+       CI   R1,>FFE0
+       JNE  CPAD
+
+* NOW PARSE THE COMMAND OPTION STRING (FOR NOW ASSUME ONLY OPTIONS ARE PASSED)
+
+       LI   R1,EDITR+1        PUT IN THE EDIT RECALL BUFFER
+       MOV  R1,R8             FOR LATER USE
+*******************************************************************************
+*
+*      convert command args into string
+*
+*      IN:  R1 points to string buffer (byte after length byte)
+*           lenght byte must have max length of buffer
+*
+*      OUT:  ok     R0=0  equal flag SET
+*            error  R0=-1 equal flag RESET
+*
+CMDSTR LI   R14,8             DEFAULT AMOUNT OF DATA MEMORY
+       LI   R2,CBH00          POINT TO NIL
+       MOV  @>0128,R3         get pointer to command string
+       JEQ  NODR04
+*      JEQ  IMEM15            zero length string (IE NO POINTER)
+CMDST1 CB   @2(R3),@CBH50     compare lengths of strings
+       JHE  COERR1            string too long for the buffer
+       MOV  R1,R5             cursor to caller's string buffer
+       DEC  R5                R5 now points to length
+       MOVB @2(R3),R6         count of chars to move
+       SRL  R6,8
+       MOV  R6,R7
+       INCT R6                one for length and one for null termination
+*
+NXTNOD MOV  R3,R2             cursor within node
+       INCT R2
+       MOV  R3,R4
+       AI   R4,8              pointer to end of node (EACH NODE PTR AND 6 BYTES)
+*
+NODL1  MOVB *R2+,*R5+
+       DEC  R6
+       JEQ  NODRET            ALL DONE
+       C    R2,R4
+       JL   NODL1
+       MOV  *R3,R3            this link never zero if valid string
+       JMP  NXTNOD
+*
+*  NEMEN& COERR2  "NOT ENOUGH MEMORY IN SYSTEM"
+*  COERR1 "PATHNAME TOO LONG"
+*
+
+COERR1 EQU  $                 ERROR, LENGTH OF BUFFER NOT LONG ENOUGH
+       LI   R1,INMSG2
+       JMP  COERR3
+
+COERR2 EQU  $                 ERROR NOT ENOUGH MEMORY IN SYSTEM
+NEMEM  LI   R1,INMSG1
+COERR3 CLR  R2                TELL IT THAT IT IS NULL TERMINATED
+       LI   R0,X$WTTY         WRITE TTY MODE
+       XOP  @SIX,0
+       BLWP @>0000            * BACK TO OS
+
+* R6=0
+* R8 POINTS TO STRING
+* R7=STRING LENGTH
+
+NODRET MOV  R8,R2             POINTER TO POSSIBLE NUMBER
+NODR02 CB   *R8,@ZERO         R7 CONTAINS STRING LENGTH, AND IS NON ZERO
+       JL   NODR00            R8 POINTS TO START OF STRING
+       CB   *R8,@CHNINE
+       JH   NODR00
+       INC  R8
+       DEC  R7                ONE LESS IN THE TOTAL STRING TO PERFORM
+       JNE  NODR02
+       MOV  R8,R3
+       JMP  NODR01            ALL DONE
+
+
+NODR00 C    R8,R2             ANY DIGITS?
+       JEQ  NODR04            NO, SO ONLY A PATHNAME
+
+       CB   *R8,@SPACE        IS IT A VALID DELIMITER?
+       JEQ  NODR07            YES
+       CB   *R8,@COMMA        IS IT VALID?
+       JNE  NODR04            NO, SO MUST BE PART OF THE NAME
+NODR07 MOV  R8,R3             YES, SO SKIP THE COMMA OR SPACE FOR NEXT TIME
+       INC  R8                POINT TO NEXT CHAR
+
+NODR01 S    R2,R3             GET LENGTH
+       BL   @CONVR1           CONVERT THE NUMBER
+       CI   R1,64
+       JL   COERR             TOO SMALL OF AN INITIAL ALLOCATION (USE 64K)
+       MOV  R1,R14
+       AI   R14,7
+       SRL  R14,3
+COERR  MOV  R8,R2
+
+NODR04 MOV  R2,@ARGV          R2 POINTS TO STRING
+
+
+*NODRET BL   @SHELL
+*      CLR  R15               ARG COUNTER
+*      MOV  @ARGV,R1          TEST WHAT THE FIRST ARGUMENT IS
+*      BL   @TSTARG
+*      JMP  IMEM04            NON NUMERIC (SO USE DEFAULT MEM AND GET NAME)
+*      BL   @CONVRT
+*      MOV  @FAC+SNUM,R14
+*      CI   R14,64            MUST BE AT LEAST 64K
+*      JL   COERR             ERROR, IS LESS THAN 64K
+*      AI   R14,7             ROUND UP
+*      SRL  R14,3             DIVIDE BY 8
+*      INCT R15
+*      DEC  @ARGC
+*      JEQ  IMEM15            USE R14 MEMORY AND DEFDIR.LOAD TO BEGIN
+*IMEM04 MOV  @ARGV(R15),R1     GET ADDRESS OF STRING
+*      MOVB *R1+,R3           GET THE LENGTH
+*      JNE  IMEM05            NON ZERO LENGTH STRING
+*
+*IMEM15 LI   R1,CBH00          POINT TO A NUL
+*
+*IMEM05 MOV  R1,@ARGV          SAVE THE POINTER TO THE STRING TEXT FOR LATER
+       AI   R14,8+6           64K FOR PGM, 48K FOR ASSM
+       LI   R0,1              NOW REQUEST THE MEMORY
+       LI   R2,8              START HERE WITH MEMORY
+       CLR  R3                SLOW SPEED MEMORY
+       MOV  R14,R1
+       XOP  @SEVEN,0          GET THE MEMORY
+       MOV  R0,R0             ENOUGH MEMORY?
+       JNE  COERR2
+
+       LI   R0,1              GET THE VIDEO MODE, SO THAT WE CAN RESTORE IT
+       XOP  @SIX,0               ON RETURN
+       SLA  R0,8
+       A    R0,R6
+       MOV  R6,@MDOSMD        SAVE MODE AND BACK DROP
+       MOV  R7,@MDOSFB        SAVE TEXT FOREGROUND AND BACKGROUND COLORS
+
+       BL   @INR610           SET R6-R10
+
+       LI   R0,4              GET OUR MEMORY MAP
+       LI   R1,MEMTBL
+       LI   R2,256
+       XOP  @SEVEN,0          ON RETURN, # OF PAGES ARE IN R1
+
+       LI   R0,>10            BOTTOM PAGE IS HERE
+       MOV  R0,@DATBOT
+
+       AI   R1,-6             * BACK UP FOR ASSEMBLER START
+       MOV  R1,R2             * COPY FOR ASSEMBLER
+       AI   R2,MEMTBL         * ADD IN TABLE OFFSET
+       MOV  R2,@ASMPTR        * SAVE ASSEMBLER POINTER
+       DECT R1                * BACK UP FOR START OF STRING AND ONE EXTRA
+       S    R0,R1             * SUBTRACT BEGIN
+       MOV  R1,@DATTOP        * THE # OF PAGES?
+       INC  R1                * ONE MORE POINTS TO START OF STRING PAGE
+       MOV  R1,@STRSTR        * SAVE IT FOR GOOD
+*
+*    NAME:  INITSC
+*
+*    WHAT:  INITIALIZE SCREEN
+*
+
+INITSC LI   R0,X$SFB
+       LI   R1,>1000
+       MOV  R1,@DRWCLR        MODE 2 AND 3
+       SRA  R1,4
+       MOV  R1,@DRAWC
+
+       LI   R1,>0F05          WHITE ON BLUE
+       MOVB R1,@MSCOLR        SET COLOR OF MOUSE
+       MOVB R1,@MSDRWC        SET MOUSE DRAG COLOR
+       MOV  R1,@FB
+       XOP  @SIX,0
+
+       SZCB R1,R1             MASK OFF FOREGROUND COLOR
+       MOV  R1,@SFB           SAVE BORDER COLOR
+
+       CLR  R0                SET VIDEO MODE
+       LI   R1,10
+       MOV  R1,@SMODE         SAVE SCREEN MODE
+       XOP  @SIX,0
+
+       LI   R0,X$SDP          SET DISPLAY PAGE
+       CLR  R1                PAGE 0
+       MOV  R1,@DPAGE
+       CLR  R2                INIT TABLES
+       XOP  @SIX,0
+
+*    NEXT SET UP THE PARAMETERS
+*    SET UP UPPER LEFT COORDINATES
+
+*      CLR  R1                IS ZERO FROM ABOVE
+*      MOV  R1,@SCRTOP        DONE IN MARGINS CODE
+
+*    SET UP LOWER RIGHT COORDINATES
+
+       LI   R3,24             LOWER ROW NUMBER
+*      MOV  R3,@SCRBOT        DONE IN MARGINS CODE
+       MOV  R3,@NUMLIN
+*      MOV  R3,@WHIGHT
+       DEC  R3                MAKE BASE 0
+*      MOV  R3,@CROW          LET SROLL TAKE CARE OF THIS
+
+       LI   R4,80             SET SCREEN WIDTH AND WINDOW WIDTH
+
+       MOV  R4,@SWIDTH        SET SCREEN WIDTH IN THIS MODE
+       DEC  R4                MAKE BASE 0
+*      MOV  R4,@WWIDTH
+
+*      CLR  R2                LEFT MARGIN (IT IS ZERO ALREADY)
+*      MOV  R2,@LMARGN
+*      CLR  @RMARGN
+*      CLR  @CCOL             LET SROLL TAKE CARE OF THIS
+
+*      LI   R5,24*80          WINDOW SIZE
+*      MOV  R5,@WINSIZ
+
+*      LI   R0,X$SM           SET MARGINS
+*      DEC  R3                BOTTOM ROW
+*      DEC  R4                RIGHT COL
+*      XOP  @SIX,0
+*      RT
+
+       MOVB @CAL1PG,@MAP94    MAP IN THE "CALL1" PAGE
+       MOV  @>4000+88,R0      GET VECTOR
+       BL   *R0               DO A CALL MARGINS
+
+*    NOW SET THE BASIC VERSION NUMBER
+
+       LI   R0,404            THIS IS THIS BASIC NUMBER
+       MOV  R0,@BVERON        AND IT GOES HERE
+
+       BL   @INITPS           INIT PERM STRING SPACE
+
+       BL   @INITPG           INITIALIZE BASIC PROGRAM POINTERS AND STRING END
+
+       MOVB @CAL2PG,@MAP94    INIT THE ASSMEBLY LANGUAGE SPACE
+       MOV  @>4000+46,R0
+       BL   *R0               INIT THE ASM SPACE
+
+*    CHECK IF THE USER ENTERED A FILE NAME AT THE BEGINNING
+
+       MOVB @DEFPAB+NAMEL,R1  PATHNAME LENGTH OF 0?
+       JEQ  AUTO$3            NO PATHNAME FOR PROGRAM SO GO INTO BASIC
+
+       BL   @LDRSET           TRY TO LOAD
+       MOV  R0,R0             CHECK IF LOAD SUCCESSFUL
+       JNE  AUTO$3            NO RETURN
+
+       MOV  @LNECNT,R0        * CHECK IF PROGRAM IS PRESENT
+       JEQ  AUTO$3            *  NO, SO CONTINUE
+       LI   R0,5              * FAKE SCAN OF THE KEYBOARD
+       XOP  @FIVE,0           * TO SET THE PROPER MODE
+
+       B    @RUN6             * GO TO EXECUTE THE PROGRAM
+       PAGE
+
+*    DISPLAY MYARC MESSAGE
+
+AUTO$3 BL   @SROLL            SCROLL THE SCREEN
+
+       LI   R1,MSGMAI         GET STRING ADDRESS
+       BL   @DPROMP
+
+       BL   @SROLL            SCROLL THE SCREEN
+
+       LI   R0,CBREAK         SET THE BREAK POINT VECTOR
+       MOV  R0,@>00FE
+
+       JMP  TOPL5A            SKIP TO READY
+
+
+*    NAME:  NEW
+*
+*    WHAT:  NEW COMMAND
+*
+
+NEW    BL   @INITPG           ZERO OUT PROGRAM STUFF
+
+       BL   @CLRWIN           ZERO OUT THE SCREEN
+       CLR  @PFLAG            added to clr protection   ju
+       BL   @INR610           INIT R6-R10
+       JMP  NEW000
+
+
+TOPL10 BL   @INTRND           INIT RANDOM NUMBER GENERATOR
+
+NEW000 BL   @KILSYM           KILL THE SYMBOL TABLE
+
+TOPL55 BL   @CLOSEA           CLOSE ALL OPEN FILES
+
+*TOPL5A BL   @SROLL            SCROLL THE SCREEN
+TOPL5A EQU  $
+
+TOPL15 BL   @SROLL            SCROLL AND DISPLAY READY MESSAGE
+       BL   @DREADY           DISPLAY THE READY MESSAGE
+
+*TOPL35 BL   @SROLL            SCROLL THE SCREEN
+
+       BL   @SROLL            SCROLL AFTER THE READY MESSAGE
+TOPL35
+
+*    DISPLAY THE PROMPT AND READ A LINE OF INPUT
+
+       LI   R1,PROMPT         GET THE STRING ADDRESS
+       BL   @DPROMP           AND DISPLAY IT
+
+       CLR  @BBUFP            CLEAR THE POINTER
+       BL   @READLN           READ A INPUT LINE
+
+       BL   @SROLL            SCROLL THE LINE
+
+*    SAVE THE LINE JUST READ INTO THE EDIT RECALL BUFFER
+*    CALL STRCPY(CHAR *S1, CHAR *S2)
+*                R1 DST    R2 SRC
+
+       LI   R1,BUFSRT         DESTINATION
+       CLR  *R1+              SAVE STRING TO EDITB BUFFER
+*      LI   R1,EDITR          DESTINATION
+       LI   R2,EDITB          SOURCE
+
+       BLWP @STRCPY           SAVE THE INPUT LINE
+
+*    TRY TO SEE IF USER ENTER A COMMAND
+
+       BL   @SHELL            DECODE THE INPUT PARAMETERS
+       MOVB @BUFLEN,R0        CHECK IF EMPTY LINE
+       JEQ  TOPL35            YES - CONTINUE
+
+*    CHECK IF LINE NUMBER
+
+       MOV  @ARGV0,R1         PUSH FIRST ARGUMENT
+       BL   @TSTARG           CHECK IF ARGUMENT IS NUMERIC
+       JMP  TOPL43            NOT NUMERIC
+
+*    YES, TRY AND EDIT IT
+
+       BL   @EDIT$            NUMERIC - LET EDIT TAKE CARE OF IT
+       MOV  R0,R0
+       JEQ  TOPL35            LINE DID NOT CHANGE
+       JMP  TOPL10            LINE CHANGED
+
+TOPL43 BL   @CMSRCH           SEARCH THE COMMAND TABLE
+       MOV  R0,R0             IF NON-ZERO ITS AN ERROR
+       JEQ  TOPL35            GO BACK INTO IT
+
+*    TRY AN CRUNCH INPUT FOR IMPERATIVE STATEMENT
+
+       CLR  @ERRCOD           RESET EROR FLAG
+       CLR  @BUFSRT           CLEAR THE BUFFER START
+       LI   R0,CRNBUF         GET BUFFER ADDRESS
+       MOV  R0,@RAMPTR        SAVE IT
+       CLR  R3                SELECT MODE OF CRUNCH
+
+       MOVB @MEMTBL+4,@MAP94
+       BL   @CRUNCH
+
+*    NEXT CHECK IF CRUNCH MADE SENSE OUT OF WHAT
+*    THE USER TYPED
+
+       MOV  @ERRCOD,R1        GET THE RETURN CODE
+       JEQ  TOPL45            YES
+       ANDI R1,>0007          MAKE SURE !
+       SLA  R1,1              MULTIPLY BY TWO AND MAKE IT AN INDEX
+       MOV  @ERRTBL(R1),R1    GET THE ADDRESS FROM THE TABLE
+       B    *R1               GO TO IT
+
+*    NORMAL RETURN FROM CRUNCH
+*    MUST BE AN IMPERATIVE STATEMENT
+
+TOPL45 SZCB @PBIT,@PFLAG      RESET THE PROGRAM FLAG
+       LI   R0,CRNBUF         LOAD CRUNCH BUFFER ADDRESS
+       MOV  R0,R12            EXECUTING OUT OF CRUNCH BUFFER
+       B    @RUN4             USE SOME COMMON CODE
+
+
+*    ERROR RETURN TABLE. FROM THE CRUNCH ROUTINE
+
+ERRTBL DATA TOPL45,ERR03A,ERR23,ERR24
+       DATA ERR06,ERR05,ERR26,ERR09
+
+*
+*    NAME:  ERROR TABLE
+*
+*    WHAT:  THIS GROUP OF ERRORS DONT PRINT A LINE NUMBER
+*
+
+ERR03  LI   R0,ERRSN          SYNTAX ERROR
+       JMP  ERR01
+
+ERR06  LI   R0,ERRNTL         NAME TOO LONG
+       JMP  ERR01
+
+ERR24  LI   R0,ERRLTL         LINE TOO LONG
+       JMP  ERR01
+
+ERR40  LI   R0,40
+       JMP  ERR01
+
+ERR09  LI   R0,ERRMUV         ILLEGAL VARIABLE NAME
+ERR01  SZCB @PBIT,@PFLAG      RESET PROGRAM FLAG
+       JMP  ERRRT
+
+*    THIS GROUP OF ERRORS PRINT THE LINE NUMBER
+
+ERR03A B    @CMDE07           SYNTAX ERROR
+
+ERR23  LI   R0,ERRBLN         BAD LINE NUMBER
+       JMP  ERRRT
+
+ERR22  LI   R0,ERRLNF         LINE NOT FOUND
+       JMP  ERRRT
+
+*    THIS GROUP OF ERRORS DONT PRINT THE LINE NUMBER
+
+ERR05  BL   @SROLL
+       LI   R0,ERRNQS         NON TERMINATED STRING
+       JMP  ERRRT
+
+ERR26  BL   @SROLL
+       LI   R0,ERRCIP
+ERRRT  BL   @ERROR            AND GO TO IT !
+
+
+       PAGE
+*
+*    NAME:  INITPG
+*
+*    WHAT:  INITIALIZE PROGRAM SPACE AND STRING END
+*
+
+INITPG MOV  @STRSTR,@STREND      INIT THE STRING START POINTER
+       MOV  @STRSTR+2,@STREND+2
+
+       CLR  @PGMEND           PROGRAM END
+       CLR  @SLINE            START OF THE LINE TABLE
+       CLR  @ELINE            END OF THE LINE TABLE
+       CLR  @LNECNT
+
+*
+*   NAME:   CLRVS
+*
+*   WHAT:   CLEARS VALUE STACK
+*
+
+CLRVS  MOV  @VSLOW,R0         START
+
+       MOV  @VSHIGH,R1        END
+
+CLRNXT CLR  *R0+              CLEAR A WORD
+       C    R0,R1             AT THE END
+       JL   CLRNXT            NO
+       CLR  R0
+       RT
+
+       PAGE
+*
+*    NAME:  KILSYM
+*
+*    WHAT:  THIS ROUTINE EFFECTIVELY REMOVES THE
+*           SYMBOL TABLE FROM MEMORY, AND REMOVES
+*           THE STRING SPACE
+*
+
+KILSYM DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       MOV  @STRSTR+2,@STREND+2  KIL STRING SPACE
+       MOV  @STRSTR,@STREND
+
+       LI   R1,GSINDX         * START WITH THIS LOCATION
+       MOV  R1,R2
+       CLR  *R2+              * ZERO FIRST LOCATION
+       LI   R3,ELEMNT-GSINDX-2 * NUMBER OF BYTES
+       BL   @FASMVW
+       CLR  @BASE             ZERO OUT OPTION
+
+       BL   @INR69
+
+       CLR  @BBUFL            BUFFER END
+       CLR  @BBUFP
+       CLR  @BUFLEV
+*      CLR  @PFLAG
+       CLR  @ERRCOD           ERROR CODE
+       CLR  @IOERR            I/O ERROR CODE
+
+*      CLR  @ERRLN            * NO ON ERRORS ALLOWED
+*      CLR  @DLINE
+*      CLR  @LNBUF
+
+       MOV  *R10+,R11         GET RETURN'
+       JMP  CLRVS             GO TO CLEAR THE VALUE STACK
+
+
+MSGMAI BYTE 15
+       TEXT 'MYBASIC 4.05DDI'
+*      BYTE 0
+       PAGE
+*
+* SEARCH TABLE FOR COMMANDS
+* case is irrelevant
+*
+* r0=current char, converted to uppercase
+* r1=pointer to commands string
+* r2=pointer to current node in table
+* r3=cursor in command string
+* r4=cursor in table string
+* r5=counter
+*
+*
+CMSRCH DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       CLR  R0
+       MOV  @ARGV,R1          GET THE COMMAND ADDRESS
+       LI   R2,CMDTBL         START WITH DEFAULT COMMAND TABLE
+       JMP  CMD01
+
+*    GO TO NEXT NODE
+
+CMD00  MOV  *R2,R2            GET NEXT NODE ADDRESS
+       JNE  CMD01             BRANCH IF THERE'S ANOTHER NODE TO CHECK
+       SETO R0                INDICATE AN NOT FOUND
+       JMP  CMD04             AND RETURN
+
+CMD01  MOV  R1,R3
+       MOV  R2,R4
+       AI   R4,4              POINT TO THE STRING PART OF THE NODE
+       CB   *R3+,*R4          CHECK IF LENGTH MATCHES
+       JNE  CMD00             NOT THIS ONE, TRY NEXT
+
+       MOVB *R4+,R5           GET LENGTH
+       SRL  R5,8              ALIGN REGISTER
+
+CMD02  MOVB *R3+,R0
+       CI   R0,'a'*256
+       JLT  CMD03
+       CI   R0,'z'*256
+       JGT  CMD03
+       ANDI R0,>5F00          MAKE IT UPPERCASE
+
+CMD03  CB   R0,*R4+
+       JNE  CMD00             NOT THIS ONE, TRY NEXT
+       DEC  R5                ANY MORE CHARS TO TRY?
+       JNE  CMD02             YES, COMPARE 'EM
+*
+*    FOUND THE COMMAND, BRANCH TO IT
+*
+       MOV  @02(R2),R11       GET ENTRY POINT
+       BL   *R11
+       CLR  R0                INDICATE COMMAND FOUND
+CMD04  MOV  *R10+,R11         GET RETURN ADDRESS FROM STACK
+       RT                     RETURN TO CALLER
+
+       PAGE
+*
+*
+*    NAME:  SHELL DECODER. TAKES AN INPUT LINE
+*           AND MAKES THE INPUT INTO STRINGS
+*
+*    REG:   DESCRIPTION
+*     0     STRING LENGTH
+*     1     CURRENT CHAR
+*     2     INPUT BUFFER INDEX
+*     3
+*     4     OUTPUT BUFFER ADDRESS
+*     5     USED FOR STRING LENGTH IN PUTPUT
+*     6     ARGV INDEX
+*
+
+SHELL  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       CLR  R0                STRING COUNTER
+       CLR  R1                STRING CHARACTER
+       CLR  @ARGC             ARGUMNET COUNTER
+       MOV  @ONE,@BUFSRT      PUT A ONE IN THE THING
+
+*      CLR  @BUFSRT
+*      INC  @BUFSRT
+
+       LI   R4,CRNBUF         GET THE DESTINATION BUFFER
+       MOV  R4,R5             SHADOW OF CRUNBUF FOR STRING LENGTH
+       CLR  R6
+       CLR  R7                END OF THE LINE INDICATOR
+       MOV  R4,@ARGV(R6)      FIRST PARAMETER
+       INC  R4                MAKE ROOM FOR STRING LENGTH
+       BL   @GETNB            GET NEXT NON BLANK
+       JMP  SHE05             END OF THE LINE
+       JMP  SHE02             VALID CHARACTER
+
+
+SHE01  BL   @GETCHR           GET THE NEXT CHAR
+       JMP  SHE04             AT THE END
+       BL   @CHKSEP           CHECK IF SEP
+       JEQ  SHE03             YES END OF THE STRING
+SHE02  MOVB R1,*R4+           PUT IT IN THE BUFFER
+       INC  R0                INCREMENT STRINGS LENGTH
+       JMP  SHE01             AND LOOP SOME MORE
+
+
+SHE04  SETO R7                AT THE END
+SHE03  MOV  R0,R0             CHECK STRING LENGTH
+       JEQ  SHE06             EMPTY STRING
+       SWPB R0                FOR THE MOVE
+       MOVB R0,*R5            WRITE OUT THE STRING LENGTH
+       MOVB @CBH00,*R4+       NUL AT THE END OF THE STRING
+       MOV  R4,R5             SHADOW ! SAVE FOR NEXT TIME
+       INC  @ARGC             ARGUMENT COUNT
+       INCT R6                UPDATE ARGV POINTER
+       MOV  R4,@ARGV(R6)      SAVE THE ADDRESS
+       INC  R4
+SHE06  CLR  R0                CLEAR STRING COUNTER
+       MOV  R7,R7             END OF THE LINE
+       JEQ  SHE01             NO
+       JMP  SHE07             YES
+
+*    EMPTY LINE
+
+SHE05  CLR  @ARGC
+
+*    THE END OF THE LINE
+
+SHE07  CLR  @BUFSRT           CLEAR BUFFER START
+       LI   R7,FAC
+       MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN TO CALLER
+
+*   GET THE NEXT CHARACTER
+
+GETCHR CB   @BUFSRT+1,@BUFLEN   COMPARE CURRENT POINTER TO END
+       JH   GETC1             AND THE END
+       MOV  @BUFSRT,R2        NO GET THE INDEX
+       MOVB @EDITR(R2),R1     GET CHARACTER
+       INC  @BUFSRT           INC PERM POINTER
+       INCT R11               INDICATE MORE RETURN
+GETC1  RT                     INDICATE NO MORE
+
+*
+*    CHECK IF A SEPERATOR
+*
+CHKSEP CB   R1,@SPACE         CHECK IF SPACE
+       JEQ  CHKS1             YES
+*      CB   R1,@COLON         CHECK IF :
+*      JEQ  CHKS1             YES
+       CB   R1,@QUOTE         CHECK IF "
+       JEQ  CHKS1             YES
+       CB   R1,@COMMA         CHECK IF ,
+       JEQ  CHKS1             YES
+*      CB   R1,@MINUS         CHECK IF -
+*      JEQ  CHKS1             YES
+*      INCT R11               INDICATE NON SEP
+CHKS1  RT                     INDICATE SEP
+
+*    GET NON BLANK
+
+GETNB  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+GETNB1 BL   @GETCHR           GET CHAR
+       JMP  GETNB2            IF AT THE END
+       BL   @CHKSEP           CHECK IF SEP
+       JEQ  GETNB1            YES
+       MOV  *R10+,R11         NO - GET RETURN
+       INCT R11               INDICATE NON BLANK
+       RT                     RETURN
+
+GETNB2 MOV  *R10+,R11         GET ADDRESS
+       RT                     INDICATE END OF THE LINE
+
+       PAGE
+*
+*
+*    NAME:  TEST ARGUMENT FOR NUMERIC
+*
+*    REG:   DESCRIPTION
+*     0
+*     1     STRING POINTER
+*     2     STRING LENGTH
+*
+
+TSTARG MOVB *R1+,R2           GET THE STRINGS LENGTH
+       SRL  R2,8              ALIGN REGISTER
+       JEQ  TSTERR            IF ZERO NO STRING
+TSTM   CB   *R1,@ZERO         IS IT LESS THAN A ONE
+       JLT  TSTERR            YES NON NUMERIC
+       CB   *R1,@CHNINE       IS IT GREATER THAN A NINE
+       JGT  TSTERR            YES NON NUMERIC
+       INC  R1                INCREMENT STRING POINTER
+       DEC  R2                SUBTRACT ONE FROM LENGTH
+       JNE  TSTM              DONE ?
+       INCT R11               YES - INDICATE THAT STRING IS NUMERIC
+TSTERR RT                     NON NUMERIC EXIT
+
+       PAGE
+*
+*    NAME:  GFILEN
+*
+*    WHAT:  GETS THE FILE NAME FROM INPUT
+*           AND COPIES IT TO THE DEFAULT PAB
+*
+GFILEN DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  R1,R4             SAVE IT
+       MOVB *R1+,R2           GET STRINGS LENGTH
+       SRL  R2,8              ALIGN REGISTER
+       JEQ  TSTFER            FILE NAME ERROR
+       MOV  R2,R0             SAVE LENGTH FOR LATTER
+       CB   *R1,@BACKSL       TEST FOR BACK SLASH IN FIRST CHAR
+       JEQ  TSTF04            YES, SO USE MDOS PARSING
+TSTF01 CB   *R1,@COLON
+       JEQ  TSTF04            USE MDOS PARSING
+       CB   *R1+,@DOT         CHECK FILE NAME FOR PERIOD
+       JEQ  TSTF02            IF
+       DEC  R2                MORE TO DO
+       JNE  TSTF01            YES
+
+*    GOT HERE NO PERIOD, USE DEFAULT DIRECTORY
+*    FIRST MAP IN THE PAGE
+
+       LI   R5,DDIR           GET THE PAGE
+       BL   @MAPIT            GETS POINTER TO LENGTH IN R2
+
+       MOV  *R2+,R3           LENGTH OF DEFAULT DIR
+       MOV  R2,R5             SAVE POINTER TO STRING DEFAULT DIR FOR LATER
+       A    R3,R2             R2 NOW POINTS TO CHAR AFTER END OF STRING
+       A    R0,R3             GET THE SUM OF THE 2 LENGTHS AND IS IT TOO LONG?
+       CI   R3,40
+       JH   TSTFER            YES, TOO LONG
+       MOV  R0,R3             GET LENGTH OF FILE NAME
+       MOV  R4,R1             R4 POINTED TO LENGTH,
+       INC  R1                   NOW TO NAME ITSELF
+       BL   @FASMVB           MOVE IT
+       MOVB @CBH00,*R2        MAKE SURE IT IS NULL TERMINATED
+       MOV  R5,R1             POINT TO INPUT STRING BODY
+       JMP  TSTF06
+
+TSTF04 MOV  R4,R1             POINT TO LENGTH
+       INC  R1                NOW TO STRING ITSELF
+TSTF06 BL   @GETMDP           GET THE MDOS PATH NAME
+       JEQ  GETNB2            ALL DONE
+
+*    FILE NAME CONTAINS A PERIOD, JUST COPY IT !
+
+TSTF05 MOVB *R4,R0            GET LENGTH BACK
+       SRL  R0,8
+TSTF02 MOV  R4,R1             STRING LENGTH
+       MOV  R0,R3             GET STRING ADDRESS
+GFILE1 LI   R2,DEFPAB+NAMEL   DEFAULT PAB
+       INC  R3                ADD ONE FOR LENGTH BYTE
+       MOV  *R10+,R11
+       B    @FASMVB
+
+*    FILE NAME ERROR
+
+TSTFER B    @CMDE09           INVALID FILE NAME
+
+GETDFL DECT R10
+       MOV  R11,*R10          GET THE DEFAULT LISTING DEVICE
+       LI   R5,DPRINT
+       BL   @MAPIT
+       MOV  R2,R1
+       MOV  *R1,R3
+       JEQ  TSTFER            BAD FILE NAME
+       INC  R1
+       JMP  GFILE1
+
+
+INR610 LI   R10,PSTACK        PROGRAM STACK
+INR69  MOV  @VSLOW,R9         VALUE STACK
+       CLR  R8
+       LI   R7,FAC
+       RT
+       PAGE
+
+*    COMMAND PROMPT
+
+PROMPT BYTE 1                 LENGTH
+       TEXT '>'
+*      BYTE 0
+
+*    INPUT PROMPT
+
+QUESPR BYTE 2
+       TEXT '? '
+*      BYTE 0
+
+CBH50  BYTE >50
+BACKSL TEXT '\'
+ASTERK TEXT '*'
+ZERO   BYTE >30
+COMMA  BYTE >2C
+CHNINE BYTE >39
+DOT    BYTE >2E
+       PAGE
+*
+*     BYTES
+*      ROUTINE TO QUICKLY MAP IN THE CORRECT PROGRAM PAGE
+*           TO >6000->9FFF
+*
+*
+FASTPG MOV  R1,R2               MAKE COPY
+       SRL  R2,13               GET ONLY PAGE
+       MOVB @PGMMAP(R2),@MAP96  LOAD >6000 MAP PAGE
+       MOVB @PGMMAP+1(R2),@MAP98 LOAD >8000 MAP PAGE
+       ANDI R1,>1FFF            NOW GET POINTER WITHIN PAGE
+       ORI  R1,>6000
+       RT

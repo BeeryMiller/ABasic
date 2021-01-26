@@ -1,0 +1,200 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.INIT
+*
+*  NAME:    INITIALIZE ROUTINES
+*
+*  VERSION: 3.0 - 11/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  INITPS
+*
+*    WHAT:  INITIALIZE THE PERM STRING POINTERS
+*           DEFAULT DIRECTORY (DDIR)
+*           DEFAULT PRINTER (DFILEN)
+*           FUNCTION KEY LIST
+*           PAB LIST
+
+INITPS DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOVB @MEMTBL+4,@MAP94
+       LI   R1,MEM1
+       LI   R2,>F040
+IIII   MOV  *R1+,*R2+
+       CI   R1,MEM2
+       JNE  IIII
+       MOV  @STRSTR,R15       MAP IN STRING SPACE IN >A000 SPACE
+       MOVB @DATBUF(R15),@MAP9A
+       LI   R15,>2000         START OF 13 BIT STRING END
+
+       LI   R1,44             GET 2 BYTE LENGTH, 42 BYTE DATA
+       BL   @GTOTST           GET STRING SPACE GET
+       MOV  R1,R14            SAVE FOR NOW
+
+       MOV  @STRSTR,@DDIR
+       MOV  R15,@DDIR+2
+
+*   USE THE DEFAULT DIRECTORY
+
+       MOV  @ARGV,R1
+       BL   @GETMDP
+*-------------------------------------------------------------------------------
+*
+*    ON OUTPUT R0=POINTER TO ENDING DELIMITER
+*              R1=0 IS NO ERROR, <>0 IF ERROR (EQ FLAG SET BY CONTENTS OF R1)
+*-------------------------------------------------------------------------------
+       JNE  PS01              ERROR, SO USE "DSK1.LOAD"
+* PATHNAME (OR DEFAULT DIR) IS IN THE DEFAULT PAB (SO GET THE DIR)
+PS02   MOVB *R2,R3            GET PATHNAME LENGTH
+       JEQ  PS01              IS ZERO, SO USE "DSK1.LOAD"
+       SRL  R3,8
+       A    R3,R2             NOW POINT TO END OF STRING
+       MOV  R2,R4             SAVE FOR LATER USE
+PS00   CB   *R2,@DOT          IS IT ONLY A DIR?
+       JEQ  PS03              YES, SO GET THE LOAD ALSO
+       DEC  R2                NOW POINT TO LAST CHAR
+       DEC  R3                ONE LESS CHAR IN DEFAULT DIR
+       JNE  PS00
+
+* TO BE HERE, THERE MUST BE SOMETHING WRONG, SO USE DSK1.LOAD
+
+PS01   LI   R1,DSK1NM
+       LI   R2,DEFPAB+NAMEL
+       LI   R3,DSK1NE-DSK1NM
+       BL   @FASMVB
+       LI   R2,DEFPAB+NAMEL
+       JMP  PS02
+
+PS03   LI   R1,DEFPAB+NAME    NOW GET THE DEFAULT DIR TO STRING SPACE
+       MOV  R14,R2            DESTINATION
+*      DEC  R3                ONE LESS FOR THE PERIOD
+*      JEQ  PS01              ONCE AGAIN USE THE DEFAULT (DSK1.LOAD)
+       CI   R3,39             CAN USE ONLY 38 OR LESS CHARS
+       JH   PS01              USE (DSK1.LOAD) INSTEAD
+
+       MOV  R3,*R2+           SAVE LENGTH
+       BL   @FASMVB
+
+* NOW GET DETERMINE IF A FILE NAME WAS GIVEN OR AN "*"
+
+       CB   *R4,@ASTERK       IS IT AN ASTERICK?
+       JNE  PS04              NO SO TRY IF A DOT
+       CB   @-1(R4),@DOT      IS IT ONLY AN ASTERICK?
+       JNE  INIT02            NO, SO USE NAME AS IS
+PS05   CLR  @STATBY+DEFPAB    IT IS ONLY AN "*", SO NO AUTO START UP
+       JMP  INIT02
+
+PS04   CB   *R4,@DOT          IT IS A ".", SO ADD LOAD IF POSSIBLE
+       JNE  INIT02            NO DOT, SO CONTINUE
+       AB   @CBH04,@DEFPAB+NAMEL
+       CB   @DEFPAB+NAMEL,@CB40  IS IT TOO LONG?
+       JH   PS05                YES, SO NO AUTOLOAD
+       LI   R1,NAMLOA
+       MOV  R4,R2
+       INC  R2
+       LI   R3,4
+       BL   @FASMVB
+
+*    DEFAULT LISTING DEVICE
+
+INIT02 BL   @GTPNST           GET STRING SPACE, ETC
+
+       MOV  @STRSTR,@DPRINT
+       MOV  R15,@DPRINT+2
+
+       LI   R2,PIONM
+       MOV  *R2+,*R1+         LENGTH
+       MOV  *R2+,*R1+         "PI"
+       MOVB *R2,*R1           "O"
+
+*   FUNCTION KEY LIST
+
+*    FIRST MAP IN THE INITIAL FUNCTION KEY MEANING
+*    GET THE INDEX AND MAP IN THE TABLE
+
+       LI   R5,FKLTAB
+
+*      LI   R4,FKLTAB         LOAD PAGE/INDEX
+*      MOV  R4,R5             COPY IT
+*      SRL  R4,8              ALIGN PAGE
+*      MOVB @MEMTBL(R4),@MAP94  MAP IT IN
+*
+*      ANDI R5,>00FF          MASK OUT INDEX
+*      MOV  @>4000(R5),R5     GET THE START ADDRESS
+
+       MOV  *R5+,R14          GET THE COUNT
+       LI   R13,FUNCKL        START THE POINTER TO THE STRINGS
+
+
+PS10   BL   @GTPNST           GET STRING SPACE, ETC.
+
+* NOW INIT THE FUNCTION KEY LIST
+
+       MOV  @STRSTR,*R13+       STORE POINTER TO KEY STRING
+       MOV  R15,*R13+
+       MOV  R1,R2
+       MOV  *R5+,R1           GET POINTER TO STRING LENGTH (FOLLOWED BY STRING)
+       MOVB *R1+,R3           GET LENGTH BYTE
+       SRL  R3,8
+       MOV  R3,*R2+           PUT IN THE LENGTH BYTE
+       JEQ  PS15              ZERO LENGTH, SO ALL DONE
+       BL   @FASMVB           MOVE IT THERE
+
+PS15   DEC  R14               DEC COUNTER
+       JNE  PS10              MORE TO DO
+
+*    PAB LIST  AND  LTRACE
+
+PS20   LI   R1,64*MAXPAB+64+80  64 BYTES 16 BUFFERS + ONE FOR LTRACE AND BUFFER
+       MOV  R1,R3              SAVE FOR MEMSET THE NUMBER OF BYTES
+
+       BL   @GTOTST           GET THE STRING
+
+       MOV  @STRSTR,@PABLST   COPY THE ADDRESS
+       MOV  R15,@PABLST+2
+
+*    INITIALIZE THE PABS TO ZERO
+
+       CLR  R2                THE CHAR WE WANT
+       BLWP @MEMSET
+
+*    SAVE THE START OF STRING SPACE
+
+       MOV  R15,@STRSTR+2
+       AI   R15,64*MAXPAB     NOW POINTS TO LTRACE PAB
+       MOV  R15,@LTPAB        SAVE 13 BIT ADDRESS TO LTRACE PAB
+       BL   @GETR1A           GET R1 16 BIT VERSION OF R15
+       MOV  @PABLST,@PABBUF(R1) SAVE THE DATA BUFFER POINTER PAGE
+       AI   R15,64            POINT TO DATA BUFFER 13 BIT
+       MOV  R15,@PABBUF+2(R1)
+       MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN
+
+       PAGE
+PIONM  DATA 3
+       TEXT 'PIO'
+
+DSK1NM BYTE 9                 LENGTH
+       TEXT 'DSK1.'           TEXT
+NAMLOA TEXT 'LOAD'
+DSK1NE EQU  $
+
+*
+*
+*   THIS ROUTINE GETS STRING SPACE AND ON RETURN R1 POINTS TO IT
+*
+*
+
+GTPNST LI   R1,42
+GTOTST S    R1,R15            DON'T WORRY HERE, CAN NOT CAUSE A PROBLEM
+GETR1A MOV  R15,R1
+       AI   R1,>A000          MAKE 16 BIT
+       RT
+
+GETMDP LI   R2,DEFPAB+NAMEL
+       MOVB @CB40,*R2         POINT TO LENGTH BYTE IN PAB
+       CLR  R3                NO FLAGS
+       LI   R0,X$PRFN
+       XOP  @NINE,0           PARSE THE PATHNAME
+       RT

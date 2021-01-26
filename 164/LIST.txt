@@ -1,0 +1,349 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.LIST
+*
+*  NAME:    LIST COMMAND
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+CHARW  TEXT 'W'
+CHARLW TEXT 'w'
+
+LLIST  DECT R10               USE LIST PAB
+       MOV  R11,*R10
+       BL   @CHKPRG           IS THERE A PROGRAM LISTABLE?
+       BL   @INITPB
+       BL   @GETDFL           GET THE DEFAULT LISTING DEVICE TO DEFPAB
+*
+*   HERE IS WHERE TO TEST FOR A DIFERENT LINE WIDTH
+*
+       CLR  R14
+       MOV  @ARGC,R1
+       DEC  R1
+       JEQ  LIST05            ONLY "LLIST"
+       SLA  R1,1
+       MOV  @ARGV(R1),R2
+       MOVB *R2+,R3
+       JEQ  LIST05            LENGTH 0, SO JUST CONTINUE
+       CB   *R2,@CHARW        IS IT A "W"
+       JEQ  LLIST1            IS A "W"
+       CB   *R2,@CHARLW       is it a "w"
+       JNE  LIST05            normal ARG
+LLIST1 INC  R2                POINTER TO NUMBER
+       SRL  R3,8              LENGTH
+       LI   R14,160           DEFAULT EXTENDED LENGTH
+       DEC  R3                ONE LESS FOR "W"
+       JEQ  LLIST3            ALL DONE ONLY A "W"
+       LI   R0,X$CSIN
+       XOP  @TEN,0
+       MOV  R0,R0
+       JH   LLIST2            WIDTH TOO LONG
+       MOV  R1,R14            SAVE FOR LATER USE
+LLIST3 DEC  @ARGC
+       JMP  LIST05
+
+LLIST2 B    @CMDE02           WIDTH TOO LONG (BAD VALUE)
+
+
+LIST95 BL   @INITPB
+       MOV  @ARGV(R15),R1     GET POINTER TO PATHNAME
+       BL   @GFILEN           GET FILE NAME IN ARGUMENT
+       INCT R15               POINT TO NEXT ARGUMENT
+       CLR  R14               USE DEFAULT RECORD LENGTH
+LIST05 LI   R1,LSTPAB
+       BL   @SETDFP
+       MOV  R0,@PABPTR        SAVE AS FLAG
+       MOV  R14,@DEFPAB+LRC
+       DEC  @ARGC             IS THAT THE LAST ARG?
+       JEQ  LIST15            YES, SO LIST IT
+       JMP  LIST10            NO, SO GET THE LINE NUMBERS
+
+LIST   DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       CLR  @PABPTR           I/O TO SCREEN
+       BL   @CHKPRG           TEST FOR PROTECT, PROGRAM, INIT CURLIN, CURINC
+       MOV  @SWIDTH,R0        CALCULATE WINDOW WIDTH
+       S    @LMARGN,R0
+       S    @RMARGN,R0
+       MOV  R0,@DEFPAB+LRC    STORE THE LOGICAL RECORD LENGTH FOR SCREEN
+
+       DEC  @ARGC             MORE ON THE LINE
+       JEQ  LIST15            NO
+
+       BL   @TSTALE           TEST THIS ARG IN LIST
+       JMP  LIST95            FIRST CHAR IS NON NUMERIC OR DASH
+
+LIST10 BL   @GLINE            GET THE LINE PARMS
+
+*    NOW LIST THE PROGRAM
+
+LIST15 MOV  @PABPTR,R0        IS IT DEVICE I/O?
+       JEQ  LIST16            NO, TO THE SCREEN
+       BL   @DOIOCL           PERFORM I/O  (THIS IS THE OPEN OPCODE)
+       CLR  @DEFPAB+CHRCNT    MAKE SURE ZERO RECORD LENGTH
+       BL   @WRITPB           NOW PERFORM A WRITE OF CHARACTER LENGTH 0
+
+LIST16 MOV  @CURLIN,@CLINE    GET THE FIRST LINE ENTRY
+
+       BL   @LSTONE           * CREATES LIST LINE IN STRBUF FIRST BYTE
+*                             * IS LENGTH FOLLOWED BY STRING
+       LI   R1,STRBUF         * GET BUFFER ADDRESS
+       MOV  @PABPTR,R0        * CHECK IF TO A DEVICE
+       JEQ  LIST20            * JUMP IF NO
+       MOVB *R1+,R2           * READ LINE LENGTH
+*      MOV  R1,@DEFPAB+BALOW  * WILL THE LINE FIT IN ONE RECORD
+       SRL  R2,8              * ALIGN REGISTER
+LIST18 MOV  R2,R4
+       MOV  R1,@DEFPAB+BALOW
+       MOV  @DEFPAB+LRC,R3
+       C    R2,R3
+       JLE  LIST17
+       MOV  R3,R4
+LIST17 MOV  R4,@DEFPAB+CHRCNT
+       BL   @DOIOCL
+       S    R4,R2
+       JEQ  LIST25            LINE OUTPUT COMPLETE
+       A    R4,R1
+       JMP  LIST18            TRY TO OUTPUT THE REST
+
+LIST20 MOVB *R1,R2            USE WSM AND WSM+2
+       MOV  R1,@WSM+2            WSM IS LENGTH---WSM+2 IS POINTER (1 BEFORE STR)
+       SRL  R2,8
+       MOV  R2,@WSM
+
+LIST21 MOV  @WSM,R2           GET THE STRING LENGTH
+       MOV  @WSM+2,R1         GET ADDRESS
+       C    R2,@DEFPAB+LRC    WILL IT FIT?
+       JLE  LIST22            IT IS FINE
+       MOVB @DEFPAB+LRC+1,*R1 GET SCREEN WIDTH LENGTH
+
+       BL   @DPROMP           AND DISPLAY IT
+       BL   @SROLL            SCROLL THE SCREEN
+       S    @DEFPAB+LRC,@WSM
+       A    @DEFPAB+LRC,@WSM+2
+       JMP  LIST21
+
+LIST22 MOVB @WSM+1,*R1
+       BL   @DPROMP
+       BL   @SROLL
+       MOV  @KEYBD,R0         CHECK FOR KEY
+       XOP  @FIVE,0
+       JNE  LIST25            NONE, SO CONTINUE
+
+
+*    HOLD THE SCREEN UNTIL ANOTHER CHARACTER IS TYPED
+*    CHECK IF THE BREAK KEY IS ENTERED
+
+       CB   R1,@CBH02         IF BREAK - TAKE IT
+       JEQ  LIST35            YES
+LIST45 MOV  @KEYBD,R0         WAIT UNTIL KEY IS PRESSED
+       XOP  @FIVE,0
+       JNE  LIST45            YES - CHECK IF BREAK
+       CB   R1,@CBH02
+       JEQ  LIST35            YES, SO ABORT THE LISTING
+
+LIST25 S    @CW04,@CURLIN     NO - POINT TO NEXT LINE
+       C    @CURLIN,@CURINC   AT THE END
+       JHE  LIST16            NO MORE TO DO
+LIST30 MOV  @PABPTR,R1        OUTPUT TO A FILE
+       JEQ  LIST35            NO
+       BL   @CLOSPB           YES CLOSE IT
+LIST35 CLR  R0                INDICATE THE RETURN VECTOR
+       MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN TO CALLER
+
+       PAGE
+*
+*    NAME:  GLINE
+*
+*    WHAT:  GET THE LINE NUMBERS FOR THE
+*           LLIST, LIST, DELETE COMMANDS
+*
+*
+*    THERE ARE 11 LEGAL FORMATS
+*           ARG1     ARG2      ARG3
+*      1     -LN
+*      2     -        LN
+*      3    LN-LN                            DONE
+*      4    LN        -LN
+*      5    LN-       LN
+*      6    LN         -        LN
+*      7    LN-
+*      8    LN         -
+*      9    LN
+*      10   LN        LN
+*      11    -
+*
+
+
+
+GLINE  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       MOV  @ARGV(R15),R5     GET THE STRING ADDRESS
+       MOVB *R5+,R4           GET THE LENGTH
+       MOV  R5,R14            SAVE START OF STRING
+       SRL  R4,8
+       JEQ  CMDE02            DON'T ACCEPT A LENGTH OF ZERO
+       CLR  R3                STRING LENGTH
+
+GLINE1 CB   *R5,@DASH         GOT A DASH ?
+       JEQ  GLINE2            YES   CAN BE FORMAT 1,2,11, 3,5,7
+       CB   *R5,@ZERO         IS IT NUMERIC
+       JL   GLERR1            NO
+       CB   *R5,@CHNINE
+       JH   GLERR1            NO
+       INC  R3                INCREMENT COUNTER
+       INC  R5                INCREMENT STRING POINTER
+       DEC  R4                DECREMENT STRINGS LENGTH
+       JNE  GLINE1            NOT DONE
+
+*  TO BE HERE, MUST BE FORMAT 4,6,8,9,10
+
+       BL   @GCNVRT
+       MOV  R0,@CURLIN        GET THE STARTING LINE NUMBER
+       DEC  @ARGC             ANY MORE ARGS?
+       JNE  GLINE8
+
+       MOV  R0,@CURINC        CASE 9 (LIST XXXX)
+       JMP  GLINE9
+
+GLINE8 INCT R15               CASE 4,6,8,10
+       MOV  @ARGV(R15),R5     GET THE STRING ADDRESS
+       MOVB *R5+,R4           GET THE LENGTH
+       MOV  R5,R14            SAVE START OF STRING
+       SRL  R4,8
+       JEQ  CMDE02            DON'T ACCEPT A LENGTH OF ZERO
+       CLR  R3                STRING LENGTH
+
+GLIN8A CB   *R5,@DASH         GOT A DASH ?
+       JEQ  GLNE8B            YES   4,6,8
+       CB   *R5,@ZERO         IS IT NUMERIC
+       JL   GLERR1            NO
+       CB   *R5,@CHNINE
+       JH   GLERR1            NO
+       INC  R3                INCREMENT COUNTER
+       INC  R5                INCREMENT STRING POINTER
+       DEC  R4                DECREMENT STRINGS LENGTH
+       JNE  GLIN8A            NOT DONE
+
+* TO BE HERE A PURE NUMBER CASE 10 (LIST XXXX YYYY)
+
+       JMP  GLNE5A            GO DO IT
+
+GLNE8B MOV  R3,R3             FIRST CHARACTER?
+       JNE  GLERR1            A "-" WHERE IT IS NOT SUPPOSED TO BE
+       DEC  R4                IS IT "-" ONLY?
+       JEQ  GLINE5
+
+       MOV  R4,R3             LENGTH OF STRING
+       INC  R14               POINT PAST "-"
+       JMP  GLNE5A            ALL DONE
+
+
+GLINE2 MOV  R3,R3             TEST IF WE HAVE HAD A CHARACTER
+       JEQ  GLINE3            NO MUST BE 1,2,11
+*                             YES SO IS 3,5,7
+
+*    DASH IS IN THE MIDDLE FORMAT 3
+
+       BL   @GCNVRT           CONVERT AND FIND LINE NUMBER
+       MOV  R0,@CURLIN
+
+       DEC  R4                IS THAT THE END?
+       JEQ  GLINE5            YES, SO IS CASE 5 OR 7
+
+       INC  R5                NOW POINT TO CHARACTER AFTER -
+       MOV  R5,R14
+       CLR  R3                STRING LENGTH
+GLNE3C CB   *R5,@ZERO         LOOK FOR A BAD CHARACTER
+       JL   GLERR1
+       CB   *R5+,@CHNINE
+       JH   GLERR1
+       INC  R3
+       DEC  R4
+       JNE  GLNE3C
+
+GLNE5A BL   @GCNVRT           NOW CONVERT IT
+       MOV  R0,@CURINC
+       DEC  @ARGC
+       JNE  CMDE03
+GLINE9 MOV  *R10+,R11
+       RT                     ALL DONE
+
+*   CASE 5 (LN-) OR 7 (LN-  LN)
+
+GLINE5 DEC  @ARGC             CASE 5?
+       JEQ  GLINE9            YES, ALL DONE
+GLNE5B INCT R15
+       MOV  @ARGV(R15),R2
+       MOVB *R2+,R3            LENGTH
+       MOV  R2,R14            SET START OF STRING
+       SRL  R3,8
+       JEQ  CMDE02            BAD VALUE
+       JMP  GLNE5A
+
+*    DASH IN THE BEGINNING CAN BE 1 (-LN) 2 (- LN) OR 11 (-)
+
+GLINE3 DEC  R4                IS THE ONLY ARG A "-"
+       JEQ  GLINE5            YES, SO MUST BE CASE 2 OR 11
+
+       MOV  R4,R3             LENGTH
+       INC  R5                POINT PAST "-"
+       MOV  R5,R14            SET POINTER TO STRING
+       JMP  GLNE5A            AND DONE
+
+GLERR1 B    @CMDE00           ARGUMENT NOT NUMERIC
+
+CMDE02 LI   R0,ERRBV          BAD VALUE
+       JMP  CHKP00            TO ERROR
+
+CMDE03 LI   R0,ERRBA
+       JMP  CHKP00
+
+
+CHKPRG DECT R10
+       MOV  R11,*R10
+       MOV  @SLINE,@CURLIN    SET DEFAULT START AND STOP
+       MOV  @ELINE,@CURINC
+       LI   R15,2             POINT TO SECOND ARG
+       LI   R0,ERRNPP         IS THERE A PROGRAM?
+       MOV  @LNECNT,R1
+       JEQ  CHKP00            NO
+       BL   @CHKPRO           IS IT PROTECTED?
+       JNE  GLINE9            NO, SO OKAY TO LIST
+CMDE04 LI   R0,ERRPV          PROTECTION VIOLATION
+CHKP00 BL   @ERROR
+
+
+GCNVRT MOV  R14,R2
+       LI   R0,X$CSIN         CONVERT STRING TO INTEGER
+       XOP  @TEN,0
+       MOV  R0,R0             OVERFLOW?
+       JNE  CMDE02            YES
+       MOV  R1,@FAC+4         NOW DO A SEARCHLN
+       JEQ  CMDE02            CAN'T ACCEPT 0
+       BLWP @SRCHLN
+       MOV  @CLINE,R0         FOUND IT EXACTLY?
+       JNE  GLNE3B            YES
+       MOV  @NHLNUM,R0        NO, SO USE NEXT HIGHER
+GLNE3B RT
+
+TSTALE MOV  @ARGV(R15),R2     R2 POINTS TO STRING LENGTH
+       MOVB *R2+,R3           GO TO STRING BUT FIRST TEST IF ZERO
+       JEQ  CMDE03
+       CB   *R2,@DASH         TEST IF FIRST CHAR IS - OR NUMBER
+       JEQ  TSTAL2
+       CB   *R2,@ZERO
+       JL   TSTAL1            BRANCH IF NO NUMBER
+       CB   *R2,@CHNINE
+       JH   TSTAL1            BRANCH IF STRING
+TSTAL2 INCT R11
+TSTAL1 RT
+
+LSTPAB DATA >0092             VARIABLE,DISPLAY,OUTPUT,SEQUENTIAL
+       DATA 0,0               ERROR CODE AND BUFFER ADDRESS
+       DATA 0                 RECORD # (NONE TO ALLOCATE)
+       DATA 0                 LOGICAL REC LN (USE DEVICES)
+       DATA 0,0               CPU RAM, 0 CHAR COUNT

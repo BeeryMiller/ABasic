@@ -1,0 +1,89 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.DIR
+*
+*  NAME:    DIRECTORY COMMANDS
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+CHPR   LI   R5,DPRINT
+       JMP  CHPR00
+
+
+CHDIR  LI   R5,DDIR
+CHPR00 DECT R10               MAKE RROM
+       MOV  R11,*R10          SAVE RETURN
+       DEC  @ARGC             CHECK IF ONE ARGUMENT
+       JEQ  BRKMRG
+       MOV  @ARGV1,R1         GET THE STRING ADDRESS
+CHDIR2 MOVB *R1+,R3            GET THE STRING LENGTH
+       CB   R3,@CB40          ALIGN BYTE
+       JHE  CMDE06             EXCEEDS
+
+*    MAP IN STRING SPACE
+
+       BL   @MAPIT
+       SRL  R3,8
+       MOV  R3,*R2+
+       BL   @FASMVB           MOVE IT (LET IT DO THE RETURN)
+PWD001 CLR  R0
+       MOV  *R10+,R11
+       RT
+
+CMDE06 LI   R0,ERRNTL         LOAD ERROR CODE
+       JMP  BRK02             AND DISPLAY
+       PAGE
+*
+*
+*   NAME:  PRINT DEFAULT PRINTER
+*
+*
+
+PPT    LI   R5,DPRINT
+       JMP  PPT000
+*
+*
+*    NAME:  PRINT THE WORKING DIRECTORY
+*
+*
+
+PWD    LI   R5,DDIR
+PPT000 DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       DEC  @ARGC             CHECK IF ONE ARGUMENT
+       JNE  CMDE05            NO - ERROR
+
+*    MAP IN STRING SPACE
+
+       BL   @MAPIT
+       MOV  R2,R1
+       INC  R1                POINT TO WORD
+
+*    NOW PRINT THE STRING
+*    AND SCROLL THE SCREEN
+
+       BL   @DPROMP           COPY AND WRITE THE STRING
+       BL   @SROLL
+
+       JMP  PWD001
+
+BRKANN B    @CMDE00
+
+BRKMRG B    @CMDE01
+
+CMDE05 LI   R0,ERRTMA
+BRK02  BL   @ERROR            AND REPORT IT
+
+*    WORKING DIRECTORY
+
+BKKEY  BYTE >02
+CB40   BYTE 40
+
+MAPIT  MOV  *R5,R2
+       MOVB @DATBUF(R2),@MAP96
+       MOVB @DATBUF+1(R2),@MAP98
+
+       MOV  @2(R5),R2         GET 13 BIT ADDRESS
+       AI   R2,>6000          16 BIT ADDRESS
+       RT

@@ -1,0 +1,167 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.GARBAGE
+*
+*  NAME:    GARBAGE COLLECTION
+*
+*  ENTRY:   BLWP @GARB
+*
+*  INPUT:
+*
+*  OUTPUT:  UPDATES STREND
+*
+*
+*
+*  REGISTER USAGE    -  UREG2, R1-R9,R12
+*
+*  VERSION: 3.00 - 08/01/87    BASE LINE
+*
+*
+*-------------------------------------------------------------------------
+GARB   DATA UREG2,GARBAG      MAP PROGRAM IN DATA AREA 2
+
+GARBAG EQU  $
+
+*  FIRST SAVE MAP 96 AND 98
+
+       MOVB @MAP96,@SVP6P8
+       MOVB @MAP98,@SVP6P8+1
+
+       MOV  @STRSTR,R6        GET THE START OF STRING SPACE IN R7-R8
+       MOV  @STRSTR+2,R7      PAGE, R7   INDEX, R8
+
+GARB$1 MOV  R7,R9             IF R7 LESS THAN >1FFE
+       JGT  GARB20
+       JEQ  GARB20
+       ANDI R7,>1FFE
+       DEC  R6
+       MOV  R7,R9
+GARB20 MOV  R6,R8             INIT THE END
+       JMP  GARB21
+
+GARB$5 MOV  R7,R7
+       JGT  GARB21
+       JEQ  GARB21
+       ANDI R7,>1FFE
+       DEC  R6
+GARB21 C    R6,@STREND        HAVE WE GONE THROUGH ALL PAGES?
+       JH   GARB11            NOT ON SAME PAGE YET
+       C    R7,@STREND+2      ON SAME PAGE, ARE WE DONE?
+       JLE  GARB$6            YES, ALL DONE
+
+GARB11
+*
+*  MAP IN CONTIGUOUS STRINGS IN >A000->DFFF RAM
+*  MAP STRING WE ARE LOOKING AT IN >6000->9FFF RAM
+*
+       LI   R10,MAP96         >6000 SPACE
+       MOVB @DATBUF-1(R6),*R10+  MAP IN STRINGS TO BE LOOKED AT
+       MOVB @DATBUF(R6),*R10+
+       MOVB @DATBUF-1(R8),*R10+  MAP IN CONTIGUOUS STRINGS
+       MOVB @DATBUF(R8),*R10
+
+       MOV  R7,R11            MAKE COPY OF R7
+*      MOV  R6,R10
+       MOV  @>7FFE(R7),R3     GET TRAILING LENGTH
+       INC  R3
+       ANDI R3,>FFFE          AND COMPENSATE FOR LENGTH'S AND PTR'S
+       AI   R3,8
+       S    R3,R7             POINT TO OWNER OF THIS STRING
+       MOV  @>8000(R7),R2     GET BACKWARD POINTER
+       JEQ  GARB35            PAGE IS ZERO
+       MOV  @>8002(R7),R1
+       JMP  GARB$7
+
+GARB35 MOV  @>8002(R7),R1
+       JEQ  GARB$5            NO BACK POINTER
+GARB$7 C    R9,R11            IS IT ALREADY COMPRESSED?
+       JNE  GARB12            NOPE
+       C    R8,R6             SAME PAGE?
+       JEQ  GARB$1            YES, ALREADY COMPRESSED
+*
+*  MOVE STRING
+*  LENGTH OF ENTIRE STRING ENTRY IN R3 (-2)
+*
+GARB12 AI   R11,>7FFE
+       LI   R12,>BFFE
+       A    R9,R12
+       MOV  R3,R10
+GARB10 MOV  *R11,*R12              COPY STRING
+       DECT R11
+       DECT R12
+       DECT R3
+       JNE  GARB10
+*
+*  NOW SET THE NEW END OF THE STRINGS
+*
+       S    R10,R9            LENGTH OF THE ENTIRE STRING
+       JGT  GARB22            THIS PART MUST LIE ON THE SAME PAGE
+       JEQ  GARB22
+       ANDI R9,>1FFE
+       DEC  R8
+GARB22 AI   R9,6              NOW POINT TO START OF STRING
+       MOV  R1,R1             IS IT THE >E000 PAGE OR THE DATA AREA?
+       JLT  GARB24            IT IS THE >E000 PAGE
+
+       MOVB @DATBUF(R2),@MAP96   LOAD IN MAP
+       MOVB @DATBUF+1(R2),@MAP98
+       MOV  R8,@>6000(R1)       UPDATE FORWARD POINTER
+       MOV  R9,@>6002(R1)
+GARB23 AI   R9,-6                  UPDATE COMPRESSED POINTER
+*      JGT  GARB$5                 WE ARE SURE ABOVE
+*      JEQ  GARB$5
+*      ANDI R9,>1FFE
+*      DEC  R8
+       JMP  GARB$5
+
+GARB24 MOV  R8,*R1+            UPDATE FORWARD POINTER IN STACK
+       MOV  R9,*R1
+       JMP  GARB23
+
+GARB$6 MOV  R8,@STREND
+       MOV  R9,@STREND+2
+
+* NOW CLEAN UP THE STACK
+
+       MOV  @18(R13),R9       GET CURRENT STACK SIZE
+       LI   R8,SIDPTR*256+SIDSTR   POINTER AND STRING
+       MOV  @VSLOW,R7         START OF STACK
+
+DOAG   C    *R7,R8            DOES IT MEET THE CRITERION?
+       JNE  BSTK              NO, SO TRY NEXT
+
+       BL   @STSTPT
+
+*      MOV  *R4+,R5           WHY DO THIS, LENGTH OF STRING HAS NOT CHANGED?
+*      MOV  R5,*R6+
+*      MOV  *R4,R4
+*      MOV  R4,*R6+
+*      MOVB @DATBUF(R5),@MAP9A
+*      MOVB @DATBUF+1(R5),@MAP9C
+*      MOV  @>A000-2(R4,*R6
+
+BSTK   AI   R7,STKSZ
+       C    R7,R9             AT END?
+       JLE  DOAG              NOT YET
+
+*  LASTLY DO FAC ENTRY
+
+       LI   R7,FAC
+       C    *R7,R8
+       JNE  BSTK1
+
+       BL   @STSTPT           SET THE STRING SPACE POINTER
+
+*  NOW RESTORE MAP96 AND MAP98
+
+BSTK1  MOVB @SVP6P8,@MAP96
+       MOVB @SVP6P8+1,@MAP98
+       RTWP
+
+STSTPT MOV  @SYMP(R7),R4      MAP IN THE SYMBOL OWNER OF THE STRING
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+       MOV  @SYMA(R7),R4      POINT TO IT (16 BIT)
+       MOV  @>6000(R4),@STRP(R7)    NOW THE FAC ENTRY POINTS TO THE CORRECT PAGE
+       MOV  @>6002(R4),@STRA(R7)     NOW THE FAC ENTRY POINTS TO THE CORRECT 13
+       RT

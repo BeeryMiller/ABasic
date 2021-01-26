@@ -1,0 +1,910 @@
+*------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.EDIT
+*
+*  NAME:    PERFORMS THE EDIT FUNCTIONS ON A BASIC PROGRAM
+*
+*  VERSION: 3.0 - 11/02/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+UP     BYTE >0B
+DOWN   BYTE >0A
+CHRTN  BYTE >0D
+TERMCH BYTE 0                 TERM CHARACTER
+
+*=========================================================================
+*
+*    COMMAND INT ENTRY POINT
+*    THE FIRST ARGUMENT HAS ALL READY BEEN DETERMINE TO
+*    BE NUMERIC SO JUST DECODE IT
+*
+*=========================================================================
+EDIT$  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       BL   @EDITIN           INITIALIZE POINTERS
+
+       CLR  R15               POINT TO FIRST ARGUMNET
+       BL   @CONVRT           DECODE THE LINE NUMBER  CONVERT STRING TO INT
+       MOV  @FAC+SNUM,R0         SAVE THE LINE NUMBER
+       DEC  @ARGC             ONLY ONE ARGUMENT
+       JNE  EDT$C0            NO
+
+*    LINE NUMBER ONLY, NOW DETERMINE HOW THE LINE ENDED
+
+       MOV  @LNECNT,R0        CHECK IF PROGRAM PRESENT
+       JEQ  EDT$C4            NO PROGRAM
+       BLWP @SRCHLN           SEARCH FOR THE LINE
+       MOV  @CLINE,R0         FIND IT?
+       JEQ  EDT$C3            NO
+
+       CB   @RKEY,@CHRTN
+       JNE  EDT$C8
+
+       MOV  @FAC+4,@DELEDL    DELETE THIS LINE NUMBER
+       BL   @DELTX            DELETE TEXT
+       BL   @DLLINE           DELETE THE LINE ENTRY
+EDT$C2 CLR  R0                INDICATE NO ERRORS
+       MOV  *R10+,R11         GET RETURN
+       RT
+
+EDT$C0 BL   @LNCRNH           NO - CRUNCH IT
+       MOV  @ERRCOD,R0        CHECK ERROR RETURN
+       JNE  EDT$C5            YES -
+
+EDT$91 BL   @EDITLN           AND EDIT INTO PROGRAM
+       MOV  R0,R0             CHECK FOR ERRORS
+       JEQ  EDT$C2            NONE
+       BL   @ERROR            REPORT THE ERROR
+*
+
+EDT$C9 CLR  @FAC+SNUM         THE LINE NUMBER IS NOT CORRECT
+EDT$C8 BL   @EDT07            YES - DISPLAY IT
+       MOV  R0,R0
+       JNE  EDT$D5
+
+       BL   @EDT08            NOW PERFORM EDIT FUNCTIONS
+       MOV  R0,R0             ERROR
+       JNE  EDT$C5            YES
+
+       CB   @RKEY,@UP         NO - DID LINE END IN UP
+       JEQ  EDIT26            YES
+       CB   @RKEY,@DOWN       NO - DID LINE END IN DOWN
+       JEQ  EDIT30            YES
+       JMP  EDIT35            NO - CR
+
+*    LINE ENDED IN UP ARROW
+
+EDIT26 A    @CW04,@CLINE      POINT TO NEXT LINE
+       C    @CLINE,@SLINE     DOES LINE EXIST
+       JLE  EDT$C9            YES -
+       JMP  EDIT35            NO -
+
+*    LINE ENDED IN DOWN ARROW
+
+EDIT30 S    @CW04,@CLINE      POINT AT NEXT LINE
+       C    @CLINE,@ELINE     PASSED HIGH PROGRAM LINE
+       JHE  EDT$C9
+EDIT35 MOV  *R10+,R11         GET RETURN ADDRESS
+       RT
+
+EDIT20
+EDT$C3 LI   R0,ERRLNF
+EDIT21 BL   @ERROR
+
+EDT$C4 LI   R0,ERRNPP
+       JMP  EDIT21
+
+EDT$D5 MOV  R0,@ERRCOD
+EDT$C5 BL   @EDT52
+       JMP  EDT$C2
+
+EDT$C6 B    @CMDE00           ERRANN
+       PAGE
+*
+*    NAME:  EDT07
+*
+*    WHAT:  GOT A LINE NUMBER FROM THE PROGRAM TEXT.
+*           LIST IT ON THE SCREEN.
+*
+
+EDT07  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       BL   @BLKEBF           FIRST ZERO OUT THE EDIT BUFFER
+       CLR  @BBFLEN
+       BL   @LSTONE           CONVERT THE PROGRAM LINE TO ASCII TO STRBUF
+
+*  NOW CHECK TO SEE IF THIS ENTIRE LINE CAN FIT WITHIN THE WINDOW
+
+       LI   R0,3              JUST IN CASE LINE TOO LONG
+       LI   R1,STRBUF         POINT TO LENGTH
+       MOVB *R1,R2
+       SRL  R2,8
+       C    R2,@WINSIZ
+       JH   INIT$5            RETURN WITH ERROR IN R0
+
+* FIRST DO THE LINE NUMBER USING DOPRT, THEN THE REST USING DOPRT3 AND SET
+*  THE OTHER DISPLAY PARMS
+
+       MOV  R1,R2
+       MOVB *R2+,R5           GET THE LENGTH
+       SRL  R5,8
+EDT071 CB   *R2+,@SPACE       IS IT A SPACE?
+       JNE  EDT071
+       MOV  R2,R4
+       AI   R2,-STRBUF-1      ADJUST THE LENGTH
+       S    R2,R5
+       SWPB R2
+       MOVB R2,*R1
+
+       BL   @DOPRT            PUT THE LINE NUMBER AND SPACE UP THERE
+
+       MOV  R4,R1
+       LI   R2,EDITB
+       MOV  R5,@BBFLEN
+       MOV  R5,R3
+       SWPB R5
+       MOVB R5,*R2+
+       BL   @FASMVB
+       LI   R1,EDITB
+       BL   @DOPRT3
+       JMP  EDT$C2            NO ERROR
+       PAGE
+*
+*    NAME:  EDITIN
+*
+*    WHAT:  EDIT INITIALIZATION
+*
+
+EDITIN DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       BL   @CHKPRO           CHECK PROTECTION
+       JEQ  INIT$1            SET
+
+*    CLEAR TEMP WORK SPACE
+
+       LI   R0,REQWDS
+INIT$4 CLR  *R0+              CLR REQWDS,ADDEDL,ADDEDT,STLINE,SVARW,DELWDS
+       CI   R0,DELEDT             DELEDL,DELEDT
+       JLE  INIT$4
+
+       CLR  R0                CALCULATE LINE COUNT
+       MOV  @ELINE,R1
+       JEQ  INIT$3
+       MOV  @SLINE,R0
+       JEQ  INIT$3
+       S    R1,R0
+       SRA  R0,2              DIVIDE BY 2
+       INC  R0                DONT FORGET THIS ONE
+INIT$3 MOV  R0,@LNECNT
+INIT$5 MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN
+
+INIT$1 B    @CMDE04           LOAD ERROR CODE
+
+       PAGE
+*
+*    NAME:  EDT08
+*
+*    WHAT:  PERFORMS THE EDIT FUNCTION. CALLS READ LINE,
+*           SAVE LINE, AND THEN EDIT LINE
+*
+*
+
+EDT08  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       BL   @READL1           READ INPUT LINE
+
+*    CALL STRCPY(CHAR *S1, CHAR *S2)
+*                R1        R2
+
+       LI   R1,EDITR          DESTINATION
+       LI   R2,EDITB          SOURCE
+       BLWP @STRCPY           COPY STRING
+
+       BL   @SROLL            SCROLL THE SCREEN
+
+       MOV  @CILFG,R0         CHECK IF THE LINE CHANGED
+       JNE  EDT$02            NO - NOTHING TO DO   SO CLEAR R0 AND CONTINUE
+
+       BL   @LNCRNH           CRUNCH IT
+
+       MOV  @ERRCOD,R0        CHECK FOR ERRORS
+       JNE  INIT$5            YES, SO REPORT IT ERRORS
+
+       BL   @EDITLN           YES - EDIT INTO PROGRAM
+       MOV  R0,R0             CHECK FOR ERRORS
+       JNE  EDIT21
+
+       JMP  INIT$5            NO ERRORS AND GET RETURN ADDRESS
+       PAGE
+*
+*
+*    NAME:  EDITLN
+*
+*    WHAT:  EDIT LINE PERFORMS THE ACTUAL PROGRAM EDIT FUNCTION.
+*           CHANGES A LINE OR ADDS A LINE OR DELETES A LINE.
+*
+
+EDITLN DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+EDITL9 MOV  @FAC+SNUM,@ADDEDL    SAVE LINE NUMBER
+       JEQ  EDT$10
+*      JEQ  EDT$06            LINE NUMBER MISSING
+       C    @BUF3L,@CW01      IS THE LINE EMPTY?
+       JH   EDT$11            NO
+       BLWP @SRCHLN           YES, SO DELETE THE LINE IF POSSIBLE
+       MOV  @CLINE,R0
+       JEQ  EDT$02            LINE NOT FOUND
+       MOV  @FAC+SNUM,@DELEDL  FOUND, SO DELETE IT FROM EXISTANCE
+       BL   @DELTX
+       BL   @DLLINE
+       JMP  EDT$02
+
+EDT$10 MOV  @CLINE,R1         GET THE LINE NUMBER
+       BL   @FASTPG
+       MOV  *R1,@FAC+SNUM
+       JNE  EDITL9
+       LI   R0,ERRSN
+       JMP  EDT$03
+
+EDT$11 CLR  @ADDEDT           CLEAR TEXT POINTER
+       MOV  @BUF3L,R0         GET LINE LENGTH
+       INC  R0                ADD ONE FOR THE LENGTH
+       MOV  R0,@REQWDS        FILL IN REQUESTED WORDS
+       BLWP @SRCHLN           SEARCH LINE TABLE
+       MOV  @CLINE,R0         FIND IT ?
+       JNE  EDT$08            YES
+       BL   @ADDTX            NO - ADD IT
+       JMP  EDT$02            JOIN COMMON CODE
+
+EDT$08 MOV  @FAC+SNUM,@DELEDL  STORE LINE NUM TO BE DELETED
+       BL   @CHGTX            CHANGE THE TEXT
+EDT$02 CLR  R0                INDICATE NO ERORS
+EDT$03 MOV  *R10+,R11         AND RETURN
+       RT                     NO CHANGE IN THE LINE
+
+*EDT$06 C    @BUF3L,@CW01       EMPTY LINE
+*      JNE  EDT$10            NO
+*      LI   R0,ERRSN          YES SYNTAX ERROR
+*      JMP  EDT$03            AND RETURN
+       PAGE
+*
+*    NAME:  ADDTX
+*
+*    WHAT:  ADD PROGRAM TEXT
+*
+*    ENTRY: BL   @ADDTX
+*
+
+ADDTX  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       BL   @MCHKPG           CHECK FOR MEM FULL
+       JL   ADDTX9            NOT ENOUGH ROOM
+
+*    TEST IF ANY LINES IN PROGRAM
+
+       MOV  @LNECNT,R0        GET LINE COUNT
+       JEQ  ADDTX3            NOTHING THERE
+
+       MOV  @ELINE,R1         GET THE LINE TABLE POINTER
+       BL   @FASTPG           MAP IN LNT
+       MOV  *R1,R0
+       ANDI R0,>7FFF          MAKE SURE BREAK BIT IS MASKED OFF
+       C    @ADDEDL,R0        IS IT AT THE END
+       JH   ADDTX5            YES -
+
+*      BLWP @SRCHLN           GET THE LOCATION WHERE IT IS TO GO
+*      MOV  @CLINE,R0         DID WE FIND IT?
+*      JNE  ADDTX4            YES
+*  THIS SHOULD WORK BECAUSE SEARCH LINE IS CALLED BEFORE ADDTX IS ENTERED
+       MOV  @NHLNUM,@CLINE    NO, SO USE THE NEXT HIGHER NUMBER
+
+ADDTX4 BL   @INLINE           MAKE ROOM FOR LINE INFO
+       JMP  ADDTX7
+
+ADDTX3 S    @CW04,@SLINE      MAKE THE FIRST STATEMENT CORRECT
+
+ADDTX5 MOV  @ELINE,@CLINE     GET THE END
+       S    @CW04,@CLINE
+
+ADDTX7 MOV  @PGMEND,@ADDEDT   GET PROGRAM POINTER
+       S    @REQWDS,@ADDEDT
+       BL   @CPYLN            COPY LNT INFO
+       S    @CW04,@ELINE      ADD ONE ENTRY TO LINE TABLE
+ADDTX8 BL   @MVLINE           MOVE LINE TABLE DOWN
+       BL   @CPYTX            COPY TEXT
+       S    @REQWDS,@PGMEND   ADJUST PERM POINTERS
+       MOV  @PGMEND,R0
+       ANDI R0,>FFFE
+       AI   R0,-4
+       MOV  @SLINE,R1
+       MOV  R0,@SLINE
+       S    R0,R1
+       S    R1,@CLINE
+       S    R1,@ELINE
+       SETO @CHANGE           INDICATE NO ERRORS
+       INC  @LNECNT           ADD ONE TO LINE COUNTER
+ADDTX6 MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN TO CALLER
+
+ADDTX9 LI   R0,ERRMEM         (MEMORY FULL)
+       BL   @ERROR
+       PAGE
+*
+*    NAME:  CHGTX
+*
+*    WHAT:  CHANGE TEXT
+*
+
+CHGTX  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  @FAC+SNUM,@ADDEDL
+
+       BL   @CALPTR           CHECK IF CORRECT LINE AND GET DELEDT,-EDL,-WDS
+       C    @DELWDS,@REQWDS   LENGTHS THE SAME?
+       JEQ  CHGTX1            YES, SO ONLY COPY TEXT
+
+       BL   @DELTXC           DELETE OLD TEXT
+       BL   @MCHKPG           CHECK MEMORY
+       JL   ADDT11            NOT ENOUGH
+       MOV  @PGMEND,@ADDEDT   GET PROGRAM POINTER
+       S    @REQWDS,@ADDEDT   BACK UP TEXT POINTER
+       BL   @CPYLN            COPY LINE INFO
+       JMP  ADDTX8            JOIN COMMON CODE
+
+ADDT11 BL   @DLLINE           DELETE THE LINE NUMBER FOR CONSISTENCY
+       JMP  ADDTX9
+
+CHGTX1 MOV  @DELEDT,@ADDEDT   SET POINTER TO WHERE TEXT IS TO GO
+       B    @CPYTX1           JUST GO TO IT AND LET IT RETURN
+       PAGE
+*
+*    NAME:  DELTX
+*
+*    WHAT:  DELETE TEXT
+*
+*    ENTRY: FAC+4 - CONTAINS LINE NO
+*           CLINE - POINTS TO LINE ENTRY
+*
+*   OUTPUT:
+*
+
+DELTXC DECT R10
+       MOV  R11,*R10
+       JMP  DELTX2
+
+DELTX  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       BL   @CALPTR           GET DELEDT, DELWDS, DELEDL
+
+*
+*    FIRST UPDATE THE LINE NUMBER TABLE LOOKING FOR ALL
+*    ADDRESSES LESS THAN THE DELETED TEXT.
+*
+
+DELTX2 MOV  @ELINE,R1
+       MOV  R1,R3
+       BL   @FASTPG           SET R1
+       MOV  @DELEDT,R4        FOR SPEED
+       MOV  @DELWDS,R5        FOR SPEED
+       MOV  @LNECNT,R11
+DELTX8 MOV  R3,R2
+       SRL  R2,13
+       LI   R0,MAP96          MAP IN ALL 4 PAGES
+       AI   R2,PGMMAP         MAP IN THE LINE NUMBER TABLE
+       MOVB *R2+,*R0+
+       MOVB *R2+,*R0+
+       MOVB *R2+,*R0+
+       MOVB *R2,*R0
+DELTX7 INCT R1
+       C    *R1,R4
+       JHE  DELTX9
+       A    R5,*R1
+DELTX9 INCT R1
+       DEC  R11
+       JNE  DELTX7
+
+*      JEQ  DELTX1            FOR OVER 24-32K OF LNT
+*      CI   R1,>DFFC
+*      JLE  DELTX7
+*DELTX2 AI   R3,>8000
+*      AI   R1,->8000
+*      JMP  DELTX2            CONTINUE
+
+*    UPDATE THE LINE NUMBER TABLE IS COMPLETE.
+*    NOW DELETE THE TEXT.
+
+DELTX1 MOV  @DELEDT,R0        DESTINATION ADDRESS   POINTS TO LINE LENGTH
+       C    R0,@PGMEND        IS THIS THE LAST LINE IN THE PROGRAM?
+       JEQ  DELTX3            YES, SO NO MOVE
+       MOV  R0,R1
+       DEC  R0                NOW POINTS TO FROM START
+       MOV  R0,@FAC+2         FROM
+       A    @DELWDS,R0
+       MOV  R0,@FAC+4         TO START LOCATION
+       S    @PGMEND,R1
+       MOV  R1,@FAC+6         # OF ITERATIONS
+       BL   @MOVEUP           MOVE UP BYTES
+DELTX3 A    @DELWDS,@PGMEND
+* NOW CALCULATE # OF WORDS TO MOVE THE LNT UP
+       DEC  @LNECNT           THAT LINE'S NOT THERE ANYMORE
+       JEQ  DELTX4            SPECIAL CASE
+       MOV  @PGMEND,R1
+       ANDI R1,>FFFE
+       S    @SLINE,R1
+       AI   R1,-4             R1 IS THE NUMBER OF BYTES
+       MOV  @SLINE,R2
+       MOV  R2,R3
+       AI   R2,3
+       MOV  R2,@FAC+2         FROM
+       A    R1,R2
+       MOV  R2,@FAC+4         TO
+       S    @ELINE,R3
+       AI   R3,4
+       MOV  R3,@FAC+6         # OF ITERATIONS (BYTES)
+       A    R1,@ELINE
+       A    R1,@SLINE
+       A    R1,@CLINE
+
+       BL   @MOVEUP           DO THE MOVE
+
+       JMP  DLINE1            INDICATE NO ERRORS AND RETURN
+
+       PAGE
+*
+*    NAME:  DLLINE
+*
+*    WHAT:  DELETE AN ENTRY FROM THE LINE NUMBER TABLE
+*
+*
+
+DLLINE DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  @LNECNT,R0
+       JEQ  DLINE2
+       C    @CLINE,@ELINE     IS IT THE END?
+       JEQ  DLINE3            YES
+       MOV  @CLINE,R0         GET LINE TO DELETE
+       DEC  R0                BACK IT UP
+       MOV  R0,@FAC+2          BUILD FAC2 ENTRY
+
+       AI   R0,4              GO IN THE OPSITE DIRECTION
+       MOV  R0,@FAC+4          BUILD FAC4 ENTRY
+
+       S    @ELINE,R0
+       INC  R0
+       MOV  R0,@FAC+6          BUILD FAC6 ENTRY
+       JEQ  DLINE2            NOTHINFSG TO MOVE
+
+       BL   @MOVEUP           DO THE MOVE
+
+DLINE3 LI   R0,4
+
+       A    R0,@ELINE         UPDATE THE END OF THE TABLE
+
+*    NOW ADJUST CLINE ACCORDINGLY TO THE TERM CHAR
+
+       CB   @RKEY,@DOWN       DOWN ARROW ?
+       JEQ  DLNE$1            YES, IT IS DOWN
+*      CLR  R0
+*      CB   @RKEY,@UP         UP ARROW
+*      JEQ  DLNE$1
+       CLR  R0
+DLNE$1 A    R0,@CLINE
+DLINE1 CLR  R0                INDICATE NO ERRORS
+       MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN
+
+*    RESET THE POINTERS, WHEN NO PROGRAM IS PRESENT
+
+DLINE2 SETO @CHANGE
+DELTX4 CLR  @LNECNT           GET THE TOP
+       CLR  @PGMEND
+       CLR  @ELINE
+       CLR  @SLINE
+       CLR  @CLINE
+       JMP  DLINE1
+       PAGE
+*
+*    NAME:  INLINE
+*
+*    WHAT:  INSERT AN ENTRY IN THE LINE NUMBER TABLE
+*
+*
+
+INLINE MOV  @CLINE,R0         GET CURRENT LINE LOCATION
+       S    @ELINE,R0         SUBTRACT THE END
+       AI   R0,4
+       MOV  R0,@FAC+6          NUMBER OF BYTES
+
+       MOV  @ELINE,R0         GET THE END
+       JMP  LNEMV             JOIN COMMON CODE
+
+*
+*    NAME:   MVLINE
+*
+*    MOVE THE LINE NUMBER TABLE DOWN THE
+*    REQUIRED NUMBER OF BYTES FOR THE PROGRAM TEXT
+
+MVLINE MOV  @SLINE,R0
+       S    @ELINE,R0
+       AI   R0,4
+       MOV  R0,@FAC+6         # OF BYTES IN LNT
+
+       MOV  @SLINE,R1
+       MOV  @PGMEND,R0
+       S    @REQWDS,R0
+       ANDI R0,>FFFE
+       S    R0,R1             THE DISTANCE TO MOVE
+       MOV  @ELINE,R0
+       S    R1,R0
+LNEMV  AI   R0,-4
+       MOV  R0,@FAC+4
+
+       MOV  @ELINE,@FAC+2
+
+       JMP  MOVEDN
+       PAGE
+*
+*    NAME:  CPYTX
+*
+*    WHAT:  COPY PROGRAM TEXT FROM CRUNCH BUFFER TO PERM SPACE
+*
+
+CPYTX  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+*    NOW COPY THE PROGRAM LINE LENGTH
+*    TO THE PROGRAM TEXT
+
+CPYTX1 MOV  @ADDEDT,R1
+       BL   @FASTPG           MAP IN WHERE THE LINE IS TO GO
+       MOVB @BUF3L+1,*R1+     PUT IN THE LENGTH
+       MOV  R1,R2             WHERE TO
+       MOV  @BUF3L,R3         # OF BYTES TO MOVE
+       LI   R1,CRNBUF         FROM
+       MOV  *R10+,R11         GET RETURN BACK
+       B    @FASMVB
+
+*    COPY THE LINE NUMBER ENTRIES INTO THE TABLE
+
+CPYLN  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       MOV  @CLINE,R1         WHERE TO GO
+       BL   @FASTPG           MAP IT IN
+       MOV  @ADDEDL,*R1+      LINE #
+       MOV  @ADDEDT,*R1       POINTER TO PGM LINE
+       INC  *R1               ONE PAST LENGTH
+       MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN TO CALLER
+
+       PAGE
+*
+*   WHAT:   CRUNCH RETURN AN ERROR
+*           GOT TO HANDLE IT AS A WARNING
+*
+EDTTBL DATA EDT529,EDT521     0,1  NOTHING,SYNTAX ERROR
+       DATA EDT522,EDT524     2,3  BAD LINE NUM, LINE TOO LONG
+       DATA EDT525,EDT526     4,5  NAME TOO LONG, UNMATCHED QUOTES
+       DATA EDT527,EDT528     6,7  COMMAND ILLEGAL IN PGM, IMPROPERLY USED NAME
+
+EDT52  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       MOV  @ERRCOD,R1
+       JEQ  EDT529            RETURN IF ERROR CODE ZERO
+       ANDI R1,>0007          AND REPORT IT
+       SLA  R1,1              TIMES TWO
+       MOV  @EDTTBL(R1),R1    GET ADDRESS
+       B    *R1               AND GO TO IT
+*
+*    LOAD RO WITH THE PROPER ERROR CODE
+*
+EDT521 LI   R0,ERRSN
+       JMP  ERRCOM
+
+EDT522 LI   R0,ERRBLN
+       JMP  ERRCOM
+
+EDT524 LI   R0,ERRLTL
+       JMP  ERRCOM
+
+EDT525 LI   R0,ERRNTL
+       JMP  ERRCOM
+
+EDT526 LI   R0,ERRNQS
+       JMP  ERRCOM
+
+EDT527 LI   R0,ERRCIP
+       JMP  ERRCOM
+
+EDT528 LI   R0,ERRMUV
+
+ERRCOM BL   @WARN
+
+EDT529 MOV  *R10+,R11
+       RT
+
+
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.EDIT2
+*
+*  NAME:    EDIT COMMAND PART 2
+*
+*  VERSION: 3.0 - 11/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+
+*
+*    NAME:  MOVE DOWN
+*
+*    REG:   DESCRIPTION
+*     0     SOURCE ADDRESS
+*     1     BYTE COUNT
+*     2
+*     3
+*     4
+*     5     DESTINATION ADDRESS
+*
+
+MOVEDN DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN ADDRESS
+
+       MOV  @FAC+2,R1         GET THE SOURCE ADDRESS
+       LI   R5,PGMMAP+1       GET INDEXES
+       MOV  R5,R4
+       BL   @FASTPG           MAP IT IN
+       A    R2,R4
+       MOV  R1,R0
+       MOVB @MAP96,@MAP9A
+       AI   R0,>4000
+       MOV  @FAC+4,R1
+       BL   @FASTPG
+       A    R2,R5
+
+       MOV  @FAC+6,R2          BYTE COUNT
+       JEQ  EDT529
+MOVED1 MOVB *R0+,*R1+
+       DEC  R2
+       JEQ  EDT529
+       CI   R0,>C000
+       JHE  MOVED2            REMAP R0
+       CI   R1,>8000
+       JL   MOVED1
+       LI   R1,>6000
+       MOVB *R5+,@MAP96
+       JMP  MOVED1            CONTINUE ON
+
+MOVED2 LI   R0,>A000
+       MOVB *R4+,@MAP9A
+       JMP  MOVED1
+       PAGE
+*
+*    NAME:  MOVE UP
+*
+*    REG:   DESCRIPTION
+*     0     SOURCE ADDRESS
+*     1     BYTE COUNT
+*     2
+*     3
+*     4
+*     5     DESTINATION ADDRESS
+*
+
+MOVEUP DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN ADDRESS
+
+       LI   R4,PGMMAP
+       MOV  R4,R5
+       MOV  @FAC+2,R1         GET THE SOURCE ADDRESS
+       BL   @FASTPG           MAP IT IN
+       MOV  R1,R0
+       A    R2,R4
+       MOVB @MAP96,@MAP9A
+       AI   R0,>4000
+       MOV  @FAC+4,R1
+       BL   @FASTPG
+       A    R2,R5
+
+       MOV  @FAC+6,R2          BYTE COUNT
+       JEQ  EDT529
+MOVEU1 MOVB *R0,*R1           MOVE A WORD
+       DEC  R0                BACK UP SOURCE
+       DEC  R1                BACK UP DESTINATION
+       DEC  R2                SUBTRACT ONE FROM COUNTER
+       JEQ  EDT529            DONE
+       CI   R0,>9FFF
+       JLE  MOVEU2            REMAP R0
+       CI   R1,>5FFF
+       JH   MOVEU1
+       AI   R1,>2000
+       DEC  R5
+       MOVB *R5,@MAP96
+       JMP  MOVEU1            CONTINUE ON
+
+MOVEU2 AI   R0,>2000
+       DEC  R4
+       MOVB *R4,@MAP9A
+       JMP  MOVEU1
+
+*
+*    NAME:  MCHKPG
+*
+*    WHAT:  CHECK MEMORY SPACE
+*
+*    REG:   DESCRIPTION
+*     14    RAM BOTTOM
+*     15    CURRENT LOCATION
+*
+*    ENTRY: BL   @MCHKPG
+*
+*    INPUT: REQWDS - NUMBER OF BYTES NEEDED FOR THIS STATEMENT
+*
+*   OUTPUT: CONDITION BITS SET
+*
+
+MCHKPG MOV  @ELINE,R15        GET THE CURRENT END
+       S    @REQWDS,R15       SUBTRACT THE NUMBER OF WORDS
+       CI   R15,256           SET THE CONDITION BITS
+       RT                     AND RETURN
+
+       PAGE
+*
+*    NAME:  NUM
+*
+*    WHAT:  NUMBER COMMAND
+*
+*
+
+NUM    DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       BL   @EDITIN           EDIT INITIALIZATION
+NUM10  BL   @AUTON            DECODE START AND STOP PARAMETERS
+       SOCB @ANBIT,@PFLAG     SET AUTO NUMBER BIT
+NUM14  MOV  @CURLIN,@FAC+SNUM COPY CURRENT LINE TO FAC
+       MOV  @LNECNT,R0        CHECK IF A LINE IS PRESENT
+       JEQ  NUM20             NO
+NUM15  BLWP @SRCHLN           YES - SEARCH THE LINE TABLE
+       MOV  @CLINE,R0         FIND IT ?
+       JEQ  NUM20             NO
+       BL   @EDT07            YES - DISPLAY IT
+       MOV  @CURLIN,@FAC+SNUM RESTORE FAC ENTRY
+       MOV  R0,R0
+       JNE  NUM22
+
+NUM16  BL   @EDT08            EDIT LINE
+       MOV  R0,R0             AND ERRORS
+       JNE  NUM21             YES
+       MOVB @BUFLEN,R0          AT THE END
+       JEQ  NUM35             YES
+*      BL   @EDT26            NO - GENERATE NEXT NUMBER
+
+*
+*    NAME:  EDT26
+*
+*    WHAT:  AUTO NUMBER MODE
+*
+*EDT26
+       A    @CURINC,@CURLIN   ADD IN THE INCREMENT
+       MOV  @CURLIN,@FAC+SNUM MOVE FOR SEARCHES
+*      RT                     AND RETURN
+       JMP  NUM15             DO IT AGAIN
+
+NUM22  MOV  R0,@ERRCOD
+       BL   @EDT52
+NUM35  SZCB @ANBIT,@PFLAG     RESET AUTO NUMBER BIT
+       MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN TO CALLER
+
+NUM21  BL   @EDT52
+       JMP  NUM14
+
+NUM20  EQU  $                 DISPLAY THE NUMBER
+
+*
+*    NAME:  EDT20
+*
+*    WHAT:  DISPLAYS THE LINE NUMBER IN AUTO
+*           NUMBER MODE
+*
+
+*EDT20  DECT R10               MAKE ROOM
+*      MOV  R11,*R10          SAVE RETURN
+
+*    DISPLAY THE PROMPT
+
+       LI   R1,PROMPT         GET THE PROMPT ADDRESS
+       BL   @DPROMP           DISPLAY PROMPT
+
+*    CONVERT THE LINE NUMBER
+
+       MOV  @CURLIN,R1        GET CURRENT LINE
+       LI   R2,TMPBUF
+       BLWP @ITOD             CONVERT IT
+
+*    ADD A SPACE TO STRING
+*    CALL   STRCAT(CHAR *S1, CHAR *S2)
+*
+       LI   R1,TMPBUF
+       LI   R2,SPSTR
+       BLWP @STRCAT
+
+*    WRITE THE LINE NUMBER
+*    CALL   DPROMP(CHAR *S1)
+
+       BL   @DPROMP
+       BL   @BLKEBF           CLEAR EDITB BUFFER
+       CLR  @BBFLEN
+       JMP  NUM16             JOIN COMMON CODE
+       PAGE
+*
+*    NAME:  LNCRNH
+*
+*    WHAT:  LINE CRUNCH
+*
+
+*    TRY AND CRUNCH INPUT FOR IMPERATIVE STATEMENT
+
+LNCRNH CLR  @ERRCOD           RESET EROR FLAG
+       CLR  @BBUFP            CLEAR BUFFER START
+
+*      LI   R3,EDITB          IS THE EDIT BUFFER BLANK?
+*      MOVB *R3+,R0
+*      SRL  R0,8
+*      JEQ  LNCR02            YES, ALL DONE
+*LNCR01 CB   *R3+,@SPACE
+*      JNE  LNCR00
+*      DEC  R0
+*      JNE  LNCR01
+*LNCR02 CLR  @BUF3L
+*      RT
+
+
+LNCR00 LI   R0,CRNBUF         LOAD BUFFER ADDRESS
+       MOV  R0,@RAMPTR        INITIALIZE MEMORY POINTER
+       CLR  R3                SELECT MODE OF CRUNCH
+
+       MOVB @MEMTBL+4,@MAP94
+       B    @CRUNCH
+
+
+*      LI   R1,CRUNCH         GET THE INDEX
+*      MOV  R1,R2             COPY FOR THE PAGE
+*      SRL  R2,8              MAKE IT AN INDEX
+*      MOVB @MEMTBL(R2),@MAP94
+*      ANDI R1,>00FF          MASK OUT TABLE OFFSET
+*      MOV  @>4000(R1),R1     GET ADDRESS
+*      B    *R1               AND GOTO IT
+       PAGE
+*                             CALCULATE THE POINTERS
+*    NAME:  CALPTR
+*
+*    WHAT:  CHECK IF CLINE POINTS TO LNT ENTRY
+*               GETS DELEDL, DELWDS, DELEDT
+*                     LINE #  # OF BYTES  POINTER TO TEXT
+*
+
+CALPTR DECT R10
+       MOV  R11,*R10
+       CLR  @DELEDT           CLEAR TEXT POINTER
+       CLR  R0                CLEAR WORDS
+
+       MOV  @CLINE,R1
+       BL   @FASTPG           MAP IN TO WORK AREA 1, R1 POINTS TO IT USES R1,R2
+       C    *R1,@DELEDL       ARE THEY EQUAL
+       JNE  CALP$1            NO - INDICATE AN ERROR
+
+       INCT R1                POINT TO TEXT ADDRESS
+       MOV  *R1,R1
+       DEC  R1                NOW POINTS TO LINE LENGTH
+       MOV  R1,@DELEDT        SAVE THE POINTER TO THE BASIC STATEMENT LIN LENGTH
+       BL   @FASTPG           NOW R1 POINTS TO LENGTH AS MAPPED IN  USES R1,R2
+       MOVB *R1,R0
+       SRL  R0,8
+       INC  R0                FOR LENGTH BYTE ITSELF
+CALP$1 MOV  R0,@DELWDS        # OF BYTES TO GET
+       MOV  *R10+,R11
+       RT

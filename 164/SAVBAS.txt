@@ -1,0 +1,21 @@
+       LI   R2,DEFPAB
+       MOV  R2,R0
+       LI   R1,PABINF
+       LI   R3,27
+
+       BL   @FASMVB
+
+       LI   R3,8              8 PAGES TO SAVE INCLUDING DEBUGGER
+       LI   R2,>2000->400     ADDER TO NEXT PAGE
+PLOOP1 XOP  @EIGHT,0            SAVE THE FILE
+       A    R2,@BALOW+DEFPAB    UPDATE THE ADDRESS TO START AT
+       MOV  @H2006,@DEFPAB+CHRCNT   GET THE CORRECT # OF BYTES TO SAVE
+       AB   @CBH01,@DEFPAB+26      UPDATE THE FILE NAME
+       LI   R2,>2000               BUFFER ADDER
+       DEC  R3                   DONE?
+       JNE  PLOOP1               NOT YET
+       NOP                       ALL DONE
+
+H2006  DATA >2006
+PABINF DATA >0600,0,>3FA,0,0,0,>1C06,11
+       TEXT 'DSK1.BASIC1'

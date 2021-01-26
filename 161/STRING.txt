@@ -1,0 +1,278 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.STRING
+*
+*  NAME:    STRING ROUTINES
+*
+*  VERSION: 3.00 - 10/22/86    BASE LINE
+*           3.01 - 02/22/87
+*
+*-------------------------------------------------------------------------
+
+*
+*    NAME:  ALLOCATE STRING SPACE
+*
+*   INPUT:  R1 - NUMBER OF BYTES IN STRING
+*                IF R1 IS ZERO THEN ITS A NULL STRING
+*
+*  OUTPUT:  POINTER TO NEW STRING IN STRING REFERENCE
+*
+NULSTA CLR  R2                ZERO OUT THE POINTER OT THE STRING
+       CLR  R3
+       JMP  GETS06
+
+
+ALLOCS MOV  R1,@BYTE#         SAVE FOR CALLER
+       JEQ  NULSTA            SPECIAL CASE
+       CLR  R5                FIRST TIME THROUGH FLAG
+       MOV  R1,R0             SAVE FOR LATTER
+       INC  R0                MAKE EVEN
+       ANDI R0,>FFFE
+       AI   R0,8              OVERHEAD
+
+GETS01 LI   R4,>9FFE          POINTER OFFSET TO TRAILING LENGTH
+       MOV  @STREND,R2        GET CURRENT PAGE
+       MOV  @STREND+2,R3      GET CURRENT ADDRESS WITHIN PAGE
+       JNE  GETS04            ARE WE AT 8K BOUNDARY?, IF SO
+       LI   R3,>2000          LENGTH OF NEXT PAGE
+       LI   R4,>BFFE          NEW OFFSET
+       DEC  R2                NEED NEXT PAGE OF DATA SPACE
+       C    R2,@SYMEND        BUT IS IT AVAILABLE?
+       JLE  GETS05            NO, SO GO TRY TO COLLECT GARBAGE
+
+GETS04 S    R0,R3             GET NEW PTR IF ON PAGE
+       JLT  GETS02            BRANCH IF CAN NOT FIT ON PAGE
+
+*    NOW MAP IN STRING SPACE AND SET UP STRING REF
+
+GETS03 MOVB @DATBUF(R2),@MAP9A
+       MOVB @DATBUF+1(R2),@MAP9C
+
+       A    @STREND+2,R4      ADJUST FOR >A000 BUFFER
+       MOV  R1,*R4            PUT IN LENGTH TRAILING LENGTH
+       MOV  R2,@STREND        SAVE CURRENT PAGE
+       MOV  R3,@STREND+2      SAVE CURRENT INDEX IN PAGE
+
+*      CLR  @>A000(R3)
+*      CLR  @>A002(R3)
+*      MOV  R1,>A004(R3)
+*      AI   R3,6
+
+       AI   R3,>A000          ADJUST FOR >A000
+       CLR  *R3+              ZERO OUT THIS OWNER
+       CLR  *R3+              BOTH PAGE AND ADDRESS
+       MOV  R1,*R3+           PUT IN LEADING LENGTH
+       AI   R3,->A000         MAKE IT 13 BIT AGAIN
+GETS06 MOV  R2,@STRREF        NOW SAVE THIS STRINGS POSITION
+       MOV  R3,@STRREF+2
+       RT
+
+
+GETS02 DEC  R2                TRY NEXT PAGE IF AVAILABLE
+       LI   R4,>BFFE          WE KNOW THAT WE START AT >C000
+       ANDI R3,>1FFE          STRIP OFF UNUSED BITS
+       C    R2,@SYMEND        CAN WE USE THIS PAGE?
+       JH   GETS03            YES WE CAN
+
+* TO BE HERE, CAN'T GET NEXT PAGE, SO TRY TO COLLECT GARBAGE
+
+GETS05 MOV  R5,R5             HAVE WE TRIED BEFORE?
+       JNE  RPTE11            YES, SO ERROR OUT
+       BLWP @GARB
+       SETO R5                SET SECOND TIME FLAG
+       JMP  GETS01
+
+RPTE11 LI   R0,ERRMEM
+       BL   @ERROR
+
+       PAGE
+
+*    NAME:  GETSTR
+*
+*    WHAT:  GETS A STRING AND BUILDS A FAC ENTRY
+*
+*   INPUT:  R1 - NUMBER OF BYTES
+*
+*  OUTPUT:  FAC ENTRY
+*
+*           -----------------
+*      00   | SCOPE | TYPE  |
+*           -----------------
+*      02   |  0            |
+*           -----------------
+*      04   |  0            |
+*           -----------------
+*      06   |  0            |
+*           -----------------
+*      08   | STR PAGE      |
+*           -----------------
+*      10   | STR ADDRESS   |
+*           -----------------
+*      12   | STR LENGTH    |
+*           -----------------
+*      14   |  0            |
+*           -----------------
+
+
+GETSTR DECT R10
+       MOV  R11,*R10
+
+*      INC  @CNTGST
+
+       BL   @ALLOCS
+
+       MOV  @LITS09,*R7+      SET ID TO TEMP STRING
+       CLR  *R7+
+       CLR  *R7+
+       CLR  *R7+
+       MOV  R2,*R7+
+       MOV  R3,*R7+
+       MOV  R1,*R7+
+       CLR  *R7
+       AI   R7,-14            READJUST R7
+       MOV  *R10+,R11
+       RT                     AND RETURN
+
+LITS09 BYTE SIDVS             TEMP VALUE SPACE
+       BYTE SIDSTR            STRING TYPE
+
+       PAGE
+*
+*    NAME:  NULSTR
+*
+*    WHAT:  THIS FUNCTION CREATS A NULL STRING IN FAC
+*
+
+NULSTR MOV  R7,R0             * COPY FAC
+       MOV  @LITS09,*R0+      * WRITE HEADER
+       CLR  @STRREF           * CLEAR THESE
+       CLR  @STRREF+2         *
+       JMP  CLF10
+
+CLRFAC MOV  R7,R0
+       CLR  *R0+
+CLF10  CLR  *R0+
+       CLR  *R0+
+       CLR  *R0+
+       CLR  *R0+
+       CLR  *R0+
+       CLR  *R0+
+       CLR  *R0
+       RT
+
+STRCAT DATA UREG2,$STRC       STRING CONCAT
+STRCMP DATA UREG2,$STRCP      STRING COMPARE
+STRCPY DATA UREG2,$STRCY      STRING COPY
+*STRTUP DATA UREG2,$STRTU      STRING TO UPPER
+
+       PAGE
+
+*    NAME:  STRING COMPARE
+*
+*    CALL STRCMP(CHAR *S1, CHAR *S2)
+*                R1        R2
+*
+
+$STRCP MOV  @02(R13),R1       GET ^S1
+       MOV  @04(R13),R2       GET ^S2
+
+       MOVB *R1+,R3           GET STRING ONES LENGTH
+       MOVB *R2+,R4           GET STRING TWO LENGTH
+       MOVB R4,R5             COPY TO TOTAL REGISTER
+       SB   R3,R4             CHECK IF THEY ARE EQUAL
+       JNE  SCMP02            NO
+       SRL  R5,8              ALIGN REGISTER
+       JEQ  SCMP03            BOTH STRINGS ARE 0 LENGTH, SO =
+SCMP01 CB   *R1+,*R2+         COMPARE A BYTE
+       JNE  SCMP02            NOT EQUAL
+       DEC  R5                SUBTRACT ONE FROM COUNTER
+       JNE  SCMP01            MORE TO DO
+SCMP03 CLR  *R13              EQUAL SET RETURN
+       RTWP                   RETURN
+
+SCMP02 SETO *R13              NOT EQUAL RETURN
+       RTWP                   RETURN
+
+       PAGE
+
+*
+*    NAME:  STRING CONCATENATE
+*
+*    CALL STRCAT(CHAR *S1, CHAR *S2)
+*                R1        R2
+*            LEN R4        R3
+
+$STRC  MOV  @02(R13),R1       GET ^S1
+       MOV  R1,R5             COPY OF S1
+       MOV  @04(R13),R2       GET ^S2
+
+       MOVB *R1+,R4           LENGTH S1
+       SRL  R4,8              ALIGN REGISTER
+       A    R4,R1             POINT TO END OF STRING
+
+       MOVB *R2+,R3           LENGTH S2
+*      JEQ  $STR10            ALL DONE
+       MOV  R2,R6             COPY S2
+       SRL  R3,8              ALIGN REGISTER
+
+       A    R3,R4             ADD S2 TO S1
+       SWPB R4                ALIGN REG
+       MOVB R4,*R5            UPDATE POINTER
+
+       MOV  R1,R2             SWITCH THE REGISTERS
+       MOV  R6,R1
+
+$STRCM BL   @FASMVB           MOVE IT
+
+$STR10 RTWP
+
+       PAGE
+
+*    NAME:  STRING COPY
+*
+*   CALL STRCPY(CHAR *S1, CHAR *S2)
+*               R1        R2
+*
+*   THIS ROUTINE WILL COPY THE STRING IN BUFFER TWO TO
+*   THE A STRING IN BUFFER ONE
+
+$STRCY MOV  R11,R10           SAVE RETURN
+       MOV  @02(R13),R2       GET ^S1
+       MOV  @04(R13),R1       GET ^S2
+
+       MOVB *R1,R3            GET STRING TWOS LENGTH
+       SRL  R3,8              ALIGN REGISTER
+*      JEQ  $STRC8            IF ZERO NOTHING TO COPY
+
+       INC  R3                INCLUDE THIS BYTE
+
+       JMP  $STRCM            JOIN COMMON CODE
+
+*$STRC8 CLR  *R2               WRITE A ZERO IN THE LENGTH
+*      JMP  $STR10
+
+       PAGE
+*
+*    NAME:  TOUPER
+*
+*    CALL TOUPER(CHAR *S1)
+*                R1
+*
+*
+
+*$STRTU MOV  @02(R13),R1       GET THE STRING POINTER
+*      MOVB *R1+,R3           GET THE LENGTH
+*
+*      SRL  R3,8              ALIGN REGISTER
+*      JEQ  $TU20             NOTHING IN STRING
+*
+*      LI   R2,>2000          GET THE BIT
+*      LI   R4,>6100          LOWER BOUNDS
+
+*$TU10  CB   *R1+,R4           COMPARE TO LOWER LIMIT
+*      JL   $TU15             ALREADY UPPER
+*      SB   R2,*R1            SWITCH TO UPPER CASE
+*$TU15  DEC  R3                MORE TO DO
+*      JNE  $TU10             YES
+*
+*$TU20  RTWP                   AND RETURN

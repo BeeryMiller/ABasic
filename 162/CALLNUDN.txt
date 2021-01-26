@@ -1,0 +1,393 @@
+*-------------------------------------------------------------------------------
+*
+*    FILE:  WDS1.152.CALLNUD
+*
+*    NAME:  CALL NUD
+*
+*  VERSION: 3.00 - 10/21/86   BASE LINE
+*           3.01 - 02/15/87
+*           3.02 - 02/23/87
+*
+*-------------------------------------------------------------------------
+       EVEN
+       BYTE 0
+CSIDUS BYTE SIDUSS
+       BYTE 0
+CSIDUM BYTE SIDUSM
+
+CALL99 BL   @RPTE03
+
+CALL   CI   R8,>C800          * ENSURE A UNQUOTED STRING
+       JNE  CALL99            * JUMP IF NO
+       MOVB *R12+,R1          * GET THE LENGTH
+       SRL  R1,8              * ALIGN FOR REGISTER
+       MOV  R12,R2            * SAVE ADDRESS TO STRING
+       A    R1,R12            * UPDATE PERM POINTER
+
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+
+       BLWP @FNDSUB           SEARCH THE SUB TABLE
+       MOV  R0,R0             CHECK IF WE FOUND IT
+       JEQ  CALL89            JUMP IF YES
+
+*    SUB NOT FOUND ERROR OUT
+
+RPTE37 LI   R0,ERRSNF
+       BL   @ERROR
+
+*    FOUND THE SUB ENTRY IN THE TABLE.
+*    NEXT THING IS TO DETERMINE IF INTERNAL
+*    OR USER DEFINED
+
+CALL89 MOV  @SYMA+FAC,R5      * GET ADDRESS
+       AI   R5,>6000          * MAKE IT 16
+
+       MOV  *R5,R1            * READ THE TABLE ADDRESS
+       JEQ  CALL92            * JUMP IF ZERO, MUST BE USER DEFINED
+
+       MOV  R1,R4             COPY INDEX
+       SRL  R4,8              MASK OUT PAGE
+
+       MOVB @MEMTBL(R4),@MAP94
+
+       ANDI R1,>00FF          MASK OUT OFFSET
+       MOV  @>4000(R1),R1     GET THE ADDRESS FROM THE TABLE
+DOCALL B    *R1               AND GO TO IT
+
+*
+*    USER DEFINED SUB-HANDLER
+*
+*    BUILD THE STACK START ENTRY (STE)
+*
+
+CALL92 INCT R5                POINT TO UDS ADDRESS
+
+       AI   R9,STKSZ          PUSH THE STACK
+       MOV  @CSIDUS-1,*R9       WRITE THE ID BYTE
+       MOV  @BEGINV,@04(R9)   SAVE BEGIN
+       MOV  @SAVEVS,@06(R9)   AND END
+
+*    SAVE THE SYMBOL TABLE ENTRY FOR THE CPL
+*    IN THE STACK STE
+
+       MOV  *R5+,R4           * GET THE PAGE
+       MOV  R4,@08(R9)        * SAVE THE PAGE
+       MOV  *R5,R3            * GET THE 13 BIT ADDRESS
+       MOV  R3,@10(R9)        * SAVE THE 13 BIT ADDRESS
+       A    R3,R4             * ADD THE ADDRESS TOGETHER
+       JEQ  RPTE37            * JUMP IF ZERO, NO UDS
+
+*    MAP IN THE CPL
+
+       MOV  R9,@BEGINV        * SAVE THE STACK
+
+       MOV  @08(R9),R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+       MOV  R3,R4
+       AI   R4,>6010          POINT TO ARGC COUNTER
+
+       MOV  *R4,@02(R9)       GET THE ARG COUNT
+       JNE  ASSL3C            JUMP ARGS EXPECTED
+
+       DEC  R12               BACK UP POINTER
+       CLR  @PCNT             CLEAR PARM COUNTER
+       JMP  ASSL3A            CONTINUE
+
+CAL$91 LI   R0,ERRIAL
+       BL   @ERROR
+
+ASSL3C BL   @ACCPAR           NOW PARSE THE ARGUMENTS
+       MOV  R0,@PCNT          SAVE THE ARGUMNET COUNT
+
+*    CHECK IF THE PARM/ARG COUNTERS MATCH
+*    IF NO ERROR OUT
+
+       MOV  @BEGINV,R5        GET THE STACK POINTER
+       C    @02(R5),@PCNT     DOES THE PARAMETERS MATCH
+       JNE  CAL$91
+
+*    BUILD A PSYM STACK ENTRY FOR EACH PARAMETER
+*    IN THE LIST FROM THE SYMBOL TABLE ARGV ARRAY
+
+       LI   R1,18             * GET SIZE OF CPL OVERHEAD
+       MOV  R1,@14(R5)        * START WITH ARG-1
+
+CALL94 MOV  @BEGINV,R3        * GET STARCT POINTER TO STE
+       MOV  @08(R3),R4        * GET THE PAGE
+
+       MOV  @10(R3),R5        GET 13 BIT ADDRESS
+       A    @14(R3),R5        ADD IN INDEX
+       A    @CW04,@14(R3)     POINT TO NEXT ENTRY
+
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+       AI   R5,>6000          * MAKE IT 16
+       MOV  *R5+,R1           * GET PAGE
+       MOV  *R5,R2            * GET ADDRESS
+
+       BLWP @BLDFAC           BUILD FAC ENTRY
+
+       BL   @PSHFAC           PUSH IT
+
+       DEC  @PCNT             DEC ARG COUNTER
+       JNE  CALL94            IF NOT DONE
+
+       MOV  @BEGINV,R5        * GET STACK POINTER
+       MOV  @02(R5),@PCNT     * RESTORE PCNT
+
+*    BUILD THE STACK END ENTRY (STM)
+
+ASSL3A MOVB @CSIDUM,R0        LOAD THE MARK CODE
+       BL   @BLDMRK           * BUILD STACK ENTRY
+
+       MOV  R9,@SAVEVS        * SAVE THE END OF THE STACK
+
+*    NOW ASSIGN THE PARAMETERS
+
+       MOV  @PCNT,R1          * GET THE NUMBER OF ARGS
+       JEQ  ASSL$3            * JUMP IF ZERO - NO ARGUMENTS
+
+       MOV  @BEGINV,R9        * GET THE START OF THE STACK
+
+       SLA  R1,4              * MULTIPLY BY 16
+
+       A    R1,R9             * ADD TO STACK AND POINT TO ARGUMENT
+       MOV  R9,@CPARM         * SAVE PARM POINTER T
+       MOV  R9,@CARG          * SAVE ARG POINTER
+
+       A    R1,@CPARM         * ADD OFFSET TO POINT TO CORRECT PARM
+
+*    CHECK IF ARGUMENT IS PASS BY REFERENCE OR VALUE
+
+ASSL$1 CB   @CSIDPT,*R9       * CHECK IF REFERENCE
+       JEQ  ASSL$8            * JUMP IF YES
+
+       CB   *R9,@CSIDDM       * TEST IF OPEN/CLOSE PARENS
+       JEQ  ASSL$9            * JUMP IF YES
+
+*    PASS BY VALUE (value space)
+
+       BL   @POPFAC           NO GET RIGHT HAND
+ASSL$4 MOV  @CPARM,R9         GET THE PARAMETER STACK ENTRY
+       BL   @ASSG             AND ASSIGN
+       MOV  R0,R0             CHECK FOR ERROR
+       JNE  ASSL$7            REPORT IT
+
+ASSL$6 LI   R1,-STKSZ         * GET THE STACK VALUE
+       A    R1,@CPARM         * ADD THE OFFSET
+       A    R1,@CARG          * TO BOTH
+       DEC  @PCNT             * DECREMENT COUNTER
+       JEQ  ASSL$3            * JUMP IF DONE
+       MOV  @CARG,R9          * POINT TO ARG
+       JMP  ASSL$1
+
+*    ARG IS PASS BY REFERENCE (pointer)
+
+ASSL$8 BLWP @GVSSTK           * GET VALUE SPACE STACK
+       JMP  ASSL$4            * AND JOIN COMMON CODE
+
+*
+*    ARG IS AN ARRAY, CHECK THAT PARM IS THE
+*    DATA SCOPE
+*                     CARG (R9)       CPARM (R5)
+*    TYPE1: CALL NAME(A(),    SUB NAME(P(),
+
+ASSL$9 MOV  @CPARM,R5         * GET THE PARAMETER ADDRESS
+       CB   *R5,@CSIDDM       * TEST SCOPE TYPE
+       JNE  ASSL$7            * JUMP IF NOT THE SAME
+
+*    TEST IF THE SAME DATA TYPES
+
+       CB   @SID(R5),@SID(R9)
+       JNE  ASSL$7
+
+*    MAP IN CPARM SYMBOL TABLE VALUE SPACE
+
+ASL$9A MOV  @SYMP(R5),R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @02(R5),R1        * GET THE HEADER
+       ANDI R1,>000F          * MASK OUT VSO
+       SLA  R1,1              * TIMES BY TWO
+       A    R1,@SYMA(R5)      * ADD TO BASE
+       MOV  @SYMA(R5),R4      * GET 13 BIT ADDRESS
+       AI   R4,>A000          * MAKE IT 16
+
+       MOV  R9,R3             * SOURCE
+       AI   R3,SYMP           * POINT TO DATA
+       MOV  *R3+,*R4+         * AND MOVE IT
+       MOV  *R3,*R4
+       JMP  ASSL$6            JOIN COMMON CODE
+
+ASSL$7 BL   @RPTE03           REPORT IT
+
+*    DONE WITH THE ASSIGNMENT
+*    NOW GET THE PROGRAM INFORMATION
+*    AND DO THE EXEC
+
+ASSL$3 MOV  @SAVEVS,R9        ENSURE R9 POINTS TO END
+       MOV  @BEGINV,R5        POINT TO STE ENTRY
+
+       MOV  @08(R5),R4        GET THE PAGE
+
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @10(R5),R4        GET 13 BIT ADDRESS
+       AI   R4,>6000          MAKE IT 16
+
+*    SAVE THE OLD SYMBOL TABLE POINTER IN STACK MARK
+
+       MOV  @SYMTAB,@SYMP(R9)
+       MOV  @SYMTAB+2,@SYMA(R9)
+       MOV  @SYMCNT,@08(R9)
+
+*    READ THE NEW SYMBOL TABLE POINTERS FROM THE SYMBOL C.P.L.
+
+       MOV  @10(R4),@SYMTAB
+       MOV  @12(R4),@SYMTAB+2
+       MOV  @14(R4),@SYMCNT
+
+       MOV  @06(R4),@CLINE    * GET CLINE
+
+       MOV  @08(R4),@ARG      * SAVE PROGRAM POINTER
+
+       INC  @CLNEST           * INCREMENT NEST LEVEL
+
+       BL   @GETPGM           * READ THE PROGRAM LINE
+       MOV  @ARG,R12          * RESTORE PROGRAM POINTER
+
+       INCT R10               * POP CALL TO PARSE
+       B    @EXEC11           * BACK INTO EXEC
+
+RPTE31 LI   R0,ERRIAL
+       BL   @ERROR
+
+       PAGE
+*
+*    NAME:  SUBXT
+*
+*    WHAT:  SUB END OR SUB EXIT
+*
+
+SUBXT  MOV  @BEGINV,R5        GET THE VALUE STACK START
+       CB   @SID(R5),@CSIDUS
+       JEQ  SUBXT1
+       LI   R0,ERRSNS
+       BL   @ERROR
+
+SUBXT1 MOV  @02(R5),@PCNT     READ THE ARG COUNT
+       JEQ  SUBXT3            JUMP IF ARGS
+
+*    SET UP THE STACK PARAMETERS
+
+       MOV  @BEGINV,R9        GET THE START OF THE STACK
+
+       MOV  @PCNT,R1          GET THE CURRENT ARG
+
+       SLA  R1,4              TIMES BY 16
+       A    R1,R9             POINT TO VARIABLE
+       MOV  R9,@CPARM         UPDATE PERM STACK POINTER
+       MOV  R9,@CARG          SAVE THIS LOCATION
+
+       A    R1,@CPARM         * UPDATE CPARM POINTER
+       JMP  SUBXT2            * JUMP INTO COMMON CODE
+
+SUBXT6 LI   R1,-STKSZ         * GET STACK SIZE
+       A    R1,@CPARM         * BACK UP CPARM POINTER
+       A    R1,@CARG          * BACK UP CARG POINTER
+       DEC  @PCNT             * DECREMENT COUNTER
+       JEQ  SUBXT3            * JUMP IF DONE
+       MOV  @CARG,R9          * GET ARG ADDRESS
+
+*    CHECK IF CARG IS PASS BY VALUE
+
+SUBXT2 CB   *R9,@CSIDVS       * CHECK IF PASS BY REFERENCE
+       JEQ  SUBXT6            * JUMP IF PASS BY VALUE
+
+*    CARG IS NOT VALUE SPACE, TEST IT OPEN/CLOSE PARENS
+
+       CB   *R9,@CSIDDM       * TEST IF OPEN CLOSE PARENS
+       JEQ  SUBXT7            * YES, JUST ARRAY PASSING
+
+*    CARG IS PASS BY REFERENCE (pointer)
+
+       MOV  @CPARM,R9         * POINT TO PARM STACK ENTRY
+
+       BLWP @GVSSTK           * GET VALUE SPACE STACK
+
+SUBXT4 MOV  @CARG,R9          * POINT TO PARAMETER ENTRY
+       BL   @ASSG             * ASSIGN THEM
+       MOV  R0,R0             * TEST FOR ERRORS
+       JNE  SUBX3D            * JUMP IF YES
+       JMP  SUBXT6            * RETURN TO DO MORE
+
+*    ARG IS AN ARRAY, TEST IF PARM IS AN ARRAY
+*    ONLY TWO TYPE ARE ALLOWED
+*                     CARG            CPARM
+*    TYPE1: CALL NAME(A(),    SUB NAME(P(),
+*    TYPE2: CALL NAME(A(1),   SUB NAME(P,
+*
+*    MAP IN CPARM SYMBOL TABLE VALUE SPACE
+
+SUBXT7 MOV  @CPARM,R5
+       MOV  @SYMP(R5),R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @SYMA(R5),R4      * GET 13 BIT ADDRESS
+       AI   R4,>A000          * MAKE IT 16
+
+       CLR  *R4+
+       CLR  *R4
+       JMP  SUBXT6            JOIN COMMON CODE
+
+SUBX3D BL   @RPTE03           REPORT IT
+
+*    DONE WITH THE REVERSE ASSIGNMENT
+*    RESTORE ENVIRONMENT AND CONTINUE PARSE
+
+SUBXT3 MOV  @SAVEVS,R5        * SET POINTER TO STM
+       MOV  @BEGINV,R9        * RESTORE STACK POINTER
+
+*    NOW MAKE SURE THAT THE STM POINTERIS REALLY AN STM
+
+       CB   @SID(R5),@CSIDUM  CHECK IF UDS MARK
+       JNE  SUBX3C            JUMP IF NO
+
+       MOV  @SYMP(R5),@SYMTAB  RESTORE THE SYMBOL POINTER
+       MOV  @SYMA(R5),@SYMTAB+2
+       MOV  @08(R5),@SYMCNT
+       MOV  @SPGM(R5),@ARG    SAVE PGM POINTER
+       MOV  @SLIN(R5),@CLINE  RESTORE CLINE
+       MOV  @SPLN(R5),@PGMLN  RESTORE CURRENT LINE NUMBER
+
+       DEC  @CLNEST           DECREMENT CALL NEST
+       JNE  SUBX3A
+
+SUBX3B BL   @GETPGM           * GET THE PROGRAM LINE
+       MOV  @ARG,R12          * RESTORE PGM POINTER
+       INC  R12               * FIX PREVIOUS INC
+       MOVB *R12+,R8          * GET THE CHARACTER
+       AI   R9,-STKSZ         * POP THE STACK
+*      INCT R10               * POP THE PARSE
+*      B    @EXEC11           * AND RE-ENTER EXEC
+       B    @CONT
+
+SUBX3C BL   @RPTE03
+
+*    NESTED USER DEFINED SUBS
+*    RESTORE THE PREVIOUS ENVIRNOMENT
+*    NOW CHECK IF NEST ENTRY ON STACK
+
+SUBX3A CB   @SID(R9),@CSIDUS  CHECK IF UDS STE
+       JNE  SUBX3C            JUMP IF NO
+
+       MOV  @02(R9),@PCNT     RESTORE THE PCNT COUNTER
+       MOV  @04(R9),@BEGINV   RESTORE THE BEGIN
+       MOV  @06(R9),@SAVEVS   RESTORE THE END
+
+       JMP  SUBX3B            JOIN COMMON CODE
+

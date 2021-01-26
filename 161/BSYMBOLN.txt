@@ -1,0 +1,476 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.BSYMBOL
+*
+*  NAME:    SYMBOL SUPPORT RIUTINES
+*
+*  VERSION: 3.00 - 10/19/86    BASE LINE
+*           3.01 - 02/15/87
+*
+*-------------------------------------------------------------------------
+*
+*    SYMBOL REDUCTION IS CALED TO REDUCE A SYMBOL ARRAY TO
+*    AN ELEMENT.
+*
+
+SMB10A INC  @SACC+FAC         * ONE MORE TO COUNT
+       MOVB *R12+,R8          * GET NEXT CHAR
+       JEQ  SMB10C            * JUMP IF END OF THE LINE
+       CI   R8,>B300          * AT A COMMA
+       JEQ  SMB10A            * YES DO SOME MORE
+       CI   R8,>B600          * AT RIGHT PAREN
+       JNE  SMB10C            * NO SYNTAX ERROR
+SMB10B INC  @SACC+FAC         * ONE MORE TO COUNT
+       C    @SACC+FAC,@SDIM+FAC
+       JNE  SMB10C            * NOT EQUAL ERROR
+       MOVB *R12+,R8          * GET NEXT CHAR
+       MOVB @CSIDDM,*R7       * WRITE OPEN/CLOSE PARENS
+       MOV  *R10+,R11
+       RT
+
+SMB10C B    @ERR1
+BLDFAC DATA UREG2,$BFAC
+
+SYMRED DECT R10               * MAKE ROOM
+       MOV  R11,*R10          * SAVE RETURN
+
+       MOV  R1,R2             * COPY HEADER
+       ANDI R1,>0070          * MASK OUT ARRAY SIZE
+       SRA  R1,4              * ALIGN REGISTER
+       MOV  R1,@SDIM+FAC      * SAVE DIM COUNT
+
+       COC  @SHBIT,R2         AND CHECK SHARED BIT
+       JNE  SMB54             NOT SET
+
+*    THE SHARED BIT IS SET. THE ARRAY VALUE SPACE ADDRESS
+*    IS INCORRECT. SO CORRECT IT
+
+       MOV  R2,R1
+       SZC  @SHBIT,R1
+       MOV  R1,@02+FAC
+
+       ANDI R2,>000F          * MASK OUT VSO
+       SLA  R2,1              * TIMES 2
+       A    R2,@SYMA+FAC      * ADD TO SYMBOL BASE
+
+       MOV  @SYMP+FAC,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SYMA+FAC,R1      * GET THE 13 BIT ADDRESS
+       AI   R1,>6000          * MAKE IT 16 BIT ADDRESS
+       MOV  *R1+,R4           * READ THE PAGE
+       MOV  R4,@SYMP+FAC      * SAVE IT
+       MOV  *R1,R5            * READ THE ADDRESS
+       MOV  R5,@SYMA+FAC      * SAVE IT
+       CLR  R2                * FAKE OUT NEXT INST
+
+SMB54  ANDI R2,>000F          MASK OUT VSO
+       SLA  R2,1              TIMES 2
+       A    R2,@SYMA+FAC      ADD TO SYMBOL BASE
+
+*    MAKE A COPY OF THE ORIGINAL BEFORE WE START THE SCAN
+
+       MOV  @SYMP+FAC,@STRP+FAC
+       MOV  @SYMA+FAC,@STRA+FAC
+
+       CLR  @SACC+FAC         CLEAR DIM ACCUMULATOR
+
+*    ENSURE THAT WE HAVE A VALUE FOR THE DIMENSION
+*
+*    SYMBOL()
+*    SYMBOL(,)
+*    SYMBOL(VALUE)
+
+       MOVB *R12+,R8          GET THE NEXT CHARACTER
+       CI   R8,>B300          CHECK IF COMMA ?
+       JEQ  SMB10A            JUMP IF YES ITS AN ERROR
+
+       CI   R8,>B600          CHECK IF RIGHT PAREN
+       JEQ  SMB10B            JUMP IF YES ITS AN ERROR
+
+*    AT THIS POINT NOT AN EMPTY SET OF PARENS. START
+*    SCANNING AND ACUMULATING THE DIMS
+
+       BL   @PSHFAC           * SAVE FAC
+
+SMB10  BL   @PARSE            * PARSE
+       BYTE LPAR$,0           * UP TO A LEFT PAR OR LESS
+
+       CB   @SID+FAC,@CSIDIN  * CHECK IF INTEGER
+       JEQ  SMB11             * JUMP IF YES
+
+       CB   @SID+FAC,@CSIDST  * CHECK IF STRING
+       JEQ  ERR2              * JUMP IF YES
+
+       LI   R0,X$CFI          LOAD XOP CODE
+
+       LI   R2,SNUM+FAC       * POINT TO VALUE SPACE
+       XOP  @TEN,0
+
+       MOVB @CSIDIN,@SID+FAC  * INDICATE IT IS AN INTEGER
+
+       MOV  R1,@SNUM+FAC      * COPY THE INTEGER
+       JLT  RPTE20            * JUMP IF YES - BAD SUBSCRPIT
+
+SMB11  MOV  @SYMP(R9),R4      * GET PAGE
+
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SYMA(R9),R0      GET THE 13 BIT ADDRESS
+       AI   R0,>6000          MAKE IT 16
+       MOV  @SNUM+FAC,R5      RESTORE
+       MOV  *R0,R2            READ THE ARRAY SIZE
+       JEQ  SMB55             SPECIAL CASE ZERO
+       DEC  R2                SHOULD ALWAYS GO HERE
+SMB55  C    R5,R2             CHECK SUBSCRIPT LESS-THAN MAX
+       JH   RPTE20            JUMP IF INDEX OUT OF RANGE
+       MOV  @BASE,R4          FETCH OPTION BASE
+       JEQ  SMB040            IF BASE EQ ZERO, INDEX EQ ZERO OK
+       DEC  R5                ADJUST BASE 1 INDEX
+       JLT  RPTE20            IF SUBSCRIPT WAS ZERO, ERROR
+       JMP  SMB041            ACCUMULATE THE SUBSCRIPT
+
+SMB040 INC  R2                ADJUST SIZE IF BASE=0
+SMB041 MOV  R2,R1
+       MOV  R2,R0
+       MPY  @SACC(R9),R1      R1,R2 HAS ACCUM*MAX DIM
+       MOVB @SDIM(R9),R3      8 MSB'S
+       SRL  R3,8
+       MPY  R0,R3             PRODUCT IN R3,R4
+       A    R4,R1
+       A    R5,R2             ADD IN THE NEW DIM #
+       JNC  SMBL00            NO CARRY, CONTINUE
+       INC  R1
+SMBL00 MOV  R2,@SACC(R9)      SAVE THE 24 BITS OUT
+       SWPB R1
+       MOVB R1,@SDIM(R9)
+       INCT @SYMA(R9)         INCREMENT DIM MAXIMA POINTER
+       AB   @CBHFF,@SDIM+1(R9)  ONE LESS DIMENSION TO DO
+       JEQ  SMB070            JUMP IF ALL DIMENSIONS DONE
+       CI   R8,>B300          OTHERWISE MUST BE AT COMMA
+       JNE  ERR1              * JUMP IF NO
+       MOVB *R12+,R8          * GET NEXT CHARACTER
+       JMP  SMB10             * SCAN SOME MORE
+
+ERR1   BL   @RPTE03           LOAD ERROR CODE (SYNTAX)
+
+ERR2   JMP  RPTE07
+
+RPTE20 LI   R0,ERRBS          LOAD ERROR CODE
+       JMP  SMB99
+
+*    AT THIS POINT THE REQUIRED NUMBER OF DIMENSIONS
+*    HAVE BEEN SCANNED.
+*    R2 CONTAINS THE INDEX
+
+SMB070 CI   R8,>B600          * CHECK IF RIGHT PAREN
+       JNE  ERR1              * JUMP IF NO
+       MOVB *R12+,R8          * GET NEXT CHARACTER
+
+       BL   @POPFAC           * GET FAC BACK
+       MOV  @SACC+FAC,R2      * RESTORE R2
+       MOVB @SDIM+FAC,R1      * MSB
+       SRL  R1,8
+       MOVB @SID+FAC,R0       * GET THE TYPE
+       SLA  R1,1              * GET WORDS FROM BYTES
+       SLA  R2,1              * LSW
+       JNC  SMBL01
+       INC  R1
+SMBL01 CB   R0,@CSIDIN        IS IT INTEGER?
+       JEQ  SMBL02            YES, ALL DONE
+       SLA  R1,1
+       SLA  R2,1
+       JNC  SMBL03
+       INC  R1
+SMBL03 CB   R0,@CSIDST
+       JEQ  SMBL02
+       SLA  R1,1
+       SLA  R2,1
+       JNC  SMBL02
+       INC  R1
+
+SMBL02 AI   R2,16             * ADD IN INDEX OVERHEAD
+       JNC  SMBL04
+       INC  R1
+SMBL04 MOVB R2,R1             * NOW CONVERT TO 8/13 BIT
+       ANDI R2,>1FFF
+       SRC  R1,13
+       SZCB R1,R1
+       A    @STRA+FAC,R2
+       A    @STRP+FAC,R1
+       COC  @CW2000,R2
+       JNE  SMBL05
+       ANDI R2,>1FFF
+       INC  R1
+SMBL05 CLR  @STRP+FAC         * CLEAR OUT TEMP
+       CLR  @STRA+FAC         * CLEAR OUT TEMP
+       MOV  R2,@SYMA+FAC      * SAVE SYMBOL POINTER
+       MOV  R1,@SYMP+FAC      * SAME HERE
+       CB   @SID+FAC,@CSIDST  * DO WE HAVE A STRING
+       JEQ  SMB80             * JUMP IF YES
+SMB75  MOV  *R10+,R11
+       RT
+
+SMB80  EQU  $
+       MOVB @DATBUF(R1),@MAP96
+       MOVB @DATBUF+1(R1),@MAP98
+       AI   R2,>6000          * MAKE IT 16
+       MOV  *R2+,R4           * GET STRING PAGE
+       MOV  R4,R3             * COPY IT
+       MOV  R4,@STRP+FAC      * WRITE IT
+       MOV  *R2+,R5           * GET 13 BIT ADDRESS
+       A    R5,R3             * SUM WITH PAGE
+       JEQ  SMB85             * TRULY ZERO
+
+*    MAP IN STRING PAGE
+
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+       MOV  R5,@STRA+FAC      * WRITE IT
+       MOV  @>A000-2(R5),@SLEN+FAC * WRITE LENGTH
+       JMP  SMB75
+
+SMB85  CLR  @STRA+FAC         * CLEAR STRING ADDRESS
+       CLR  @SLEN+FAC         * CLEAR SLEN
+       JMP  SMB75
+
+*    ERROR HANDLING
+
+RPTE07 LI   R0,ERRSNM         LOAD ERROR CODE (STR-NUM MISMATCH)
+SMB99  BL   @ERROR            AND REPORT IT
+
+RPTE09 LI   R0,ERRMUV         INCORRECT NAME USAGE
+       JMP  SMB99             AND REPORT IT
+
+       PAGE
+*
+*    NAME:  PSYM - POINTER TO SYMBOL
+*
+
+PSYM   SETO R0                * INDICATE ITS AN POINTER
+
+*      INC  @CNTPSM
+
+       CLR  R1                * CLEAR COUNTER
+       MOV  R12,R2            * SAVE POINTER
+       DEC  R2                * BACK UP TO INCLUDE FIRST CHAR
+
+PSYM$2 INC  R1                * INC COUNTER
+       MOVB *R12+,R8          * GET NEXT CHAR
+       JGT  PSYM$2            * JUMP IF PART OF SYMBOL
+
+*    CALL FNDSYM(INT SYMTYP, CHAR *S1, INT SLEN)
+*                R0,         R2,       R1
+
+       BLWP @FNDSYM           * SEARCH THE SYMBOL TABLE
+       MOV  R0,R0             * FIND IT ?
+       JNE  PSYM$5            * JUMP IF NOT FOUND
+
+       MOV  @02+FAC,R1        * GET THE HEADER
+       JLT  PSYM$4            * TEST IF UDF
+
+       COC  @ARBIT,R1
+       JEQ  PSYM$3
+       RT
+
+PSYM$5 B    @RPTE35
+
+PSYM$3 B    @SYMRED
+
+PSYM$4 BL   @RPTE09           REPORT ERROR (ERRMUV)
+
+FNDSYM DATA UREG2,$FNDSY
+FNDSUB DATA UREG2,$FNDSU
+
+       PAGE
+*
+*    NAME:  GETVS
+*
+*    WHAT:  GETS THE VALUE SPACE OF THE STACK POINTER
+*
+
+$GTVSS MOV  @18(R13),R0       * R0 POINTS TO STACK
+       MOV  @14(R13),R1       * R1 POINTS TO FAC
+       JMP  GT10
+
+GVSSTK DATA UREG2,$GTVSS
+GETVS  DATA UREG2,$GTVS
+
+$GTVS  MOV  @14(R13),R1       * GET FAC ADDRESS
+       MOV  R1,R0             * COPY FOR MOVE
+GT10   MOV  *R0+,R2
+       SLA  R2,8
+       MOVB R2,@1(R1)
+       LI   R12,MAP96
+       INCT R0                * SKIP
+       MOV  *R0+,R6           * GET PAGE
+       MOV  *R0+,R7           * GET ADDRESS
+       MOVB @DATBUF(R6),*R12+   * MAP IT IN >6000 PAGE
+       MOVB @DATBUF+1(R6),*R12+
+       JMP  FND$10
+
+$BFAC  LI   R12,MAP96
+       MOV  @02(R13),R6
+       MOV  @04(R13),R7
+       SZCB R6,R6
+       MOVB @DATBUF(R6),*R12+
+       MOVB @DATBUF+1(R6),*R12+
+
+       MOV  @14(R13),R1       * COPY FAC ADDRESS
+       MOV  @>6000(R7),R8     * GET THE HEADER
+       COC  @SHBIT,R8         * TEST IF SHARED BIT SET
+       JNE  $BF10
+       MOVB @CSIDDM,*R1       * WRITE OPEN/CLOSE PARENS
+       JMP  $BF11
+$BF10  MOVB @CSIDPT,*R1       * INDICATE ITS AN POINTER
+$BF11  SETO R9
+       JMP  FND$20
+
+       PAGE
+*
+*    NAME:  FNDSYM - FINDS A SYMBOL FROM THE TABLE
+*           FNDSUB - FINDS A SUB FROM THE SUB TABLE
+*
+
+$FNDSU MOV  @SUBCNT,R0        * CHECK IF ANY SUBS
+       JEQ  FND$9             * JUMP IF NO SUBS IN LIST
+
+*      INC  @CNTFSU
+
+       SETO R9                * INDICATE ITS AN POINTER
+       MOV  @SUBTAB,R6        * GET STARTING PAGE
+       MOV  @SUBTAB+2,R7      * GET STARTING ADDRESS
+       JMP  FND$0
+
+$FNDSY MOV  @SYMCNT,R0        * CHECK IF ANY SYMBOLS
+       JEQ  FND$9             * JUMP IF NO
+
+*      INC  @CNTFSM
+
+       MOV  *R13,R9           * GET TYPE OF SYMBOL TO RETURN
+       MOV  @SYMTAB,R6        * GET STARTTING PAGE
+       MOV  @SYMTAB+2,R7      * GET STARTING ADDRESS
+FND$0  CLR  R2                * CLEAR LAST SYMBOL FLAG
+
+       MOV  @02(R13),R1       * GET CALLERS STRING LENGTH
+       MOV  R1,R4             * GET LENGTH AS A BYTE
+       SWPB R4
+       LI   R8,MAP96
+       LI   R10,MAP98
+       MOV  @4(R13),R3        * GET CALLERS STRING ADDRESS
+       LI   R11,>6006         * GET OFFSET
+       JMP  FND$1
+
+FND$5  MOV  R2,R2
+       JNE  FND$9
+       MOV  @>6002(R7),R6     *
+       JGT  FND$6
+       JEQ  FND$6
+       SETO R2
+       SZCB R6,R6
+FND$6  MOV  @>6004(R7),R7
+
+FND$1  MOVB @DATBUF(R6),*R8
+       MOVB @DATBUF+1(R6),*R10
+
+       MOV  R7,R5             * COPY 13 BIT ADDRESS
+       A    R11,R5            * MAKE IT 16
+
+       CB   R4,*R5+           * COMPARE THE STRINGS LENGTH
+       JNE  FND$5
+
+       MOV  R3,R12
+       MOV  R1,R0
+
+FND$4  CB   *R5+,*R12+        * COMPAE A BYTE
+       JNE  FND$5             * JUMP IF THEY DONT MATCH
+       DEC  R0                * DEC COUNTER
+       JNE  FND$4             * JUMP IF MORE TO DO
+
+*    SYMBOL MATCH NOW RETURN THE CORRECT FAC ENTRY
+
+       MOV  @14(R13),R1       * COPY FAC ADDRESS
+       MOVB @CSIDPT,*R1       * INDICATE ITS AN POINTER
+
+FND$20 MOV  @>6000(R7),R8     * GET THE HEADER
+       MOV  R8,R2             * COPY IT
+       ANDI R2,>0700          * MASK OUT ALL BUT TYPE
+       MOVB R2,@SID(R1)       * SAVE SYMBOL TYPE
+       MOV  R8,@02(R1)        * COPY OF THE HEADER
+       CB   R2,@CSIDST        * ARE WE DOING A STRING
+       JNE  FND$2             * JUMP IF NO
+       CLR  R9                * INDICATE VALUE SPACE
+FND$2  ANDI R8,>B00F          * MASK OUT UDF, UDS, DIM, SH
+       MOVB R8,R8             * TEST IF SET
+       JNE  FND$8             * JUMP IF YES
+       ANDI R8,>000F          * MASK OUT VSO
+       SLA  R8,1              * TIMES 2
+       A    R8,R7             * ADD TO BASE ADDRESS
+
+****???????????????????????  CHECK FOR CARRY?????????
+
+       MOV  R9,R9             * TEST IF VALUE SPACE
+       JEQ  FND$10            * JUMP IF YES
+FND$8  MOV  R7,@SYMA(R1)      * WRITE ADDRESS
+       MOV  R6,@SYMP(R1)      * WRITE PAGE
+FND$14 CLR  *R13              * INDICATE FOUND
+       RTWP
+
+FND$9  SETO *R13              * INDICATE NOT FOUND
+       RTWP
+
+       PAGE
+*
+*    WHAT:  GET THE VALUE SPACE FROM THE SYMBOL TABLE
+*
+
+FND$10 MOV  R7,R8             * COPY FOR STRING
+       AI   R7,>6000          * MAKE IT 16
+       MOVB @CSIDVS,*R1       * INDICATE ITS A VALUE SPACE
+       AI   R1,SNUM           * POINT TO START
+       SRL  R2,7
+       B    @STABLE(R2)
+
+FND$12 MOV  *R7+,*R1+         * COPY VALUE SPACE FOR RADIX
+       MOV  *R7+,*R1+
+       MOV  *R7+,*R1+
+FND$11 MOV  *R7,*R1
+       JMP  FND$14
+
+FND$13 MOVB @CSIDPT,@-4(R1)   * INDICATE ITS AN POINTER
+       MOV  R6,*R1+           * WRITE SYMBOL PAGE
+       MOV  R8,*R1+           * WRITE SYMBOL ADDRESS
+       MOV  *R7+,R4           * GET THE PAGE
+       MOV  R4,*R1+           * WRITE STRING PAGE
+       JEQ  FND$15            * JUMP IF ZERO
+       MOV  *R7,R5            * GET 13 BIT ADDRESS
+       MOV  R5,*R1+           * WRITE STRING ADDRESS
+
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @>A000-2(R5),*R1  * WRITE THE LENGTH
+
+****????????????????? MAKE SURE THE ABOVE WORKS ?????????????????
+
+       JMP  FND$14
+
+FND$15 CLR  *R1+
+       CLR  *R1+
+       JMP  FND$14
+
+STABLE JMP  FND$99            0
+       JMP  FND$11            1   INTEGER
+       JMP  FND$99            2
+       JMP  FND$99            3
+       JMP  FND$12            4   REAL
+       JMP  FND$13            5   STRING
+       JMP  FND$99            6
+       JMP  FND$99            7
+
+FND$99 LWPI UREG1
+       LI   R0,ERRBOS
+       BL   @ERROR
+

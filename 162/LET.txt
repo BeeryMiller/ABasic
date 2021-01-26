@@ -1,0 +1,39 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.LET
+*
+*  NAME:    NUD ENTRY FOR LET
+*
+*  VERSION: 3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+NLET   CLR  @ASSCNT           COUNTER FOR MULTIPLE ASSIGN'S
+
+NLET05 BL   @PSYM             GET SYMBOL TABLE ADDRESS
+
+       BL   @PSHFAC           PUSH ST POINTER ON STACK
+       INC  @ASSCNT           COUNT THE VARIABLE
+       CI   R8,>BE00          IS TOKEN AN EQUAL
+       JEQ  NLET10            YES GO INTO ASSIGNMENT LOOP
+       CI   R8,>B300          CHECK IF COMMA
+       JNE  LETSN             JUMP IF NO
+
+       MOVB *R12+,R8          GET NEXT TOKEN
+       JGT  NLET05            IF LEGAL SYMBOL CHARACTER
+LETSN  BL   @RPTE03           REPORT ERROR ( SYNTAX )
+
+NLET10 MOVB *R12+,R8          GET NEXT TOKEN
+
+       BL   @PARSE            PARSE THE VALUE TO ASSIGN
+       BYTE TREM$,0           PARSE TO THE END OF STATEMENT
+
+NLET15 BL   @ASSG             ASSIGN THE VALUE TO THE SYMBOL
+       MOV  R0,R0
+       JNE  NLET20
+       DEC  @ASSCNT           ONE LESS TO ASSIGN
+       JNE  NLET15            YES BRANCH OUT
+
+       B    @EOL              YES CONTINUE THE PARSE
+
+NLET20 BL   @ERROR
+

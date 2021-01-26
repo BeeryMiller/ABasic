@@ -1,0 +1,96 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.RUN
+*
+*  NAME:    RUN COMMAND
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*
+*    NAME:  RUN COMMAND
+*
+*    CMD RULES: RUN
+*               RUN { NUMERIC VARIABLE } { CONTINUE }
+*               RUN { STRING VARIABLE  }
+*
+
+RUN    BL   @SROLL            SCROLL THE SCREEN
+       DEC  @ARGC             ONLY ONE ENTERED
+       JEQ  RUN5              YES -
+       MOV  @ARGV+2,R1        PUSH FIRST ARGUMENT ON STACK
+       BL   @TSTARG           TEST ARGUMENT FOR NUMERICS
+       JMP  RUN1              NON - NUMERICS
+
+       LI   R15,2             FOR CONVERSION PURPOSES
+       BL   @CONVRT
+       DEC  @ARGC
+       JEQ  RUN2
+
+       B    @CMDE05           REPORT THE ERROR
+
+*    FILE NAME RUN
+
+RUN1   BL   @INITPB           INITIALIZE PAB
+       MOV  @ARGV+2,R1        POINT TO THE ARG
+       BL   @GFILEN           GET FILE NAME
+       BL   @LDRSET           TRY TO LOAD A PROGRAM
+       MOV  R0,R0             SUCCESSFUL ?
+       JNE  ILLST             NO -
+
+RUN5   MOV  @LNECNT,R0        * CHECK IF PROGRAM PRESENT
+       JEQ  ILLST             * JUMP IF NO
+RUN6   MOV  @SLINE,@CLINE     * START AT THE BEGINNING
+
+RUN3   MOV  @CLINE,@BLINE     * TELL EXEC WHERE TO START
+       BL   @CLOSEA           * CLOSE ALL OPEN FILES
+       BL   @KILSYM           * KILL THE SYMBOL TABLE
+
+       SZC  @HDFFF,@PFLAG
+       SOC  @PRNBIT,@PFLAG
+
+*      MOV  @PFLAG,R0         * GET THE PROGRAM FLAG
+*      ANDI R0,>2000          * CLEAR ALL THE BITS EXCEPT PROT
+*      SOC  @PRNBIT,R0        * SET PROGRAM/RUN/WARNING
+*      MOV  R0,@PFLAG         * WRITE IT BACK
+
+       SZC  @H3BF3,@XFLAG     * THIS DOES THE FOLLOWING 3 IN ONE
+
+*      MOV  @XFLAG,R0         * GET THE TRACE FLAG
+*      ANDI R0,>C000          * RE-SET ALL THE BITS EXCEPT TRACE
+*      MOV  R0,@XFLAG         * WRITE IT BACK
+
+       BL   @INR610
+
+*      LI   R10,PSTACK        RESET THE PROGRAM STACK
+*      MOV  @VSLOW,R9         RESET VALUE STACK
+
+RUN4   MOVB @MEMTBL+4,@MAP94
+       BL   @PRESCN
+
+*    RELOAD ALL THE REGISTERS, AND CHECK FOR ERRORS
+
+       BL   @INR610           INIT R6-R10
+
+       MOV  R0,R0             CHECK IF ERROR (FROM PRESCAN)
+       JNE  RUN7              REPORT IT
+
+       B    @EXEC             GO TO BASIC EXEC
+
+*    LINE NUMBER RUN
+
+RUN2   MOV  @LNECNT,R0        * CHECK IF PROGRAM PRESENT
+       JEQ  ILLST             * JUMP IF NO
+       BLWP @SRCHLN           * SEARCH LINE NUMBER TABLE
+       MOV  @CLINE,R0         * TEST IF FOUND
+       JNE  RUN3              * JUMP IF FOUND
+       LI   R0,ERRLNF         * LOAD ERROR CODE
+       JMP  RUNERR            * REPORT ERROR
+
+ILLST  LI   R0,ERRNPP
+RUNERR SZC  @HDFFF,@PFLAG     * CLEAR ALL THE FLAGS EXCEPT PROT
+RUN7   BL   @ERROR
+
+HDFFF  DATA >DFFF
+H3BF3  DATA >3BF3

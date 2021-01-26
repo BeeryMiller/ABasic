@@ -1,0 +1,207 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.VSTACK
+*
+*  NAME:    VALUE STACK ROUTINES
+*
+*  VERSION: 3.00 - 10/19/86    BASE LINE
+*           3.01 - 02/17/87
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  PSHPRS
+*
+*    WHAT:  PUSH FAC, AND FOLLOW WITH CALL TO PARSE
+*
+*    ENTRY: BL   @PSHPRS
+*
+
+RPTE12 LI   R0,ERRSO          LOAD ERROR CODE
+       BL   @ERROR            AND REPORT IT
+
+PSHPRS DECT R10               * MAKE ROOM
+       MOV  R11,*R10          * SAVE RETURN
+       LI   R11,P05           * OPTIMIZE FOR THE PARSE
+
+*      INC  @CNTPPP
+
+
+       PAGE
+*
+*    NAME:  PSHFAC
+*
+*    WHAT:  VALUE STACK PUSH
+*
+*    CALL:  BL   @PSHFAC
+*
+
+PSHFAC MOV  R7,R1             PUSH FAC
+
+PUSH50 AI   R9,STKSZ          PUSH STACK
+       C    R9,@VSHIGH        AT THE END
+       JH   VPOP20            JUMP IF YES
+       MOV  R9,R0             COPY DESTINATION ADDRESS
+       MOV  *R1,R2            * GET THE HEADER
+       COC  @CSIDSS,R2        * TEST IF TEMP STRING
+       JNE  PUSH10            * NO, SO PUSH IT
+
+       MOV  @SLEN(R1),R2      TEST IF NULL STRING
+       JEQ  PUSH10            * IS NULL, SO NO BACK POINTER
+
+       MOV  R9,R2             GET THE STACK ADDRESS
+       AI   R2,STRP           ACTUAL STRINGS LOCATION
+
+       MOV  @STRP(R1),R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA(R1),R4      GET THE 13 BIT ADDRESS
+       SETO @>A000-6(R4)
+       MOV  R2,@>A000-4(R4)
+
+PUSH10 B    @MOVSTK           AND MOVE IT
+
+       PAGE
+*
+*    NAME:  PSHARG
+*
+*    WHAT:  VALUE STACK PUSH
+*
+*    CALL:  BL   @PSHARG
+*
+
+PSHARG LI   R1,ARG
+       JMP  PUSH50
+
+*PSHARG AI   R9,STKSZ          PUSH STACK
+*      C    R9,@VSHIGH        AT END OF STACK SPACE ?
+*      JH   VPOP20            JUMP IF YES
+*
+*      INC  @CNTPSA
+*
+*      MOV  R9,R0             COPY DESTINATION ADDRESS
+*      MOV  R6,R1             SOURCE IS IN THE FAC
+*
+*      MOV  *R6,R2            CHECK IF TEMP STRING
+*      COC  @CSIDSS,R2
+*      JEQ  PUSH50            JUMP IF YES
+*
+*      B    @MOVSTK
+*
+*PUSH50 MOV  @SLEN(R6),R2      TEST IF NULL STRING
+*      JNE  PUSH55            JUMP IF NOT NULL
+*      B    @MOVSTK           AND MOVE IT
+*
+*PUSH55 MOV  R9,R2             GET THE STACK ADDRESS
+*      AI   R2,STRP           POINT TO STRINGS LOCATION
+*
+*      MOV  @STRP(R6),R4
+*      MOVB @DATBUF(R4),@MAP9A
+*      MOVB @DATBUF+1(R4),@MAP9C
+*
+*      MOV  @STRA(R6),R4      GET 13 BIT ADDRESS
+*      AI   R4,>A000-6        MAKE IT 16
+*      SETO *R4+              SET THE PAGE
+*      MOV  R2,*R4            WRITE THE STCAK AS OWNER
+*
+*      B    @MOVSTK           AND MOVE IT
+
+       PAGE
+*
+*    NAME:  VPOP
+*
+*    WHAT:  VALUE STACK POP
+*
+*    CALL:  BL   @POPFAC
+*
+
+POPFAC MOV  R7,R0             COPY DESTINATION ADDRESS (FAC)
+POPFA1 MOV  R9,R1             SOURCE IS ON THE STACK
+
+       AI   R9,-STKSZ         POP THE STACK
+       C    R9,@VSLOW         CHECK FOR STACK UNDERFLOW
+       JL   VPOP20            JUMP IF YES
+
+       MOV  *R1,R3            POP A TEMP STRING ?
+       COC  @CSIDSS,R3
+       JNE  VPOP10            NO, SO JUST POP IT
+
+       MOV  @SLEN(R1),R3      TEST IF NULL STRING
+       JEQ  VPOP10            IT IS NULL, SO DON'T WORRY ABOUT BACK PTR
+
+       MOV  @STRP(R1),R4        MAP IN THE STRING
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA(R1),R4      GET THE 13 BIT ADDRESS
+       CLR  @>A000-6(R4)      ZERO OUT THE BACK POINTER
+       CLR  @>A000-4(R4)
+
+VPOP10 B    @MOVSTK           AND MOVE IT
+
+VPOP20 BL   @RPTE12           REPORT ERROR (ERRSO)
+
+
+*      PAGE
+*
+*    NAME:  POPARG
+*
+*    WHAT:  POP THE VALUE STACK TO ARG
+*
+*    ENTRY: BL   @POPARG
+*
+
+POPARG LI   R0,ARG            DESTINATION ADDRESS
+       JMP  POPFA1
+
+*      MOV  R9,R1             SOURCE
+*
+*      INC  @CNTPPA
+*
+*      AI   R9,-STKSZ         POP THE STACK
+*      C    R9,@VSLOW         CHECK FOR STACK UNDERFLOW
+*      JL   VPOP20            JUMP IF YES
+*
+*      MOV  *R1,R3            CHECK IF TEMP STRING
+*      COC  @CSIDSS,R3
+*      JEQ  VPOP50            JUMP IF YES
+*
+*      B    @MOVSTK
+*
+*VPOP50 MOV  @SLEN(R1),R3      TEST IF NULL STRING
+*      JNE  VPOP60            JUMP IF NOT NULL
+*      B    @MOVSTK           AND MOVE IT
+*
+*VPOP60 MOV  @STRP(R1),R4
+*      MOVB @DATBUF(R4),@MAP9A
+*      MOVB @DATBUF+1(R4),@MAP9C
+*
+*      MOV  @STRA(R1),R4      GET 13 BIT ADDRESS
+*      AI   R4,>A000-6        MAKE IT 16
+*      CLR  *R4+              CLEAR THE PAGE
+*      CLR  *R4               CLEAR THE STACK AS OWNER
+*
+*      B    @MOVSTK           AND MOVE IT
+*
+       PAGE
+*
+*    NAME:  MTOFAC
+*
+*    WHAT:  MOVES WHATS AT THE DATA ADDRESS TO EITHER FAC
+*           OR ARG
+*
+*    CALL:  BL    @MTOFAC
+*           DATA  ADDRESS
+*
+
+MTOARG LI   R0,ARG            DESTINATION IS ARG
+       JMP  MOVCOM
+
+MTOFAC MOV  R7,R0             DESTINATION IS FAC
+MOVCOM MOV  *R11+,R1          GET THE SOURCE ADDRESS
+
+       B    @MOVSTK           MOVE IT
+
+
+CSIDSS DATA SIDVS*256+SIDSTR
+

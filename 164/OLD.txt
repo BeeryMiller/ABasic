@@ -1,0 +1,564 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.OLD
+*
+*  NAME:    OLD COMMAND
+*
+*  VERSION: 3.0 - 06/02/85    BASE LINE
+*
+*-------------------------------------------------------------------------
+PGMID  DATA >ABCD             PROGRAM ID   FOR IV254
+LODPAB DATA $LOAD,0001,0000              PAB DATA FOR LOADING PGM FILE
+*      DATA 0,0,1,0
+       DATA 0,0,0,>FFFF
+LOD3PB DATA >0014,0,EDITB+1,0,80,0,0     PAB DATA FOR LOADING DV80 FILE
+LDI254 DATA >001C,1,0,0                  PAB DATA FOR LOADING IV254 FILE
+H00FE  DATA >00FE,0,0
+CBA0   BYTE >A0
+LDERMS BYTE 43
+       TEXT 'THE FOLLOWING LINES NOT INSERTED IN PROGRAM'
+
+*
+*    NAME:  OLD
+*
+*    WHAT:  OLD COMMAND ENTRY POINT
+*
+
+OLD    DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+       LI   R0,ERRMRG         JUST IN CASE
+       DEC  @ARGC             CHECK THE NUMBER OF PARAMETERS
+       JEQ  OLD20             MISSING PARAMETERS
+       BL   @CLOSEA
+       LI   R1,DEFPAB
+       BL   @INITPB           INITIALIZE DEFAULT PAB
+       MOV  @ARGV1,R1         PUSH STRING ADDRESS ON STACK
+       BL   @GFILEN           GET FILE NAME
+
+       BL   @LDRSET           LOAD A PROGRAM
+       MOV  R0,R0             ERRORS ?
+       JEQ  LOD19B            NO
+
+OLD20  BL   @ERROR            AND REPORT IT
+
+       PAGE
+*
+*    NAME:  LOAD1
+*
+*    WHAT:  LOAD A PROGRAM IMAGE FILE
+*           INTO MEMORY
+*
+
+LOAD1  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+       LI   R1,LODPAB
+       BL   @SETDFP           LOAD THE DEFAULT PAB RETYRB R0=DEFPAB
+
+       XOP  @EIGHT,0
+       MOVB @DEFPAB+ECODE,@IOERR  FOUND AN ERROR
+       JNE  LOAD19            YES
+
+*    NO ERRORS MAP IN THE PROGRAM
+*    MOVE THE HEADER
+
+       MOVB @PGMMAP,@MAP96    MAP IN THE FIRST 8K OF PGM TO >6000
+
+       LI   R2,WSMBLK+2       WHERE WSM BLOCK IS
+       LI   R1,>6000          SOURCE
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+       MOV  *R1+,*R2+
+
+       BL   @PROLEN           CALCULATE PROGRAM LENGTH
+       MOV  R0,R0             ERROR IN THE LOAD?
+       JNE  LOD19B            YES, SO DON'T CONTINUE
+
+       LI   R1,8              OFFSET INTO THE PROGRAM FILE FOR HEADER
+
+ISBSPG BL   @OLDSUP           MOVE THE PROGRAM
+
+LOD19A CLR  R0                INDICATE NO ERRORS
+LOD19B MOV  *R10+,R11         GET THE RETURN ADDRESS
+LOAD12 RT                     AND RETURN
+       PAGE
+*
+*    NAME:  PROLEN
+*
+*    WHAT:  CALCULATES THE PROGRAM LENGTH & VALIDATES IF PGM
+*
+*    WSM BLOCK LAYOUT
+*    00
+*    02  -  XOR
+*    04  -  ELINE
+*    06  -  SLINE
+*    08  -  RAMTOP
+
+
+PROLEN LI   R8,WSMBLK
+       LI   R2,INDX07         GET THE PROTECTION BIT
+       MOV  @04(R8),R0
+       MOV  @06(R8),R1
+       XOR  R0,R1
+       SZCB @PTBIT,@PFLAG     ASSUME UNPROTECTED FILE
+       LI   R0,ERRSN          ASSUME BAD FILE TYPE
+       C    R1,@02(R8)        IS IT OKAY AND UNPROTECTED?
+       JEQ  LOD12B            YES
+       NEG  R1
+       C    R1,@02(R8)        IS IT OKAY AND PROTECTED?
+       JNE  LOAD12            BAD FILE SO CLOSE FILE (IF POSSIBLE)
+       SOCB @PTBIT,@PFLAG
+
+****???????????????? REMEMBER TO RESET THE TRACE FLAGS AND CLOSE PAB (TREND)
+
+LOD12B CLR  R0
+       RT
+
+LOAD19 LI   R0,ERRIO          IT IS AN I/O ERROR
+       JMP  LOD19B
+       PAGE
+*
+*    NAME:  INTERNAL/VARIABLE 254 FILE LOADER
+*
+*
+*    WSM BLOCK LAYOUT
+*
+*    00     CURRENT MEMORY POINTER
+*    02     END LINE
+*    04     START LINE
+*    06     XOR
+*    08     RAM TOP
+*    10     NUMBER OF BYTES
+*    12     NEW MEMTOP
+*    14     SAVE PROTECTION FLAG
+*
+
+LOAD21 CLR  R1                NO HEADER INTO
+       CB   @CBA0,@IOERR      CHECK IF END OF FILE
+       JEQ  ISBSPG            NO, IT IS SOMETHING ELSE
+       CLR  @LNECNT           NO LINES IN PGM
+       CLR  @ELINE
+       CLR  @SLINE
+       CLR  @PGMEND
+       JMP  LOAD19
+
+LOAD2  DECT R10               MAKE ROOM
+       MOV  R11,*R10          SAVE RETURN
+
+
+       LI   R1,LDI254         I/V 254 DEFAULT PAB
+       BL   @SETDFP
+
+       XOP  @EIGHT,0          PERFORM IO
+       MOVB @DEFPAB+ECODE,@IOERR
+       JNE  LOAD19            BAD OPEN
+
+       LI   R1,$READ          NOW READ THE FIRST RECORD
+       MOVB R1,@DEFPAB+OPCODE
+       MOVB R1,@IOERR+1       SAVE THE OPCODE IN CASE OF I/O ERROR
+
+       XOP  @EIGHT,0
+       MOVB @DEFPAB+ECODE,@IOERR         ANY ERRORS ?
+       JNE  LOAD19            REPORT THEM
+       C    @DEFPAB+CHRCNT,@H000A  FIRST RECORD MUST BE 10 BYTES LONG
+       JNE  LOAD27             IT ISN'T, SO FORGET IT
+
+*    NOW LOAD THE WSMBLK BLOCK FOR A PGM
+
+       LI   R8,>6000
+       MOVB @PGMMAP,@MAP96
+
+*    NOW SET  IN THE PROGRAM
+
+       C    *R8+,@PGMID       CHECK TO SEE IF PGROGAM ID
+       JNE  LOAD27            NO
+       MOV  *R8+,@WSMBLK+6
+       MOV  *R8+,@WSMBLK+4
+       MOV  *R8+,@WSMBLK+2
+       MOV  *R8,@WSMBLK+8
+
+       BL   @PROLEN           IS IT A PROGRAM?
+       MOV  R0,R0
+       JNE  LOAD27            NO, IT ISN'T
+       CLR  R1                START LOADING AT LOCATION 0 IN PGM SPACE
+       LI   R2,>0100          MSB OF CHARACTER COUNT
+*   NOW READ IN THE PROGRAM
+
+LOAD20 CLR  @DEFPAB+CHRCNT    ZERO OUT CHARACTER COUNT
+       MOV  R1,@DEFPAB+BALOW   SET BUFFER ADDRESS
+       MOVB R2,@DEFPAB+BAHIGH
+       LI   R0,DEFPAB         LOAD OPERATION CODE
+       XOP  @EIGHT,0          PERFORM IO
+       MOVB @DEFPAB+ECODE,@IOERR  CHECK FOR ERRORS
+       JNE  LOAD21            YES - REPORT IT
+       A    @DEFPAB+CHRCNT,R1 UPDATE POINTER
+       JNC  LOAD20
+
+* GREATER THAN 64K, SO FORGET IT
+
+LOAD27 LI   R0,$CLOSE         CLOSE THE FILE FIRST
+       MOVB R0,@OPCODE
+       LI   R0,DEFPAB
+       XOP  @EIGHT,0
+       LI   R0,ERRSN          bad file format, give them a syntax error
+       MOV  *R10+,R11
+       RT
+       PAGE
+*
+*    NAME:  LOAD3
+*
+*    WHAT:  ASCII FILE LOADER
+*
+*
+
+LOAD32 DECT R10               ENTRY FROM THE MERGE COMMAND
+       MOV  R11,*R10
+       JMP  LOAD33
+
+LOAD3  DECT R10
+       MOV  R11,*R10
+       LI   R1,LOD3PB
+       BL   @SETDFP
+
+       XOP  @EIGHT,0          PERFORM IO
+       MOVB @DEFPAB+ECODE,@IOERR
+       JNE  LOAD19
+*      C    @DEFPAB+LRC,@H00FE  254 IS ALL THE ROOM WE HAVE IN THE BUFFER
+*      JH   LOAD27
+
+       CLR  @LNECNT           GOOD OPEN, SO ZERO OUT THE PREVIOUS PGM
+       CLR  @SLINE
+       CLR  @ELINE
+       CLR  @PGMEND
+
+LOAD33 CLR  @WSMBLK           ZERO OUT THE CRUNCH ERROR IN LINE FLAG
+       LI   R0,$READ
+       MOVB R0,@DEFPAB+OPCODE
+       MOVB R0,@IOERR+1       SAVE FOR ERROR CODE
+
+LOAD30 LI   R1,EDITB
+       LI   R2,>0020
+       MOVB R2,*R1+           ZERO LENGTH
+       LI   R3,253
+       BLWP @MEMSET
+
+       LI   R5,EDITB+1
+LOD310 MOV  R5,@DEFPAB+BALOW  SET BUFFER ADDRESS
+LOD303 LI   R0,DEFPAB         LOAD PAB ADDRESS
+       XOP  @EIGHT,0          PERFORM IO
+       MOV  @DEFPAB+BALOW,R5  GET BUFFER ADDRESS
+       MOVB @DEFPAB+ECODE,@IOERR
+       JNE  LOAD31            JUMP IF YES
+       MOV  @DEFPAB+CHRCNT,R1        GET CHARACTER COUNT
+       JEQ  LOD302            ZERO LENGTH LINE, SO SEE IF CONTINUATION GOING
+
+*  NOW TEST IF ALL BLANKS
+
+       MOV  R1,R2
+       MOV  R5,R4
+LOD300 CB   *R4+,@SPACE
+       JNE  LOD301            NON SPACE SO USE THIS LINE
+       DEC  R2
+       JNE  LOD300
+       CLR  @DEFPAB+CHRCNT    ZERO OUT FOR LATER USE
+       CLR  R1                EFFECTIVE LENGTH OF THIS REC IS 0
+       JMP  LOD302            ALL BLANKS, SO SEE IF THIS IS A CONT LINE
+
+*  NOW TEST IF CONTINUE IN PROGRESS
+
+LOD301 CI   R5,EDITB+1        ARE WE AT THE START OF THE BUFFER
+       JNE  LOD311            NO
+
+* IT IS THE START OF A LINE SO TEST IF GOOD LINE
+
+       MOVB @DEFPAB+CHRCNT+1,@EDITB  SAVE BEGINNING LENGTH
+       BL   @TESTLN
+       JEQ  LOD312                  GOOD LINE SO TRY TO CRUNCH IT IF < 80 CHAR
+       BL   @LOD45B             PRINT ERROR MESSAGE
+       JMP  LOAD30
+
+* GOOD LINE, SO TEST IF 80 CHARS, IF SO TRY TO CONTINUE, IF NOT, CRUNCH IT
+
+LOD312 CLR  @DEFPAB+CHRCNT
+       CI   R1,80
+       JNE  LOD302
+       A    R1,R5             GET NEW BUFFER ADDRESS
+       JMP  LOD310            GET NEXT LINE
+
+*  IN CONTINUE MODE, SO SEE IF THIS IS A CONTINUE
+
+LOD311 BL   @TESTLN           TEST IF CONTINUE LINE OR #####^ FOR START
+       JEQ  LOD309            IT IS A GOOD LINE NUMBER START, SO CRUNCH FIRST LN
+
+*  TO BE HERE, IN CONTINUE MODE, SO SEE IF WE NEED TO CONTINUE AGAIN
+
+       CI   R1,80             IS IT THE ENTIRE RECORD?
+       JNE  LOD320            NO, SO CRUNCH IT
+       A    R1,R5
+       CI   R5,EDITB+1+240    DO WE HAVE 240 CHARS ALREADY?
+       JL   LOD310            NO, SO TRY TO READ NEXT LINE
+LOD320 CLR  @DEFPAB+CHRCNT    MAKE SURE TO START AGAIN
+
+*  CRUNCH WHAT WE HAVE AS GIVEN BY START AT EDITB+1
+*                                  LENGTH OF @(DEFPAB+BALOW)+R1-(EDITB+1)
+
+LOD302 A    @DEFPAB+BALOW,R1
+       AI   R1,-EDITB-1
+       JEQ  LOAD30
+       SWPB R1                ALIGN REGISTER
+       MOVB R1,@EDITB         WRITE THE LENGTH
+
+LOD309 BL   @CRANIN           CRUNCH AND INSERT IT
+
+* NOW TEST IF ANY MORE IN EDITB BUFFER
+
+       MOV  @DEFPAB+BALOW,R5  IF NON ZERO, THEN MORE IN BUFFER
+       JEQ  LOAD30            IS ZERO, SO NEW LINE
+
+* NOW MOVE THAT DATA AT R5 TO EDITB+1, LENGTH IN CHRCNT
+
+       MOV  @DEFPAB+CHRCNT,R1
+       JEQ  LOAD30            NOTHING TO MOVE, SO GET NEXT LINE
+       CLR  @DEFPAB+CHRCNT
+       LI   R2,EDITB
+       MOV  R1,R3
+       SWPB R1                PUT LENGTH IN STRING
+       MOVB R1,*R2+
+LOD307 MOVB *R5+,*R2+         MOVE THE STRING DOWN
+       DEC  R3
+       JNE  LOD307
+       LI   R3,10             NOW MOVE 10 SPACES
+LOD308 MOVB @SPACE,*R2+
+       DEC  R3
+       JNE  LOD308
+       CLR  @DEFPAB+BALOW     NO CONTINUE
+       CI   R1,>5000          IS THE LENGTH 80 (POSSIBLE CONTINUE)?
+       JNE  LOD309
+       LI   R5,EDITB+81
+       JMP  LOD310
+
+*  NOW TEST IF ANYTHING IN BUFFER OF A REMAINDER
+
+LOAD31 CI   R5,EDITB+1
+       JEQ  LOD390            ALL DONE
+       BL   @CRANIN           COMPLETE THE LINE
+LOD390 MOV  @WSMBLK,R0        DID WE PRINT AN ERROR?
+       JEQ  LOD392            NO
+       BL   @SROLL            MAKE SURE CMD STARTS AT BEGINNING OF NEXT LINE
+       CLR  R0                ASSUME NO ERROR, READING PAST END OF FILE
+LOD392 CB   @CBA0,@IOERR      IS IT READING PAST END OF FILE?
+       JEQ  LOD391            YES, SO GOOD ERROR
+       LI   R0,ERRIO
+
+*  NO NEED TO CLOSE, SHOULD HAVE HAPPENED AUTOMATICALLY
+
+*      LI   R0,$CLOSE         CLOSE THE FILE FIRST
+*      MOVB R0,@OPCODE
+*      LI   R0,DEFPAB
+*      XOP  @EIGHT,0          PERFORM IO
+
+LOD391 MOV  *R10+,R11
+       RT
+
+TESTLN MOV  R5,R4             START AT R5
+       MOV  R1,R2             LENGTH IS R1
+       LI   R0,5              MAX LINE # LENGTH
+TEST03 MOVB *R4+,R3
+       SRL  R3,8
+       CI   R3,>0020          BLANK?
+       JEQ  TEST00            YES
+       AI   R3,->0030
+       CI   R3,9
+       JH   TEST02            IS NOT A VALID NUMBER SO RETURN <>=
+       DEC  R2                ONE LESS IN LINE TO LOOK AT
+       JEQ  TEST01            THE LINE IS ONLY NUMBERS SO MUST BE A CONTINUE
+       DEC  R0                ONE LESS IN MAX NUMBER LENGTH
+       JNE  TEST03
+       CB   *R4,@SPACE        MUST BE A BLANK, SINCE 5 NUMBERS PASSED
+TEST02 RT                     = SET IF VALID START, <>= IF NOT SPACE
+
+TEST00 CI   R0,5              A BLANK FOUND, SO IS THIS THE FIRST CHAR?
+       JEQ  TEST01            STARTS WITH BLANK, SO BAD LINE
+       CB   R11,R11           SET = BIT AND RETURN
+       RT
+
+TEST01 MOV  R11,R11           RESET = BIT (IE <>=)
+       RT
+
+*  CRUNCH AND INSERT THE LINE (IF ERROR, IT IS HANDLED HERE)
+
+CRANIN DECT R10               CRUNCH THE LINE AND INSERT IT
+       MOV  R11,*R10
+       CLR  @FAC+4            ENSURE NO LINE NUMBER
+
+* NOW MAKE SURE THE RECORD BEING CRUNCHED ENDS IN A ">20"
+
+       LI   R1,EDITB
+       MOVB *R1+,R2           GET LENGTH TO CRUNCH
+       SRL  R2,8
+       A    R2,R1
+       MOV  R1,@WSMBLK+4      SAVE FOR LATER USE
+       MOVB *R1,@WSMBLK+2     SAVE WHATEVER IS THERE
+       MOVB @SPACE,*R1        PUT IN THE SPACE
+       BL   @LNCRNH           CRUNCH IT
+       MOV  @WSMBLK+4,R1      RESTORE THE CHARACTER
+       MOVB @WSMBLK+2,*R1
+       MOV  @ERRCOD,R0        CHECK FOR ERRORS
+       JNE  LOAD45            BOMB IN CRUNCH, SO DON'T EVEN TRY TO INCORPORATE T
+
+LOAD41 BL   @EDITLN
+       MOV  R0,R0
+       JEQ  CRANI0
+
+*  THIS LINE NOT INCORPORATED IN THE PROGRAM
+
+LOAD45 ABS  @WSMBLK           DID WE PUT OUT THE ERROR MESSAGE ALREADY?
+       JNE  LOD45A
+       SETO @WSMBLK           ONLY PUT IT OUT ONCE
+       LI   R1,LDERMS
+       BL   @DPROMP
+LOD45A BL   @SROLL
+       LI   R1,EDITB          THIS LINE DID NOT WORD
+       BL   @DPROMP
+CRANI0 MOV  *R10+,R11
+       RT
+
+LOD45B DECT R10               ENTRY FOR ERROR ONLY LINE PRINT
+       MOV  R11,*R10
+       JMP  LOAD45
+       PAGE
+*
+*    NAME:  LDRSET
+*
+*    WHAT:  LOADER SET TRIES ALL FORMS OF FILE TYPES
+*
+*    1.     PROGRAM IMAGE
+*    2.     I/V 254
+*    3.     ASCII
+
+
+LDRSET DECT R10               MAKE ROOM
+       MOV  R11,*R10
+
+LDR$2  BL   @LOAD1            TRY PROGRAM IMAGE
+       MOV  R0,R0             ERROR
+       JEQ  LDR$1             NO - ITS OK
+
+       BL   @LOAD2            TRY I/V 254
+       MOV  R0,R0
+       JEQ  LDR$1
+
+       BL   @LOAD3
+
+LDR$1  CLR  R8
+       LI   R7,FAC
+       MOV  *R10+,R11         GET RETURN ADDRESS
+       RT                     AND RETURN
+
+       PAGE
+*
+*    NAME:  OLD SUPPORT
+*
+*    WHAT:  THIS FUNCTION WILL LOAD A PROGRAM IMAGE FROM
+*           LOW MEMORY AT >000X TO HIGH END OF MEMORY (>FFFF)
+*
+*    R1 -   SOURCE (8 IF PGM FILE  10 IF IV 254 FILE)
+*           USES R0-R5
+
+OLDSUP MOV  @WSMBLK+8,R3         GET THE NUMBER OF WORDS TO MOVE
+       MOV  R3,R15            SAVE FOR LATER
+       S    @WSMBLK+6,R3         # OF BYTES LONG THE PGM ITSELF IS
+       INCT R3                   # BYTES IN PGM PLUS 1
+       SRL  R3,1              ROUND OFF AND GET IN # OF WORDS
+
+       MOV  R1,R0             GET LAST WORD TO MOVE
+       A    @WSMBLK+8,R0
+       S    @WSMBLK+6,R0      NOW R0 POINTS TO THE LAST BYTE
+       ANDI R0,>FFFE          OUT POINTER IN R0
+
+*      MOV  @MEMTOP,R2
+       SETO R2
+       SETO R8                CALCULATE ADDER TO THE POINTERS
+       MOV  @WSMBLK+8,R4
+       S    R4,R8
+       XOR  @WSMBLK+4,R4
+       SRL  R4,1
+       JNC  OLDS04
+       DEC  R8                ADDER IN R8
+
+OLDS04 ANDI R2,>FFFE          16 BIT IN POINTER IN R2
+
+* NOW CALCULATE WHERE THE LINE # TABLE IS TO START
+
+       S    @WSMBLK+4,R15
+       INC  R15
+       SRL  R15,1             START MODIFICATION AFTER R15 WORDS
+
+       CLR  R6                SET TOGGLE FOR LINE # TABLE
+
+OLDS02 LI   R4,>1000          ONLY 8 K BYTES AT A TIME MAX
+       C    R3,R4
+       JHE  OLDS01            AT LEAST 8K TO TRANSFER
+       MOV  R3,R4
+OLDS01 S    R4,R3             R4 WORDS LESS TO GO
+
+       MOVB R2,R5
+       SRL  R5,13
+       MOVB @PGMMAP-1(R5),@MAP96    MAP R2 INTO >6000->9FFF
+       MOVB @PGMMAP(R5),@MAP98
+       MOV  R2,R1
+       ANDI R1,>1FFF
+       ORI  R1,>8000
+
+       MOVB R0,R5             MAP R0 INTO >A000->DFFF
+       SRL  R5,13
+       MOVB @PGMMAP-1(R5),@MAP9A
+       MOVB @PGMMAP(R5),@MAP9C
+       MOV  R0,R5
+       ANDI R5,>1FFF
+       ORI  R5,>C000
+
+       S    R4,R0             UPDATE R0 POINTER
+       S    R4,R0             REMEMBER R4 IN WORDS, R0,R2 IN BYTES
+       S    R4,R2             UPDATE R2 POINTER
+       S    R4,R2
+
+       MOV  R15,R15
+       JEQ  OLDS06
+
+OLDS03 MOV  *R5,*R1           MOVE A BYTE
+       DECT R1                BACK UP POINTER
+       DECT R5                BACK UP POINTER
+       DEC  R15
+       JEQ  OLDS05            GO TO OTHER MODE
+       DEC  R4                MORE TO DO
+       JNE  OLDS03            YES
+       JMP  OLDS02
+
+OLDS06 MOV  *R5,*R1
+       INV  R6
+       JEQ  OLDS07
+       A    R8,*R1            CORRECT IT
+OLDS07 DECT R1
+       DECT R5
+OLDS05 DEC  R4
+       JNE  OLDS06
+
+       MOV  R3,R3             MORE?
+       JNE  OLDS02            YES
+
+*   NOW FOR THE POINTERS TO THE PROGRAM
+
+       INCT R2
+       MOV  R2,@ELINE
+       MOV  @WSMBLK+4,R1
+       S    @WSMBLK+6,R1
+       INC  R1                # OF BYTES IN LNT
+       A    R1,R2
+       MOV  R2,@PGMEND
+       AI   R2,-4
+       MOV  R2,@SLINE
+       SRL  R1,2
+       MOV  R1,@LNECNT
+       RT

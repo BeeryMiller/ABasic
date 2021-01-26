@@ -1,0 +1,88 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.IF
+*
+*  NAME:    NUD ENTRY FOR IF STATEMENT
+*
+*  VERSION: 3.0 - 10/19/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+IF     BL   @PARSE            EVALUATE EXPERSSION
+       BYTE COMMA$,0
+
+       CB   @SID+FAC,@CSIDST  CHECK IF STRING
+       JEQ  IF$60             YES - ITS AN ERROR
+       CLR  @GSINDX           * DUMMY ON INDEX
+       CI   R8,THEN$*256
+       JNE  IF$60             ERROR IF "THEN" NOT PRESENT
+       MOV  @SNUM+FAC,R0      GET THE RESULTS OF THE COMPARE
+       JNE  IF$10             TRUE GOES TO HERE
+       MOVB *R12+,R8          FALSE IS HERE
+       CI   R8,LN$*256        CHECK FOR LINE NUMBER
+       JNE  IF$20
+       INCT R12               SKIP LINE NUMBER
+       MOVB *R12+,R8          GET NEXT CHARACTER
+IF$5   CI   R8,ELSE$*256      CHECK FOR AN ELSE
+       JEQ  IF$10
+       B    @EOL              MUST BE END OF LINE
+
+GETL1$ B    @GETL10
+
+IF$10  MOVB *R12+,R8          * GET NEXT TOKEN OF CLAUSE
+       JEQ  IF$60             * END OF THE LINE
+       JGT  IF$11             * VARIABLE
+       CI   R8,LN$*256        * LINE NUMBER ?
+       JEQ  GETL1$            * YES
+       CI   R8,TREM$*256      * TAIL REMARK
+       JH   IF$11             * JUMP IF HIGHER
+       JMP  IF$60             * ITS AN ERROR
+
+IF$11  LI   R8,SSEP$*256      * CHEAT TO DO A CONTINUE
+       DEC  R12               * BACK UP FOR CONTINUE
+       B    @CONT
+
+       PAGE
+*
+*    LOOK FOR AN ELSE CLAUSE SINCE THE
+*    CONDITION WAS FALSE
+*
+
+IF$20  LI   R3,1              IF/ELSE PAIR COUNTER
+       BL   @EOLINE           TRAP OUT EOS
+       JEQ  IF$60             ITS AN ERROR
+IF$25  CI   R8,ELSE$*256      * CHECK IF ELSE TOKEN ?
+       JNE  IF$27             * JUMP IF NO
+       DEC  R3                * DECREMENT IF COUNTER
+       JEQ  IF$10             * JUMP IF MATCHING
+       JMP  IF$35
+
+IF$27  CI   R8,IF$*256        * CHECK IF IF TOKEN
+       JNE  IF$28             * JUMP IF NO
+       INC  R3                * INCREMENT IF COUNTER
+       JMP  IF$35             * GET NEXT CHARACTER
+
+IF$28  CI   R8,STRIN$*256     LOWER THAN A STRING
+       JL   IF$30             YES
+       CI   R8,LN$*256        HIGHER OR EQUAL TO LINE NUMBER
+       JEQ  IF$40             IF EQUAL
+       JL   IF$50             SKIP STRINGS AND NUMERICS
+IF$30  BL   @EOLINE           EOL
+       JEQ  IF$5              YES DONE SCANNING
+IF$35  MOVB *R12+,R8          GET NEXT CHARACTER
+       JMP  IF$25             AND GO ON
+
+*    SKIP LINE NUMBERS
+
+IF$40  INCT R12               * SKIP THE LINE NUMBER
+       JMP  IF$35
+
+*    SKIP STRINGS AND NUMERICS
+
+IF$50  MOVB *R12+,R0          * GET STRING LENGTH
+       SRL  R0,8              * ALIGN REGISTER
+       A    R0,R12            * ADD TO PROGRAM POINTER
+       JMP  IF$35
+
+IF$60  BL   @RPTE03           REPORT ERROR (SN)
+
+

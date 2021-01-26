@@ -1,0 +1,91 @@
+*-------------------------------------------------------------------------
+*
+*    FILE:  WDS1.150.EQUCALL
+*
+*    NAME:  CALL EQUATES
+*
+* VERSION:  3.0 - 10/19/86    BASE LINE 2.1 VERSION
+*
+*-------------------------------------------------------------------------
+*      EQU  >0000        0    CANT USE ZERO
+DSTNCE EQU  >0502        1
+DRAWTO EQU  >0504        2
+FILL   EQU  >0506        3
+GCHAR  EQU  >0508        4
+HCHAR  EQU  >050A        5
+LOCAT  EQU  >050C        6
+MAGSPR EQU  >050E        7
+
+MOTON  EQU  >0510        8
+PATTRN EQU  >0512        9
+RECT   EQU  >0514        10
+POINT  EQU  >0516        11
+SCREEN EQU  >0518        12
+SPRITE EQU  >051A        13
+VCHAR  EQU  >051C        14
+*CHAR   EQU  >051E        15
+TCOLOR EQU  >051E        15
+
+CHRPAT EQU  >0520        16
+CHRSET EQU  >0522        17
+CLR    EQU  >0524        18
+COINC  EQU  >0526        19
+COLOR  EQU  >0528        20
+DCOLOR EQU  >052A        21
+SPRIT2 EQU  >052C        22
+SPRSET EQU  >052E        23
+
+GRAFIC EQU  >0530        24
+CIRCLE EQU  >0532        25
+DRAW   EQU  >0534        26
+MARGIN EQU  >0536        27
+BTIME  EQU  >0538        28
+SPRPOS EQU  >053A        29
+BCOLOR EQU  >053C        30
+MKEY   EQU  >053E        31
+
+MLOC   EQU  >0540        32
+MREL   EQU  >0542        33
+MDRAG  EQU  >0544        34
+HMOUSE EQU  >0546        35   HIDE MOUSE
+SMOUSE EQU  >0548        36   SEE MOUSE
+DELSPR EQU  >054A        37
+PALETE EQU  >054C        38
+RSTPLT EQU  >054E        39   RESET PALETTE COLORS
+GPOINT EQU  >0550        40   GET POINT COLOR
+SETCHR EQU  >0552        41
+CHAR   EQU  >0554        42
+SCHAR  EQU  >0556        43
+GRAP24 EQU  >0558        44   THE CALL MARGINS SETTING PART
+DELALL EQU  >055A        45   DELETE ALL SPRITES EXCEPT MAYBE MOUSE
+LPRC   EQU  >055C        46
+PSET   EQU  >055E        47
+
+*----- PAGE TWO CALLS
+
+*      EQU  >0600         1
+MEMSET EQU  >0602         2
+FILES  EQU  >0604         3
+SPGET  EQU  >0606         4
+SAY    EQU  >0608         5
+PEEKV  EQU  >060A         6
+POKEV  EQU  >060C         7
+PEEK   EQU  >060E         8
+
+CLOAD  EQU  >0610         9
+CLINK  EQU  >0612        10
+CINIT  EQU  >0614        11
+CERR   EQU  >0616        12
+SOUND  EQU  >0618        13
+VERSON EQU  >061A        14
+KEY    EQU  >061C        15
+JOYST  EQU  >061E        16
+
+DATE   EQU  >0620        17
+TIME   EQU  >0622        18
+LDCR   EQU  >0624        19
+STCR   EQU  >0626        20
+CIN    EQU  >0628        21
+COUT   EQU  >062A        22
+MYART  EQU  >062C        23
+ECOLOR EQU  >0630        25

@@ -1,0 +1,332 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.RAND
+*
+*  NAME:    RANDOM NUMBER GENERATOR
+*
+*  VERSION: 3.0 - 10/21/86    BASE LINE
+*           3.1 - 12/10/88    SPEED-UP AND BUG FIXES
+*
+*-------------------------------------------------------------------------
+
+*
+*
+*    NAME:  RANDOM NUMBER GENERATOR IN EXEC
+*
+*   INPUT:  R0 - RANDOM NUMBER SEED
+*
+*   OUTPUT  R0
+*
+
+RNDNO$ MOV  *R13,R6           GET SEED
+       LI   R4,28645
+       MPY  @RAND16,R4
+       AI   R5,31417
+       MOV  R5,@RAND16
+       INC  R6
+       CLR  R4
+       SWPB R5
+       DIV  R6,R4
+       SWPB R5
+       MOVB R5,*R13           WRITE IT IN USER'S R0
+       RTWP
+
+       PAGE
+*
+*    NAME:  NRND
+*
+*    WHAT:  NUD ENTRY FOR RANDOMIZE
+*
+
+*    COMPUTE A NEW VALUE FOR X1
+
+NRND   BL   @MTOFAC           * GET X1
+       DATA RNDX1
+       CLR  R0
+       MOVB R0,@09+FAC
+       CLR  @10+FAC
+
+       BL   @PSHFAC           * SAVE OLD X1
+
+       LI   R3,RNDA1
+
+       LI   R0,X$FMPY         * FAC = X1*A1
+       BL   @MRND
+
+       LI   R3,RNDC1
+
+       LI   R0,X$FADD         * T1,FAC = X1*A1+C1
+       BL   @MRND
+
+       BL   @PSHFAC           * SAVE T1
+
+       LI   R3,RNDEM
+
+       LI   R0,X$FMPY         * FAC = T1*1/1E7
+       BL   @MRND
+
+       LI   R0,X$GRIN         * T2,FAC = INT(T1*1/1E7)
+       BL   @MRND
+
+       BL   @PSHFAC           * SAVE T2
+
+       LI   R3,RNDEP
+
+       LI   R0,X$FMPY         * T2,FAC = T2*1E7
+       BL   @MRND
+
+       AI   R9,-STKSZ         * POP STACK TO POINT TO T1
+       MOV  R9,R3             *
+       AI   R9,-STKSZ         * POP STATCK
+
+       LI   R0,X$FSUB         * X1,FAC=T1-T2*1E7
+       BL   @MRND             *
+
+       MOV  R7,R1             * FAC IS SOURCE
+       LI   R2,RNDX1          * DESTINATION
+       LI   R3,16             * NUMBER OF BYTES
+       BL   @FASMVW           * MOVE IT
+
+       BL   @PSHFAC           * SAVE X1
+*
+*    COMPUTE A NEW VALUE FOR X2
+*
+       BL   @MTOFAC
+       DATA RNDX2
+       CLR  R0
+       MOVB R0,@09+FAC
+       CLR  @10+FAC
+
+       LI   R3,RNDA1
+
+       LI   R0,X$FMPY         * FAC=X2*A1
+       BL   @MRND
+
+       AI   R9,STKSZ          *
+       BL   @PSHFAC           * SAVE X2*A1
+
+       AI   R9,-STKSZ*3       * POINT TO OLD X1
+       BL   @POPFAC           * FAC=OLD X1
+
+       AI   R9,STKSZ*4        * BACK TO X2*A2
+
+       LI   R3,RNDA2
+
+       LI   R0,X$FMPY         * FAC = X1*A2
+       BL   @MRND
+
+       MOV  R9,R3             *
+       AI   R9,-STKSZ         * POP STACK
+       LI   R0,X$FADD         * FAC = X2*A2+X1*A2
+       BL   @MRND
+
+       LI   R3,RNDC2
+
+       LI   R0,X$FADD         * FAC=X2*A2+X1*A2+C2
+       BL   @MRND
+
+       MOV  R9,R3
+       AI   R9,-STKSZ         * POP STACK
+       LI   R0,X$FADD         * T3,FAC=X2*A2+X1*A2+C2+T2
+       BL   @MRND
+
+       AI   R9,-STKSZ*2
+       BL   @PSHFAC
+
+       LI   R3,RNDEM
+
+       LI   R0,X$FMPY         * FAC=T3/1E7
+       BL   @MRND
+
+       LI   R0,X$GRIN         * T4,FAC=INT(T3/1E7)
+       BL   @MRND
+
+       LI   R3,RNDEP
+
+       LI   R0,X$FMPY         * FAC=T4*1E7
+       BL   @MRND
+
+       MOV  R9,R3
+       AI   R9,-STKSZ         * POP STACK
+       LI   R0,X$FSUB
+       BL   @MRND             * X2,FAC=T3-T4*1E7
+
+       MOV  R7,R1             * FAC IS SOURCE
+       LI   R2,RNDX2          * X2 IS DEST
+       LI   R3,16             * NUMBER OF BYTES
+       BL   @FASMVW
+
+       LI   R3,RNDEM
+
+       LI   R0,X$FMPY         * FAC=X2/1E7
+       BL   @MRND
+
+       BL   @PSHFAC
+       AI   R9,STKSZ
+       BL   @POPFAC
+       LI   R3,RNDEM
+       LI   R0,X$FMPY         * FAC=X1/1E7
+       BL   @MRND
+
+       LI   R0,X$FMPY
+       BL   @MRND             * FAC=X1/1E14
+
+       MOV  R9,R3
+       AI   R9,-STKSZ         * POP STACK
+       LI   R0,X$FADD         * FAC=(X2/1E7)+(X1/1E14)
+       BL   @MRND
+
+       B    @CONT
+*
+*    CONSTANTS FOR THE RANDOM NUMBER ROUTINE
+*
+RNDA2  BYTE SIDVS,SIDRAD,0,0
+       BYTE >43,>01,>2B,>59
+       BYTE >52,>00,>00,>00
+       BYTE >00,>00,>00,>00
+
+RNDA1  BYTE SIDVS,SIDRAD,0,0
+       BYTE >42,>2A,>08,>15
+       BYTE >00,>00,>00,>00
+       BYTE >00,>00,>00,>00
+
+RNDC2  BYTE SIDVS,SIDRAD,0,0
+       BYTE >43,>02,>0B,>20
+       BYTE >30,>00,>00,>00
+       BYTE >00,>00,>00,>00
+
+RANDNO DATA UREG2
+       DATA RNDNO$
+
+RNDC1  BYTE SIDVS,SIDRAD,0,0
+       BYTE >43,>06,>36,>05
+       BYTE >13,>00,>00,>00
+       BYTE >00,>00,>00,>00
+
+RNDEP  BYTE SIDVS,SIDRAD,0,0
+       BYTE >43,>0A,>00,>00
+       BYTE >00,>00,>00,>00
+       BYTE >00,>00,>00,>00
+
+RNDEM  BYTE SIDVS,SIDRAD,0,0
+       BYTE >3C,>0A,>00,>00
+       BYTE >00,>00,>00,>00
+       BYTE >00,>00,>00,>00
+
+RNDA4  BYTE SIDVS,SIDRAD,0,0
+       BYTE >42,>01,>00,>00
+       BYTE >00,>00,>00,>00
+       BYTE >00,>00,>00,>00
+
+
+       PAGE
+*
+*    NAME:  NRNDMZ
+*
+*    WHAT:  RANDOMIZE NUD THAT THE USER USES TO SEED X1
+*
+*
+
+NRNDMZ BL   @EOSTMT           * CHECK IF SEED PROVIDED
+       JEQ  RNDM1             * JUMP IF NO
+       BL   @PARSE            * PARSE SEED
+       BYTE TREM$,0
+       CB   @SID+FAC,@CSIDST  * CHECK IF STRING
+       JEQ  NR03              * JUMP IF YES
+
+       BL   @ITOF
+
+       MOV  @SNUM+FAC,R0      * CHECK IF ZERO
+       JEQ  NR01              * JUMP IF YES
+
+       LI   R0,>4600          * FAC <1E14
+       MOVB R0,@SNUM+FAC
+
+       BL   @PSHFAC           * SAVE SEED
+
+       LI   R3,RNDEM
+
+       LI   R0,X$FMPY         * FAC = X2+X1/E7
+       BL   @MRND
+
+       LI   R0,X$GRIN         * FAC = INT(X2)
+       BL   @MRND
+
+       MOV  R7,R1             * FAC IS SOURCE
+       LI   R2,RNDX2          * X2 IS DESTINATION
+       LI   R3,16             * NUMBER OF BYTES
+       BL   @FASMVW           * MOVE WORDS
+
+       LI   R3,RNDEP
+
+       LI   R0,X$FMPY         * FAC=X2*1E7
+       BL   @MRND
+
+*      MOV  R9,R3
+       AI   R9,-STKSZ
+       LI   R0,X$FSUB
+       BL   @MRND
+
+       MOV  R7,R1             * FAC IS SOURCE
+       LI   R2,RNDX1          * X1 IS DEST
+       LI   R3,16             * NUMBER OF BYTES
+       BL   @FASMVW           * MOVE WORDS
+NR02   B    @CONT
+
+NR03   BL   @RPTE07           REPORT ERROR (ERRSNM)
+
+NR01   CLR  @RNDX2+SNUM       EQUALS ZERO
+       CLR  @RNDX1+SNUM
+       JMP  NR02
+
+RNDM1  LI   R1,RNDA4          * RNDA4 IS SOURCE
+       MOV  R7,R2             * FAC IS DESTINATION
+       LI   R3,16             * NUMBER OF BYTES
+       BL   @FASMVW           * MOVE WORDS
+
+       BL   @RNDMZ            * SET SEED X1
+       MOV  R7,R1             * FAC IS SOURCE
+       LI   R2,RNDX1          * DEST
+       LI   R3,9              * NUMBER OF BYTES
+       BL   @FASMVB           * MOVE WORDS
+
+       BL   @RNDMZ            * SET SEED X2
+       MOV  R7,R1             * FAC IS SOURCE
+       LI   R2,RNDX2          * DEST
+       LI   R3,9              * NUMBER OF BYTES
+       BL   @FASMVB           * MOVE WORDS
+       JMP  NR02
+
+
+       PAGE
+*
+*
+*
+RNDMZ  LI   R0,99             * LOAD SEED
+       BLWP @RANDNO
+       SRL  R0,2
+       MOVB R0,@FAC+6
+
+       LI   R0,99
+       BLWP @RANDNO
+       SRL  R0,2
+       MOVB R0,@FAC+7
+
+       RT
+
+       PAGE
+*
+*     R0 -  XOP DATA TYPE     OP-CODE
+*     R1 -  DESTINATION       FAC
+*     R2 -  SOURCE ONE        FAC
+*     R3 -  SOURCE TWO        FAC/STK
+
+MRND   LI   R1,FAC+SNUM       POINT TO VALUE SPACE
+       MOV  R1,R2             COPY
+       AI   R3,SNUM           POINT TO VALUE
+
+       XOP  @TEN,0            GO TO IT
+       STST R4
+       RT                     AND RETURN
+
+

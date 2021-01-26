@@ -1,0 +1,208 @@
+       PAGE
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.151.UTILITY
+*
+*  NAME:    UTILITY PROGRAMS
+*
+*  VERSION: 3.0 - 11/25/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  ISSUE ACCEPT/BAD TONES
+*
+
+$BEEP  DATA 1399              FREQ 1
+       DATA >020F             ATT1 / ATT2
+       DATA >0F00             ATT3 / NOT USED
+       DATA >000F             NOISE CONTROL / ATTN
+       DATA 10                DURATION
+
+$GONG  DATA 219
+       DATA >000F
+       DATA >0F00
+       DATA >000F
+       DATA 10
+
+$STOP  DATA 0
+       DATA >0F0F
+       DATA >0F00
+       DATA >000F
+       DATA 0
+
+TONE1  LWPI UREG2
+       LI   R0,$BEEP          LOAD SOUND LIST
+       JMP  TONE3
+
+TONE2  LWPI UREG2
+       LI   R0,$GONG          LOAD SOUND LIST
+
+TONE3  MOV  *R0+,R1           * COPY FREQ-1
+       CLR  R2                * CLR  FREQ-2
+       CLR  R3                * CLR  FREQ-3
+       MOV  *R0+,R4
+       MOV  *R0+,R5
+       MOV  *R0+,R6
+       MOV  *R0,R7
+
+       LI   R0,X$SND          LOAD OP-CODE
+       XOP  @SIX,0
+       LWPI UREG1
+       RT                     AND RETURN
+
+STOPSD LWPI UREG2
+       LI   R0,$STOP          LOAD SOUND LIST
+       JMP  TONE3
+
+       PAGE
+*    NAME:  BLDMRK
+*
+*    WHAT:  BUILD THE STACK MARK
+*
+*    R0 - STACK ID (HIGH BYTE)
+
+BLDMRK AI   R9,STKSZ          PUSH THE STACK
+       MOV  R9,R1
+       SRL  R0,8              ALIGN SID
+       MOV  R0,*R1+           00 - STACK ID
+       MOV  @PGMLN,*R1+       02 - PGM LINE NO.
+       CLR  *R1+              04
+       CLR  *R1+              06
+       CLR  *R1+              08
+       CLR  *R1+              10
+       MOV  @CLINE,*R1+       12 - CLINE POINTER
+       MOV  R12,*R1           14 - PROGRAM POINTER
+       DEC  *R1               * BACK UP PROGRAM POINTER
+       RT
+
+       PAGE
+INITPB LI   R1,DEFPAB         USE DEFAULT PAB
+       MOV  R1,@PABPTR
+       CLR  R2
+       LI   R3,64
+       BLWP @MEMSET
+       RT                     RETURN TO CALLER
+       PAGE
+*
+*
+*    NAME:  MEMSET
+*
+*    WHAT:  MEMORY SET ROUTINE
+*
+
+MEMSET DATA UREG2,$MSET
+MEMCPY DATA UREG2,$MCPY
+
+*
+*    MEMSET(CHAR *S1, INT C, INT N)
+*           R1        R2     R3
+*
+*    COPY CHAR FROM C TO S1 N TIMES
+
+$MSET  MOV  @02(R13),R1       GET STRING ADDRESS
+       MOVB @05(R13),R2       GET CHAR (AS INT)
+       MOV  @06(R13),R3       GET COUNT
+       JEQ  $M20              IF ZERO NOTHING TO COPY
+
+$M10   MOVB R2,*R1+           COPY A BYTE
+       DEC  R3                MORE TO DO
+       JNE  $M10              YES
+
+$M20   RTWP                   RETURN
+
+
+*
+*    MEMCPY(CHAR *S1, CHAR *S2, INT N)
+*           R1,       R2,       R3
+*
+*    COPY FROM S2 TO S1 N TIMES
+
+$MCPY  MOV  @02(R13),R1       GET ^S1
+       MOV  @04(R13),R2       GET ^S2
+       MOV  @06(R13),R3       GET COUNT
+       JEQ  $M20              IF ZERO NOTHING TO DO
+
+       BL   @FASMVB           DO COPY
+
+       RTWP                   RETURN
+
+       PAGE
+*
+*
+*
+TURNOF SZCB @PBIT,@KFLAG      * TURN KEYS OFF
+       JMP  TURNO0            CONTINUE
+
+TURNON SOCB @PBIT,@KFLAG      * TURN KEY ON
+
+TURNO0 C    @SMODE,@SEVEN     * GOOD FOR 26 LINE TEXT 2 (10)
+       JL   T101              *  AND 7,8
+       C    @SMODE,@CW09
+       JNE  T100
+T101   SZCB @PBIT,@KFLAG      * KEYS CAN NOT BE ON
+       LI   R0,ERRGRM
+       BL   @ERROR
+
+T100   DECT R10               * MAKE ROOM
+       MOV  R11,*R10          * SAVE RETURN
+       LI   R1,STRBUF         * ADDRESS
+       LI   R2,>0020          * A SPACE
+       LI   R3,80*256         * NUMBER OF SPACES
+       MOVB R3,*R1+           * COPY LENGTH
+       SRL  R3,8
+       BLWP @MEMSET           * BLANK THE REST OF THE BUFFER
+       MOVB @KFLAG,R0
+       COC  @PBIT,R0          * ARE WE TURNING ON OR OFF?
+       JNE  T200              * TURNING OFF, SO CONTINUE
+       LI   R5,FUNCKL
+       MOV  *R5+,R4           MAP IN THE FUNCTION KEY LIST
+       MOVB @DATBUF(R4),@MAP96
+       LI   R4,MAXFK-5        * MAX # OF FK'S -2 ch'd to -5 see equsys ju
+       LI   R0,STRBUF+1
+TON01  MOV  *R5+,R1           * GET 13 BIT ADDRESS
+       INCT R5
+       AI   R1,>6000          * MAKE IT 16
+       MOV  R0,R2             * GET DEST ADDRESS
+       MOV  *R1+,R3           * GET STRING LENGTH
+       JEQ  TON06             * JUMP IF ZERO NOTHING THERE
+       CI   R3,7              * GREATER THAN MAX STRING
+       JLE  TON05             * JUMP IF NO
+       LI   R3,7              * YES DEFAULT STRING LENGTH
+TON05  BL   @FASMVB           * MOVE THE STRING
+TON06  AI   R0,8              * ADJUST POINTER TO NEXT LOCATION
+       DEC  R4                * MORE TO DO
+       JNE  TON01             * JUMP IF YES
+
+T200   LI   R0,X$SM
+       MOV  @DPAGE,R1
+       CLR  R2                * TOP
+       LI   R3,25             * BOTTOM
+       LI   R4,79             * RIGHT
+       CLR  R5                * LEFT
+       XOP  @SIX,0
+
+       CLR  R2                * COL
+       LI   R1,25             * ROW
+       LI   R0,X$SCP
+       XOP  @SIX,0            * GOTO IT
+
+       LI   R1,STRBUF
+       BL   @DOPRT            * PRINT STRING
+
+       LI   R0,X$SM
+       MOV  @DPAGE,R1
+       MOV  @SCRTOP,R2
+       MOV  @SCRBOT,R3
+       MOV  @SWIDTH,R4
+       DEC  R4
+       MOV  @LMARGN,R5
+       XOP  @SIX,0
+
+       LI   R0,X$SCP
+       MOV  @CROW,R1
+       MOV  @CCOL,R2
+       XOP  @SIX,0
+
+       MOV  *R10+,R11         * GET RETURN
+       RT
+

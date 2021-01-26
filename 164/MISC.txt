@@ -1,0 +1,88 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.154.MISC
+*
+*  NAME:    MISC COMMANDS
+*
+*  VERSION: 3.0 - 10/10/86    BASE LINE
+*
+*-------------------------------------------------------------------------
+*
+*    NAME:  DEB
+*
+*    WHAT:  TO THE DEBUGGER COMMAND
+*
+
+TODEB  DECT R10
+       MOV  R11,*R10
+*      BL   @RSTOP            CLOSE ALL OPEN FILES
+RSPACH NOP                    place holders... for RSPACH during link
+       NOP
+       MOV  *R10+,R11
+       RT                     AND GO TO IT
+
+       PAGE
+*-------------------------------------------------------------------------
+*
+*    NAME:  BYE
+*
+*    WHAT:  GO BACK TO OS (BUT FIRST RESTORE VIDEO MODE AND CLOSE FILES)
+*
+
+BYE    BL   @CLOSEA           THIS DOES THE FOLLOWING 3 INSTRUCTIONS
+
+*      MOVB @NUD2PG,@MAP94    CLOSE ALL THE FILES THAT ARE OPEN AT THIS TIME
+*      MOV  @>4000+46,R0      NOW MAKE SURE THAT THE LTRACE BUFFER IS CLOSED
+*      BL   *R0               LASTLY SET THE VIDEO MODE TO THE SAME AS ON ENTRY
+*      MOV  @>4000+44,R0
+*      BL   *R0
+
+       MOV  @>4002,R1
+       BL   *R1               THIS IS ON THE SAME PAGE AS CLOSE ALL
+
+       MOV  @MDOSFB,R1        NOW TO RESTORE THE DISPLAY
+       LI   R0,X$SFB
+       XOP  @SIX,0
+       MOVB @MDOSMD,R1
+       SRL  R1,8
+       CLR  R0
+       XOP  @SIX,0
+       MOVB @MDOSBD,R1
+       SRL  R1,8
+       LI   R0,X$SBC
+       XOP  @SIX,0
+       BLWP @0                OUT OF HERE
+
+*
+*    NAME:  CONT
+*
+*    WHAT:  CONTINE COMMAND, AFTER A BREAK POINT
+*
+
+CONT   DEC  @ARGC             * CHECK IF END OF LINE
+       JNE  CONT10            * JUMP IF NO
+       MOV  @SVCLIN,R0        * TEST IF WE CAN CONTINUE
+       JEQ  ERR25             * JUMP IF NO
+       BL   @SROLL            * SCROLL THE SCREEN
+
+       MOV  @SVCLIN,@CLINE    * RESTORE CLINE
+
+       BL   @INR610           INITIALIZES R6-R10
+
+       MOV  @SVSTAC,R9        * RESTORE VALUE STACK
+
+       MOV  @SVFLAG,@PFLAG    * RESTORE PROGRAM/ERROR FLAGS
+       SZCB @H3BF3,@XFLAG     * MASK OFF ALL OPTIONS EXCEPT TRACES
+
+       CLR  @SVCLIN           * DONT ALLOW CONTINUES
+       BL   @GETPGM           * GET PROGRAM LINE
+       MOV  @SVPGM,R12        * RESTORE PGM POINTER
+       B    @CONTIN           * BACK TO BASIC EXEC
+
+*    ERRORS CALLS
+
+ERR25  LI   R0,ERRCC          CAN'T CONTINUE
+       BL   @ERROR
+
+CONT10 B    @CMDE05           * TOO MANY ARGUMNETS
+
