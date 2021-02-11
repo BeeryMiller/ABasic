@@ -534,8 +534,8 @@ KILSYM DECT R10               MAKE ROOM
        JMP  CLRVS             GO TO CLEAR THE VALUE STACK
 
 
-MSGMAI BYTE 15
-       TEXT 'MYBASIC 4.05DDI'
+MSGMAI BYTE 13
+       TEXT 'MYBASIC 4.05 '
 *      BYTE 0
        PAGE
 *
