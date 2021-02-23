@@ -1,15 +1,32 @@
-SMSG4  BYTE 32
-       TEXT 'FILE EXISTS, OVERWRITE(Y OR N)? '
-SMSG2  BYTE 17
-       TEXT 'PROGRAM NOT SAVED'
+       DEF MSGEND
+
+*SMSG4  BYTE 32
+*      TEXT 'FILE EXISTS, OVERWRITE(Y OR N)? '
+*SMSG2  BYTE 17
+*      TEXT 'PROGRAM NOT SAVED'
+*SMSG3  BYTE 1
+*      TEXT 'Y'
+*SMSG1  BYTE 33
+*      TEXT 'FILE PROTECTED, CAN NOT OVERWRITE'
+*INMSG1 TEXT 'I' NSUFFICIENT MEMORY IN SYSTEM'
+*      BYTE >0D,>0A                          CARIAGE RETURN/LINE FEED
+*      BYTE 0                                NULL TERMINATE
+*INMSG2 TEXT 'P' ATHNAME TOO LONG'
+*      BYTE >0D,>0A
+*      BYTE 0                                NULL TERMINATE
+
+SMSG4  BYTE 15
+       TEXT 'Overwrite(Y/N)?'
+SMSG2  BYTE 9
+       TEXT 'Not Saved'
 SMSG3  BYTE 1
        TEXT 'Y'
-SMSG1  BYTE 33
-       TEXT 'FILE PROTECTED, CAN NOT OVERWRITE'
-INMSG1 TEXT 'I' NSUFFICIENT MEMORY IN SYSTEM'
+SMSG1  BYTE 17
+       TEXT 'File is Protected'
+INMSG1 TEXT 'Insufficient memory'    NSUFFICIENT MEMORY IN SYSTEM'
        BYTE >0D,>0A                          CARIAGE RETURN/LINE FEED
        BYTE 0                                NULL TERMINATE
-INMSG2 TEXT 'P' ATHNAME TOO LONG'
+INMSG2 TEXT 'Pathname too long'
        BYTE >0D,>0A
-       BYTE 0                                NULL TERMINATE
+MSGEND BYTE 0                                NULL TERMINATE
 
