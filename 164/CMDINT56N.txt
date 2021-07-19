@@ -7,9 +7,7 @@
 *  VERSION: 3.00 - 10/10/86    BASE LINE
 *           3.01 - 02/25/87
 *           3.02 - 03/31/87
-*           2.21.2021          Named Adv Basic and dropped version #
-*                              Need to watch string length as no bytes free
-*                              to expand this file during linking
+*           4.07 - 07/15/2021 updated version number in string and register
 *-------------------------------------------------------------------------
 MAIN
 *
@@ -271,7 +269,7 @@ INITSC LI   R0,X$SFB
 
 *    NOW SET THE BASIC VERSION NUMBER
 
-       LI   R0,406            THIS IS THIS BASIC NUMBER
+       LI   R0,407            THIS IS THIS BASIC NUMBER
        MOV  R0,@BVERON        AND IT GOES HERE
 
        BL   @INITPS           INIT PERM STRING SPACE
@@ -537,7 +535,7 @@ KILSYM DECT R10               MAKE ROOM
 
 
 MSGMAI BYTE 11
-       TEXT 'ABASIC 4.06'
+       TEXT 'ABASIC 4.07'
 *      BYTE 0
        PAGE
 *
