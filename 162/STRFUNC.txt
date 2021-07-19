@@ -6,7 +6,8 @@
 *
 *  VERSION: 3.00 - 10/21/86    BASE LINE
 *           3.01 - 02/23/87
-*
+*           4.07 - 07/15/2021  FIXED TIME$ and changed back to documented
+*                              display of the DATE$ in the ABASIC manual.
 *-------------------------------------------------------------------------
 
 *    NAME:  NCHR$
@@ -518,18 +519,25 @@ NDA10  LI   R1,STRBUF-2       STRINGS ADDRESS
        MOV  R2,*R1+           WRITE IT
        XOP  @NINE,0
 
-       LI   R1,>3939
-       C    @STRBUF+6,R1        added yr to date  04-23-99ju
-       JEQ  XD99
-       MOV  @STRBUF+6,@STRBUF+8
-       LI   R1,>3230
-       MOV  R1,@STRBUF+6
-       JMP  XDONE
-XD99   MOV  @STRBUF+6,@STRBUF+8
-       LI   R1,>3139
-       MOV  R1,@STRBUF+6
-XDONE  LI   R1,10           was 8  LENGTH OF STRING
-       MOV  R1,@STRBUF-2
+* several lines commented out below to go back to a mm/dd/yy format instead
+* of mm/dd/yyyy.  More importantly, the code incorrectly reported the TIME$
+* as it added a "20" before the minutes when displayed.
+
+*      LI   R1,>3939
+*      C    @STRBUF+6,R1        added yr to date  04-23-99ju
+*      JEQ  XD99
+*      MOV  @STRBUF+6,@STRBUF+8
+*      LI   R1,>3230
+*      MOV  R1,@STRBUF+6
+*      JMP  XDONE
+*D99   MOV  @STRBUF+6,@STRBUF+8
+*      LI   R1,>3139
+*      MOV  R1,@STRBUF+6
+*XDONE  LI   R1,10           was 8  LENGTH OF STRING
+*      MOV  R1,@STRBUF-2
+
+
+       LI   R1,8              7.15.2021                    ONLY LINE ADDED
        BL   @GETSTR           GET STRING SPACE
 
 *    GET STRING MAPS IN AT >A000
@@ -538,6 +546,7 @@ XDONE  LI   R1,10           was 8  LENGTH OF STRING
        MOV  @STRA+FAC,R2      GET 13 BIT ADDRESS
        AI   R2,>A000          MAKE IT 16
        MOV  @STRBUF-2,R3
+
        BL   @FASMVB
        B    @CONT
 
