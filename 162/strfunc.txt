@@ -1,0 +1,565 @@
+*-------------------------------------------------------------------------
+*
+*  FILE:    WDS1.152.STRFUNC
+*
+*  NAME:    CONTAINS THE STRING FUNCTIONS
+*
+*  VERSION: 3.00 - 10/21/86    BASE LINE
+*           3.01 - 02/23/87
+*           4.07 - 07/15/2021  FIXED TIME$ and changed back to documented
+*                              display of the DATE$ in the ABASIC manual.
+*-------------------------------------------------------------------------
+
+*    NAME:  NCHR$
+*
+*    WHAT:  NUD ROUTINE FOR CHR
+*
+*  FORMAT:  CHR$(NE)
+
+NCHR$  BL   @PARONE           * GET ONE ARGUMNET
+       JEQ  NCHR$8            * JUMP IF STRING
+       BL   @FTOI             * CONVERT IT
+       MOVB @SNUML+FAC,@CC    * SAVE CHARACTER
+       LI   R1,1              * LENGTH OF STRING
+       BL   @GETSTR           * CREAT A NEW STRING
+
+*    GET STRING MAPS IN STRING SPACE AT >A000
+
+       MOV  @STRA+FAC,R2      * GET 13 BIT ADDRESS
+       AI   R2,>A000          * MAKE IT 16
+
+       MOVB @CC,*R2           * MOVE IT
+       B    @CONT             CONTINUE
+
+NCHR$7 BL   @POPFAC           REMOVE TEMP STRING
+NCHR$8 BL   @RPTE07           STRING NUMBER MISMATCH
+
+NCHR$9 BL   @POPFAC           REMOVE TEMP STRING
+       BL   @RPTE30           BAD VALUE
+
+       PAGE
+
+*    NAME:  NSEG$
+*
+*    WHAT:  NUD ROUTINE FOR SEG$
+*
+*  FORMAT:  SEG(SE, NE1, NE2)
+
+NSEG$  BL   @PARFST           PARSE FIRST ARG
+       JNE  NCHR$8            JUMP IF NUMERIC
+       BL   @PSHFAC           PUSH IT
+
+       BL   @PARMID           PARSE MIDDLE
+       JEQ  NCHR$7            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+       MOV  @SNUM+FAC,@TMP1   COPY THE START     NE1 IN TMP1
+       JEQ  NCHR$9            IF ZERO ITS AN ERROR
+       JLT  NCHR$9            IF NEGATIVE, THEN ERROR
+       BL   @PARLST           PARSE STRING LENGTH
+       JEQ  NCHR$7            JUMP IF STRING
+       BL   @FTOI             CONVERT IT
+
+       MOV  @SNUM+FAC,@TMP2   COPY THE LENGTH     NE2 IN TMP2
+       JEQ  SEG$04            IF ZERO CREAT A NULL STRING
+       JLT  NCHR$9            CAN NOT BE NEGATIVE
+
+       MOV  @SLEN(R9),R1      GET THE LENGTH      STRING LEN IN R1
+       JEQ  SEG$04            * CREAT A NULL STRING
+
+       DEC  @TMP1
+       MOV  @TMP1,R2          STRINGS START AT ZERO    MAKE NE1 BASE 0
+
+*      STRING START GREATER THAN STRING LENGTH
+*      1.   IF TMP1 > TMP3 LENGTH OF STRING
+
+       C    R2,R1             IS START GREATER THAN LENGTH?
+       JHE  SEG$04            CREAT A NULL STRING
+
+*      STRING START LESS THAN STRING LENGTH
+*      2.   IF TMP1+TMP2 <= TMP3
+*           STRING LENGTH IS TMP2
+
+       S    R2,R1             MAX LENGTH NEW STR CAN BE IS IN R1
+       C    @TMP2,R1          WE USE THE LEAST
+       JHE  SEG$01
+       MOV  @TMP2,R1          NE2 IS LESS
+
+SEG$01 BL   @GETSTR           * ALLOCATE AND BUILD FAC
+       BL   @POPARG           * GET STRING BACK
+
+*    MAP IN TEMP STRING
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+FAC,R2      * GET 13 BIT DESTINATION
+       AI   R2,>A000          * MAKE IT 16
+
+*    MAP IN FIRST STRING PAGE
+
+       MOV  @STRP+ARG,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+ARG,R1      * GET 13 BIT SOURCE
+       AI   R1,>6000          * MAKE IT 16
+       A    @TMP1,R1          * ADD POSITION START
+
+       MOV  @BYTE#,R3         * GET THE LENGTH
+       JEQ  SEG$10
+
+       BL   @FASMVB           COPY IT
+
+SEG$10 B    @CONT             AND CONTINUE
+
+*    CREAT A NULL STRING
+
+SEG$04 CLR  R1                * ZERO STRING LENGTH
+       BL   @GETSTR           * GET STRING SPACE
+       BL   @POPARG           * GET STRING OFF STACK (HAVE ONLY DONE 1 PUSH)
+       JMP  SEG$10
+
+       PAGE
+*
+*    NAME:  NSTR$
+*
+*    WHAT:  NUD ROUTINE STR$
+*
+*  FORMAT:  STR$(NE)
+*
+
+NSTR$  BL   @PARONE           PARSE FIRST ARG AS NUMERIC
+       JEQ  NCHR$8            JUMP IF STRING
+
+       CB   @SID+FAC,@CSIDIN  * CHECK IF INTEGER
+       JEQ  NSTR$5            * JUMP IF YES
+
+       LI   R1,STRBUF+1       * PUT STRING HERE
+       LI   R2,FAC+SNUM
+       CLR  R3                * OPT1 FREE FORMAT
+       CLR  R4                * OPT2
+       CLR  R5                * OPT3
+       LI   R0,X$CNS          * LOAD OP-CODE
+       XOP  @TEN,0            * AND CONVERT IT
+NSTR$4 MOV  R2,R2             * CHECK FOR ZERO LENGTH STRING
+       JEQ  NSTR$7            * NO NEED TO COMPARE
+NSTR$6 CB   *R1+,@SPACE       * ELIMINATE LEADING BLANKS
+       JNE  NSTR$7            * ALL DONE WITH LEADING BLANKS
+       DEC  R2                * ONE LESS IN THE LENGTH
+       JMP  NSTR$6
+
+
+NSTR$7 DEC  R1                BACK UP ONE
+       MOV  R1,@TMP1          SAVE POINTER FOR LATER
+
+       MOV  R2,R1             * COPY FOR GET STRING
+
+       BL   @GETSTR           * GET THE STRING SPACE
+
+*    GET STRING MAPS IN THE STRING AT >A000
+
+       MOV  @STRA+FAC,R2      * GET 13 BIT ADDRESS
+       AI   R2,>A000          * MAKE IT 16 BIT ADDRESS
+       MOV  @BYTE#,R3         * GET THE LENGTH
+       MOV  @TMP1,R1          * GET STRING ADDRESS
+       BL   @FASMVB           * MOVE THE STRING
+
+LCONT  B    @CONT             AND CONTINUE
+
+* NOW FOR THE CASE OF AN INTEGER
+
+NSTR$5 LI   R2,STRBUF         * PUT STRING HERE
+       MOV  @SNUM+FAC,R1      * GET INTEGER HERE
+       BLWP @ITOD             * CONVERT IT
+       MOV  R2,R1             NOW R1 POINTS TO STRING LENGTH
+       MOVB *R1+,R2           NOW R1 POINTS TO NUMBER
+       SRL  R2,8              AND R2 IS THE STRING LENGTH
+       JMP  NSTR$4
+
+RPTE28 LI   R0,ERRBA          BAD VALUE
+       BL   @ERROR
+
+       PAGE
+
+*    NAME:  NRPT$$
+*
+*    WHAT:  NUD ROUTINE FOR RPT$
+*
+*  FORMAT:  RPT$(SE, NE)   (USES TMP3)
+*
+NRPT$$ BL   @PARFST           * PARSE FIRST ARGUMNET
+       JNE  RPT$09            * JUMP IF NUMERIC
+       BL   @PSHFAC           * SAVE IT
+       BL   @PARLST           * PARSE LAST ARG
+       JEQ  ERR$12            * JUMP IF STRING
+       BL   @FTOI             * CONVERT TO INTEGER
+       MOV  @SNUM+FAC,@TMP3   * SAVE THE COUNT
+       JEQ  SEG$04            * 0 ITERATIONS, SO NULL STRING
+       MOV  @SLEN(R9),R0      * GET THE STRING LENGTH
+       MPY  @SNUM+FAC,R0      * MPY ITERATIONS
+       MOV  R0,R0             * CHECK IF LENGTH IS TOO LONG
+       JNE  RPT$08
+       MOV  R1,@BYTE#         * SAVE R1 IN CASE OF WARNING
+       C    R1,@STRMAX        * CHECK IF GREATER THAN
+       JLE  RPT$03            * NO - ITS OK
+
+RPT$08 LI   R0,WRNST          * LOAD WARNING MESSAGE
+       BL   @WARN             * ISSUE WARNING MESSAGE
+       MOV  @STRMAX,@BYTE#    *  SET THE STRING LENGTH TO MAX
+
+RPT$03 MOV  @BYTE#,R1         RESTORE R1
+       BL   @GETSTR           CREAT STRING SPACE AND A FAC ENTRY
+       BL   @POPARG           * GET RIGHT STRING
+
+*    MAP IN LEFT STRING  ---  FAC
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+FAC,R2      * GET 13 BIT DESTINATION
+       AI   R2,>A000          * MAKE IT 16
+
+*    MAP IN RIGHT STRING  --- ARG
+
+       MOV  @STRP+ARG,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+ARG,R1      * GET 13 BIT SOURCE ADDRESS
+       AI   R1,>6000          * MAKE IT 16
+
+       MOV  @SLEN+ARG,R0      * GET BYTE COUNT
+       JEQ  RPT$05            * IF ZERO NOTHING TO COPY SO ASSIGN NULL STRING
+
+       MOV  @TMP3,R5          * NUMBER OF REPEATS
+       CLR  R4                * LENGTH OF STRING
+
+RPT$04 MOV  R0,R3             * LENGTH OF STRING
+       BL   @FASMVB           USES R1,R2,R3
+       DEC  R5                * DECREMENT COUNTER
+       JEQ  RPT$05            * JUMP IF ZERO ALL DONE
+       MOV  @STRA+ARG,R1      * GET 13 BIT SOURCE
+       AI   R1,>6000          * MAKE IT 16
+       MOV  R0,R3             * GET STRING LENGTH
+       A    R3,R4             * ADD TO TOTAL
+       C    R4,@STRMAX        * COMPARE IF OVER
+       JLE  RPT$04            * NOT YET
+       S    R3,R4             * BACK UP TO PREVIOUS
+       MOV  @STRMAX,R3
+       LI   R5,1              * INDICATE LAST LOOP
+       S    R4,R3
+       JNE  RPT$04            * ONE LAST TIME
+RPT$05 B    @CONT             * CONTINUE
+
+ERR$13 BL   @POPARG           POP THE STACK
+ERR$12 BL   @POPARG           POP THE STACK
+RPT$09 BL   @RPTE07           REPORT ERROR (ERRSNM)
+
+ERR$14 LI   R0,ERRBV
+       BL   @ERROR
+       PAGE
+
+*    NAME:  NPOS
+*
+*    WHAT:  NUD ROUTINE FOR POS
+*
+*  FORMAT:  POS(SE, SE, NE)
+*
+*  RETURNS: STARTING POSITION
+
+NPOS   BL   @PARFST           PARSE FIRST ARGUMENT
+       JNE  RPT$09            JUMP IF NUMERIC
+
+       BL   @PSHFAC           PUSH IT
+
+       BL   @PARMID           PARSE MIDDLE
+       JNE  ERR$12            JUMP IF NUMERIC
+
+       BL   @PSHFAC           PUSH IT
+
+       BL   @PARLST           PARSE LAST
+       JEQ  ERR$13            JUMP IF STRING
+       BL   @FTOI             CONVERT TO INTEGER
+
+       MOV  @SNUM+FAC,@TMP1   SAVE LAST ARGUMENT
+       BL   @POPFAC           POP TO FAC SECOND STRING
+       BL   @POPARG           POP TO ARG FIRST STRING
+
+       MOV  @TMP1,R5          GET LAST ARG IN REGISTER
+       JLT  ERR$14            CAN NOT BE NEGATIVE
+       JEQ  ERR$14            CAN NOT BE 0
+
+       C    R5,@SLEN+ARG      CHECK IF START IS GREATER THAN STRING
+       JH   POS07             YES JUST RETURN A ZERO
+
+*    MAP IN STRING TWO (THE ONE IN FAC)
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @SLEN+FAC,R1      GET TWOS STRING LENGTH
+       JEQ  POS07
+
+*    MAP IN STRING ONE (THE ONE IN ARG)
+
+       MOV  @STRP+ARG,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+ARG,R2      GET 13 BIT ADDRESS
+       AI   R2,>A000          MAKE IT 16
+
+       MOV  @SLEN+ARG,R3      GET STRING ONES LENGTH
+       JEQ  POS07
+
+       DEC  R5                BACK UP FOR ZERO ADDRESSING
+       A    R5,R2             R2 IS WHERE TO START THE STRING COMPARE
+       S    R5,R3             THE MAX LENGTH OF STRING 1 TO COMPARE
+       C    R1,R3             IS LEN OF STRING 2> COMPARE LEN OF STRING 1?
+       JH   POS07             R1 IS TOO LARGE, NEVER WILL HAVE A MATCH
+       S    R1,R3             NOW GET THE # OF TIMES WE CAN COMPARE
+       INC  R3                MAKE IT BASE 1
+       INC  R5                RESTORE BEGINNING POINTER (MAKE IT BASE 1)
+
+POS03  MOV  R2,R1             STRING ONE START POINTER
+
+       MOV  @STRA+FAC,R0      STRING TWO START POINTER GET 13 BIT ADDRESS
+       AI   R0,>6000          MAKE IT 16
+       MOV  @SLEN+FAC,R4      LENGTH OF STRING 2
+
+POS04  CB   *R1+,*R0+         COMPARE A BYTE
+       JNE  POS15             NOT EQUAL
+       DEC  R4                DEC THE LENGTH
+       JNE  POS04             NOT DONE YET
+       JMP  POS05             ALL DONE, SO JUST RETURN THE LENGTH
+
+POS15  INC  R5                TRY THE NEXT POSITION
+       INC  R2                ONE MORE CHARACTER OF STRING 1
+       DEC  R3
+       JNE  POS03             TRY STARTING HERE
+POS07  CLR  R5                RETURN ZERO
+POS05  MOV  R5,@SNUM+FAC      MOVE INTEGER
+       MOV  @CONPI2,*R7       WRITE ITS TYPE
+       BL   @ITOF
+       B    @CONT             AND CONTINUE PARSE
+
+       PAGE
+*
+*    NAME:  NHEX$
+*
+*    WHAT:  NUD ROUTINE FOR HEX$
+*
+*  FORMAT:  HEX$(NE)
+
+NHEX$  BL   @PARONE           PARSE ONE PARAMETER
+       JEQ  NHEX05            JUMP IF WE GOT A STRING
+
+       BL   @FTOI             CONVERT IT TO INTEGER
+
+       MOV  @SNUM+FAC,@TMP1   * SAVE INTEGER
+       LI   R1,4              STRING WILL BE FOUR BYTES
+       BL   @GETSTR           GET STRING SPACE
+
+*    GET STRING MAPS IN STRING AT >A000
+
+       MOV  @STRA+FAC,R4      GET 13 BIT ADDRESS
+       AI   R4,>A000          MAKE IT 16
+
+       MOV  @TMP1,R1          GET INTEGER
+
+       LI   R3,4              LOAD COUNTER
+NHEX11 MOV  R1,R5             R5 IS TEMPORARY STORAGE FOR CONVERSION
+       ANDI R5,>F000          ISOLATE NYBBLE
+       SRL  R5,4              ALIGN BYTE
+       CI   R5,>900           IS IT NUMBERIC
+       JLE  NHEX12            YES
+       AI   R5,>0700          ALPHA ADJUST
+NHEX12 AI   R5,>3000          CONVERT BYTE TO ASCII
+       MOVB R5,*R4+           MOVE IT
+       SRC  R1,12             ALIGN NEXT NYBLE
+       DEC  R3                ARE WE DONE
+       JNE  NHEX11            NO
+       B    @CONT             AND CONTINUE
+
+NHEX55 BL   @POPARG
+NHEX05 BL   @RPTE07           REPORT ERROR
+
+       PAGE
+*
+*    NAME:  NLEFT$
+*
+*    WHAT:  NUD ROUTINE FOR LEFT$
+*           NE = 0 THEN RETURN NULL STRING
+*           NE > LEN(SE$) THEN RETURN WHOLE STRING AND BLANKS
+*
+*  FORMAT:  LEFT$(SE, NE)
+
+NLEFT$ BL   @PARFST           PARSE THE FIRST AND
+       JNE  NHEX05            JUMP IF NUMERIC
+       BL   @PSHFAC           SAVE THE STRING
+       BL   @PARLST           PARSE LAST
+       JEQ  NHEX55            JUMP IF STRING
+       BL   @FTOI             CONVERT TO INT
+
+*    NOW CHECK THE STARTING POSITION
+*    GREATER THAN STRING LENGTH
+
+       MOV  @SLEN(R9),R1      GET THE OLD STRINGS LENGTH
+       JEQ  NLEFT6            NULL STRING
+
+       C    @SNUM+FAC,R1      DO WE USE ONLY A FRACTION OF THE ORIGINAL?
+       JHE  NLEFT8            NO, USE THE WHOLE THING
+
+       MOV  @SNUM+FAC,R1      MAKE STRING LENGTH NUMERIC VALUE
+       JEQ  NLEFT6            RETURN NULL STRING
+
+NLEFT8 BL   @GETSTR           GET STRING SPACE
+
+       BL   @POPARG           POP BACK ORIGINAL STRING
+
+*    MAP IN FIRST STRING ADDRESS
+
+       MOV  @STRP+ARG,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+ARG,R1      GET SOURCE ADRESS
+       AI   R1,>6000          MAKE IT 16 BIT
+
+*    MAP IN TEMP STRING AT >A000
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+FAC,R2      GET DESTINATION ADDRESS
+       AI   R2,>A000          MAKE IT 16 BIT
+
+       MOV  @SLEN+FAC,R3      NUMBER OF BYTES TO MOVE
+       JEQ  NLEFT9            NOTHING TO MOVE
+
+NLEFT1 BL   @FASMVW
+
+NLEFT9 B    @CONT
+
+NLEFT6 B    @SEG$04           CREATE NULL STRING AND POP STACK AND RETURN
+
+       PAGE
+*
+*    NAME:  NRGHT$
+*
+*    WHAT:  NUD ROUTINE FOR RIGHT$
+*
+*  FORMAT:  RIGHT$(SE, NE)
+
+NRGHT$ BL   @PARFST           PARSE FIRST ENTRY
+       JNE  NHEX05            JUMP IF NUMERIC
+       BL   @PSHFAC
+       BL   @PARLST           PARSE NEXT ARG AS INT
+       JEQ  NHEX55            JUMP IF STRING
+       BL   @FTOI             CONVERT TO INT
+
+*   NOW CHECK THE STARTING POSITION
+
+       MOV  @SLEN(R9),R1      IS STRING LENGTH 0?
+       JEQ  NLEFT6            YES, SO RETURN NULL STRING
+
+       C    @SNUM+FAC,R1
+       JHE  NRGHT8            GREATER RETURN WHOLE STRING
+
+       MOV  @SNUM+FAC,R1      IS NUMERIC EXPRESSION ZERO
+       JEQ  NLEFT6            RETURN NULL STRING
+
+NRGHT8 BL   @GETSTR           GET STRING SPACE
+
+       BL   @POPARG           POP BACK ORIGINAL STRING
+
+*   MAP IN FIRST STRING PAGE
+
+       MOV  @STRP+ARG,R4
+       MOVB @DATBUF(R4),@MAP96
+       MOVB @DATBUF+1(R4),@MAP98
+
+       MOV  @STRA+ARG,R1      GET 13 BIT ADDRESS
+       AI   R1,>6000          MAKE IT 16 BIT
+
+       A    @SLEN+ARG,R1      GET THE LENGTH OF THIS STRING
+       MOV  @SLEN+FAC,R3      GET LENGTH OF NEW STRING
+       S    R3,R1
+
+*    MAP IN TEMP STRING AT >A000
+
+       MOV  @STRP+FAC,R4
+       MOVB @DATBUF(R4),@MAP9A
+       MOVB @DATBUF+1(R4),@MAP9C
+
+       MOV  @STRA+FAC,R2      GET 13 BIT DESTINATION ADDRESS
+       AI   R2,>A000          MAKE IT 16 BIT
+
+       BL   @FASMVB           MOVE IT
+
+       B    @CONT             ALL DONE
+
+       PAGE
+*
+*    NAME:  NDATE$
+*
+*    WHAT:  RETURNS A FIXED LENGTH STRING FOR THE DATE
+*
+*  FORMAT:  DATE$
+*
+*           XX/XX/XX
+
+NDATE$ LI   R0,X$CDS          LOAD OP-CODE
+NDA10  LI   R1,STRBUF-2       STRINGS ADDRESS
+       LI   R2,254            SIZE OF BUFFER
+       MOV  R2,*R1+           WRITE IT
+       XOP  @NINE,0
+
+* several lines commented out below to go back to a mm/dd/yy format instead
+* of mm/dd/yyyy.  More importantly, the code incorrectly reported the TIME$
+* as it added a "20" before the minutes when displayed.
+
+*      LI   R1,>3939
+*      C    @STRBUF+6,R1        added yr to date  04-23-99ju
+*      JEQ  XD99
+*      MOV  @STRBUF+6,@STRBUF+8
+*      LI   R1,>3230
+*      MOV  R1,@STRBUF+6
+*      JMP  XDONE
+*D99   MOV  @STRBUF+6,@STRBUF+8
+*      LI   R1,>3139
+*      MOV  R1,@STRBUF+6
+*XDONE  LI   R1,10           was 8  LENGTH OF STRING
+*      MOV  R1,@STRBUF-2
+
+
+       LI   R1,8              7.15.2021                    ONLY LINE ADDED
+       BL   @GETSTR           GET STRING SPACE
+
+*    GET STRING MAPS IN AT >A000
+
+       LI   R1,STRBUF
+       MOV  @STRA+FAC,R2      GET 13 BIT ADDRESS
+       AI   R2,>A000          MAKE IT 16
+       MOV  @STRBUF-2,R3
+
+       BL   @FASMVB
+       B    @CONT
+
+       PAGE
+*
+*    NAME:  NTIME$
+*
+*    WHAT:  NUD ROUTINE FOR TIME
+*
+*  FORMAT:  TIME$
+*
+*  STRING:  XX:XX:XX
+
+NTIME$ LI   R0,X$CTS          LOAD OP-CODE
+       JMP  NDA10
+
