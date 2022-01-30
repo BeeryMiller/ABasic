@@ -6,6 +6,9 @@
 *
 *  VERSION: 3.0 - 10/19/86    BASE LINE
 *
+*01/25/2022 RUN5, fixed RUN command; now works without line number
+*      tt   during program execution   "100 RUN"
+*
 *-------------------------------------------------------------------------
 *
 *
@@ -229,6 +232,9 @@ NRUN12 MOV  @CLINE,@BLINE     INITIALIZE START
 
 RUN5   MOV  @LNECNT,R0        IS THERE A PROGRAM
        JEQ  ILLST             NO PROGRAM PRESENT
+        MOV  @SLINE,@CLINE     ;1.25.2022tt, fix RUN within program
+        JMP  RUN3R             ;that has no line number
+
 
 RUN6   MOV  @SLINE,@CLINE     GET START LINE NUMBER
        JEQ  RUN3R

@@ -1,0 +1,100 @@
+*Routine to create time and date in File Descripter Record format
+*Can be used for BWRITE create new file routine
+*DDI SOFTWARE 1997
+       DEF  TIMDAT
+       DXOP DDI,0
+WS1    EQU  >F000        workspace
+WS2    EQU  >FE30           ""
+SAVRTN DATA 0            save rtn to mybasic
+       DATA 0
+TIMBUF BSS  10     <----- /hh:mm:ss buffer must be at least 10 bytes
+       DATA 0       FORMAT   (string length is at buf -1)
+DATBUF BSS  10     <----- \mm-dd-yy buffer must be at least 10 bytes
+       DATA 0            separators are created by xop routine
+*
+BUFTIM BSS 2       crunched hex val for FDR  hhhhh mmmmmm sssss
+BUFDAT DATA 0          "      "   "   "   "   yyyyyyy mmmm ddddd
+*
+UTL    DATA >0009        util xop
+MTH    DATA >000A        math xop
+TIMDAT MOV  R11,@SAVRTN
+       LWPI WS1
+       LI   R0,4
+       LI   R1,DATBUF    get date  i.e. 03-01-97
+       DDI  @UTL
+       LI   R0,1
+       LI   R1,TIMBUF    get time  i.e. 18:50:10
+       DDI  @UTL
+*start crunch routine
+HOR    BLWP @HOUR             HH
+       DATA TIMBUF,BUFTIM
+       BLWP @MINUTE           MM
+       DATA TIMBUF+3,BUFTIM+1
+       BLWP @SECOND           SS
+       DATA TIMBUF+6,BUFTIM
+YAR    BLWP @YEAR             YY
+       DATA DATBUF+6
+       BLWP @MONTH            MO
+       DATA DATBUF
+       BLWP @DAY              DD
+       DATA DATBUF+3,BUFDAT
+OUT    MOV  @SAVRTN,R11
+       RT                back to mybasic
+*crunch'em
+YEAR   DATA WS2,$+2   GO
+GO     MOV  *R14+,R2
+       CLR  R6
+       LI   R0,16
+       DDI  @MTH
+       MOV  R0,R0
+       JNE  OUT
+       SLA  R1,1
+       SWPB R1
+       MOV  R1,R6
+       RTWP
+MONTH  DATA WS2,GO1
+GO1    MOV  *R14+,R2
+       LI   R0,16
+       DDI  @MTH
+       SLA  R1,5
+       A    R1,R6
+       RTWP
+DAY    DATA WS2,GO2
+GO2    MOV  *R14+,R2
+       MOV  *R14+,R3
+       LI   R0,16
+       DDI  @MTH
+       A    R1,R6
+       MOV  R6,*R3
+       RTWP
+HOUR   DATA WS2,GO3
+GO3    MOV  *R14+,R2
+       MOV  *R14+,R3
+       LI   R0,16
+       DDI  @MTH
+       SLA  R1,3
+       SWPB R1
+       MOVB R1,*R3
+       RTWP
+MINUTE DATA WS2,GO4
+GO4    MOV  *R14+,R2
+       MOV  *R14+,R3
+       LI   R0,16
+       DDI  @MTH
+       MOV  R1,R4
+       SRL  R1,3
+       SWPB R1
+       AB   R1,@BUFTIM
+       SLA  R4,5
+       SWPB R4
+       MOVB R4,*R3
+       RTWP
+SECOND DATA WS2,GO5
+GO5    MOV  *R14+,R2
+       MOV  *R14+,R3
+       LI   R0,16
+       DDI  @MTH
+       SRL  R1,1         DIV by 2
+       A    R1,*R3
+       RTWP
+       END

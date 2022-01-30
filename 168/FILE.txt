@@ -6,6 +6,8 @@
 *
 *  VERSION: 3.0 - 10/21/86    BASE LINE
 *
+*01/25/2022 GETPT4, corrected routine to allow filename only w/RUN
+*      TT   CLSYN, moved up 4 bytes to address JMP range for above fix
 *-------------------------------------------------------------------------
 OPNVAR DATA >0090             OPEN VAR,DIS,UPDATE, SET ALTER PARM BIT
 
@@ -258,6 +260,7 @@ GETPT4 CB   *R2,@COLONC
        JEQ  GETPT5            USE NAME AS IS
        DEC  R0
        JNE  GETPT4            CONTINUE
+       JMP  GETPT3       ;1.25.2022, FIXES RUN "FILE" use of CWD -tt
 
 GETPT5 LI   R2,NAMEL+DEFPAB
        SWPB R3
@@ -330,12 +333,13 @@ CLOSE3 CB   *R12+,@DELTOK     IS IT DELETE?
        BL   @CLOSE9           NOW FREE THE PAB
        JMP  CLOSE7            NOW TEST IF ERROR
 
+CLSYN  B    @OPNERS      ;1.25.2022, MOVED UP TO FIX JMP RANGE -TT
 
 GFNBV1 B    @OPNEBV
 
 *    ERROR REPORTING
 
-CLSYN  B    @OPNERS
+; CLSYN  B    @OPNERS
 
 CLOERF B    @OPERFE           FILE ERROR
        PAGE

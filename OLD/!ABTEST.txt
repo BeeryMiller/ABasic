@@ -1,7 +1,9 @@
+* 1.29.2022, missing rsfix and rsbug2
 *
 * link ABASIC for MDOS
 * page 7 is used in this file because Lou uses AORG for dummy vars instead
 * of DORG (AORG's give linker error when the page isn't used by the APP)
+*
 PAGES  0,1,4,,,,,7
 CLEAR
 BLOCK  >0400,>6000
@@ -10,7 +12,6 @@ ADD    OBJ\EXEC
 ADD    OBJ\CMD
 ADD    OBJ\PADN
 ADD    OBJ\SYMBOL
-STATUS
 *
 PAGES  0,2,3,,,,,7
 CLEAR
@@ -18,21 +19,33 @@ BLOCK  >2000,>6000
 *
 ADD    OBJ\NUD1
 ADD    OBJ\NUD2
-STATUS
+*
 PAGES  0,,5,,,,,7
 CLEAR
 BLOCK  >4000,>6000
 *
 ADD    OBJ\CALL1
-STATUS
+*
 PAGES  0,,6,,,,,7
 CLEAR
 BLOCK  >4000,>6000
 *
 ADD    OBJ\CALL2
-STATUS
+*
+* RSBUG overlay ...
+*
+PAGES  0,1,,,,,,7
 CLEAR
-BLOCK  >0400,>E000
-STATUS
-SAVE   ABASIC1
+BLOCK  RSPACH,>4000
+*
+ADD    OBJ\RSFIX                  patch >0400, and "D" command.
+ADD    \SYS\RSBUG2            in >e000 page
+*
+EVAL   RSPACH
+*
+CLEAR
+BLOCK  >0400,>F000
+SAVE   ABTEST1
+*
+EXIT
 *
