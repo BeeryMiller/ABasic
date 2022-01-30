@@ -6,6 +6,8 @@
 *
 *  VERSION: 3.0 - 06/02/85    BASE LINE
 *
+*           4.08  30Jan2022   Shortened text for lines not inserted; 30 bytes
+*
 *-------------------------------------------------------------------------
 PGMID  DATA >ABCD             PROGRAM ID   FOR IV254
 LODPAB DATA $LOAD,0001,0000              PAB DATA FOR LOADING PGM FILE
@@ -16,7 +18,11 @@ LDI254 DATA >001C,1,0,0                  PAB DATA FOR LOADING IV254 FILE
 H00FE  DATA >00FE,0,0
 CBA0   BYTE >A0
 LDERMS BYTE 43
-       TEXT 'THE FOLLOWING LINES NOT INSERTED IN PROGRAM'
+;      TEXT 'THE FOLLOWING LINES NOT INSERTED IN PROGRAM'  ;43
+; NOTE, this was on an ODD boundary, possible code issue w/DECT R10!  tt
+
+       TEXT 'NOT INSERTED: '    ;14 for even (saved 44-14=30 bytes)
+       EVEN              ;and just in case we change later
 
 *
 *    NAME:  OLD

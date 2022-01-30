@@ -19,6 +19,8 @@
 *              READNA  FROM 158  VARA SET TO 253 OR WINSIZ 0 TO BBFLEN
 *                                CALLED FROM INPUT AND LINPUT
 *
+* 01/22/2022   TT Fix for ^C break of program
+*
 *-------------------------------------------------------------------------------
 *CHRESC BYTE >9B
 *CBHE0  BYTE >E0
@@ -134,7 +136,8 @@ R400   BL   @MOUSET           TEST IF MOUSE IS ON
        XOP  @FIVE,0
        JNE  R400              NO KEY
 
-R900   CI   R1,>8000          IS IT CONTL C?
+;01/21/2022 tt, corrected ctrl-C BREAK code (>80 to >83)
+R900   CI   R1,>8300          IS IT CONTL C? FIXED NOW FROM PREVIOUS >8000
        JEQ  READ$1            IGNOR IT
        MOVB R1,@RKEY          SAVE IT IN THE STRUCTURE
        BL   @RSTCHR           PUT THE CHARACTER BACK ON SCREEN AFTER KEY PUSH

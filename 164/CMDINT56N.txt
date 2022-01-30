@@ -8,6 +8,13 @@
 *           3.01 - 02/25/87
 *           3.02 - 03/31/87
 *           4.07 - 07/15/2021 updated version number in string and register
+*                  around line 271 and the string (2 places)
+*
+*           4.08 - 1/22/2021 Fixed BREAK (ctrl-c) operation in INITSC area
+*
+*                  1/30/2022 Freed 37 bytes in CMDERRMSG and OLD
+*                            RANDOMIZE "RAND16" set via clock for some randomnes
+*
 *-------------------------------------------------------------------------
 MAIN
 *
@@ -269,8 +276,10 @@ INITSC LI   R0,X$SFB
 
 *    NOW SET THE BASIC VERSION NUMBER
 
-       LI   R0,407            THIS IS THIS BASIC NUMBER
+       LI   R0,408            THIS IS THIS BASIC NUMBER
        MOV  R0,@BVERON        AND IT GOES HERE
+
+         MOV  @>F132,@RAND16    ;1.30.2022, for RANDOMIZE w/out seed tt
 
        BL   @INITPS           INIT PERM STRING SPACE
 
@@ -279,6 +288,16 @@ INITSC LI   R0,X$SFB
        MOVB @CAL2PG,@MAP94    INIT THE ASSMEBLY LANGUAGE SPACE
        MOV  @>4000+46,R0
        BL   *R0               INIT THE ASM SPACE
+
+
+;1-22-2022tt, Fixed issue where ctrl-c (break) isn't active if a program
+;      is executed from the command line at load.  Must set vector before
+;      checking for file.
+
+       LI   R0,CBREAK         SET THE BREAK POINT VECTOR
+       MOV  R0,@>00FE
+
+; setup complete at this point
 
 *    CHECK IF THE USER ENTERED A FILE NAME AT THE BEGINNING
 
@@ -306,8 +325,9 @@ AUTO$3 BL   @SROLL            SCROLL THE SCREEN
 
        BL   @SROLL            SCROLL THE SCREEN
 
-       LI   R0,CBREAK         SET THE BREAK POINT VECTOR
-       MOV  R0,@>00FE
+;; moved 1-22-22tt
+;;     LI   R0,CBREAK         SET THE BREAK POINT VECTOR
+;;     MOV  R0,@>00FE
 
        JMP  TOPL5A            SKIP TO READY
 
@@ -535,7 +555,7 @@ KILSYM DECT R10               MAKE ROOM
 
 
 MSGMAI BYTE 11
-       TEXT 'ABASIC 4.07'
+       TEXT 'ABASIC 4.08'
 *      BYTE 0
        PAGE
 *
