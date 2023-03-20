@@ -7,6 +7,9 @@
 *  VERSION: 3.0 - 10/10/86    BASE LINE
 *
 *-------------------------------------------------------------------------
+; 3.11.2022 At GETL10, added test to stop GOSUB to the same line. (lockup)
+;           Works, but disabled until we distinguish between goto/gosub
+;
 ONERR  B    @NONERR
 ONWARN B    @NONWAR
 ONBRK  B    @NONBRK
@@ -110,7 +113,7 @@ GOTO20 CI   R8,LN$*256        IS IS A LINE NUMBER TOKEN
 GETL10 MOVB *R12+,@SNUM+FAC   GET HIGH BYTE
        MOVB *R12+,@SNUML+FAC  GET LOW BYTE
        DEC  @GSINDX           COUNT FOR "ON"
-       JGT  GOTO40            LOOP IF NOT THERE
+       JGT  GOTO40            LOOP IF NOT THERE (dummy starts -1 to fool it)
 
 *    SEARCH LINE NUMBER TABLE
 
@@ -118,6 +121,12 @@ GETL10 MOVB *R12+,@SNUM+FAC   GET HIGH BYTE
        BLWP @SRCHLN           SEARCH LINE TABLE
        MOV  @CLINE,R0         CHECK IF LINE IS FOUND
        JEQ  GOTO93            LINE NOT FOUND
+
+;; Can't allow until we test for gosub vs. goto. 100 GOTO 100 is valid.
+;;     C    @CLINE,@08+FAC    ;3.11.2023, don't allow 100 GOSUB 100 (same line)
+;;     JEQ  GOTO93            ;3.11.2023
+;;
+
        INCT R10               POP GOTO FROM STACK
        B    @EXEC10           RE-ENTER EXEC CODE DIRECTLY
 
