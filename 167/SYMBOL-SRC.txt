@@ -1,3 +1,7 @@
+* 230317    Added DEF P7ENDA to identify end of 8K page segment overlays
+
+       DEF  P7ENDA
+
 *-------------------------------------------------------------------------
 *
 *  FILE:    \167\SYMBOL/SRC
@@ -154,6 +158,7 @@ FILE22 EQU  $                 PAD DATA
        PAGE
        COPY "167\PADDEF"
        LIST
+P7ENDA EQU  $-2
 P7END  EQU  $-2
        END
 

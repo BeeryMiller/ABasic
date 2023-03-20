@@ -7,6 +7,10 @@
 *  VERSION: 3.0 - 10/10/86    BASE LINE
 *
 *-------------------------------------------------------------------------
+; 3.11.2023 TSTARG inhibits the use of a numeric filename. MERGE "1234" fails
+;           with 'invalid filename'.  Removed the test and bypassed error.
+;           Note: the error call is used by CMDINT56N.
+;
 MERGE  DECT R10               MAKE ROOM
        MOV  R11,*R10          SAVE RETURN
        DEC  @ARGC             CHECK ARGUMNET COUNT
@@ -14,10 +18,13 @@ MERGE  DECT R10               MAKE ROOM
        BL   @CLOSEA
        BL   @INITPB           INITIALIZE PAB
        MOV  @ARGV1,R1
-       BL   @TSTARG           TEST ARGUMENT
-       JMP  MERG$1            NUMERIC ITS AN ERROR
+       JMP  MERG$1            3.11.2023, don't test for numeric filename
 
-CMDE09 LI   R0,ERRIFN
+;      BL   @TSTARG           TEST ARGUMENT
+;      JMP  MERG$1            NUMERIC ITS AN ERROR
+;
+
+CMDE09 LI   R0,ERRIFN         ;CMTINNT56N branches here for file error!
 MERG$4 BL   @ERROR
 
 MERG$1 BL   @EDITIN           PERFORM EDIT INITIALIZATION

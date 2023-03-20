@@ -14,6 +14,11 @@
 *
 *    COMMAND SYNTAX  { SAVE [FILE NAME] [FILE TYPE] }
 *
+;3.11.23    SAVE detects whether the filename is strictly numeric and if
+;           so, generates a 'string-number mismatch' error. This is because
+;           it calls TSTARG, which INCT R11 to the error trap. We should allow
+;           any filename - numeric, alpha, or combination.
+;           Removed call and bypassed error trap.
 
 SAVEOP DATA $SAVE
 SMRGPB DATA >0012,0,0,0       MERGE PAB
@@ -33,12 +38,14 @@ SAVE   DECT R10               MAKE ROOM
        CLR  @WSMBLK+10        ASSUME NOT PROTECTED
        BL   @CLOSEA           CLOSE ALL
        BL   @INITPB           INITIALIZE
-       MOV  @ARGV1,R1
-       BL   @TSTARG
-       JMP  SAVE33
+       JMP  SAVE33            3.11.2023, bypass arg test. R1 set at SAVE33.
 
-CMDE10 LI   R0,ERRSNM         (IS A NUMBER, SHOULD BE A STRING)
-SAVE91 BL   @ERROR
+;;       MOV  @ARGV1,R1
+;;       BL   @TSTARG         3.11.2023, stop flagging numeric filename as
+;;       JMP  SAVE33          an error!
+
+;;CMDE10 LI   R0,ERRSNM         (IS A NUMBER, SHOULD BE A STRING)
+SAVE91 BL   @ERROR            ;still used below
 
 SAVE33 MOV  @ARGV1,R1         PUSH ADDRESS
        BL   @GFILEN           GET THE PATH NAME
@@ -48,12 +55,14 @@ SAVE33 MOV  @ARGV1,R1         PUSH ADDRESS
        LI   R0,>0900          STATUS OPCODE
        BL   @OPEN05           SET UP THE PAB
 *      BL   @DOIOCL           PERFORM THE STATUS CALL  OUT 4-1  JU
+
        LI   R1,SMSG1
        MOVB @STATBY+DEFPAB,R0  GET THE STATUS
        SRL  R0,15             PUT THE PROTECT BIT IN THE CARRY OF STATUS REG
        JOC  SAVE46            IT IS PROTECTED, TELL THEM SO
        SRL  R0,1
        JOC  SAVE47            DOES NOT EXIST, SO PERFORM SAVE OPERATION
+
 * FILE EXISTS, SO ASK IF IT SHOULD BE OVER WRITTEN
        LI   R1,SMSG4          FILE EXISTS
        BL   @DPROMP

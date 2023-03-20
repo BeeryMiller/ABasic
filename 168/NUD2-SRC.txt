@@ -1,3 +1,7 @@
+* 230317    Added DEF P8END to identify end of 8K page segment overlays
+
+       DEF  P8END
+
 *-------------------------------------------------------------------------------
 *
 *  FILE:    \168\NUD2/SRC

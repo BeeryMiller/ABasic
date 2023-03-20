@@ -3,7 +3,10 @@
 *
 *  FORMAT:  CALL RECTANGLE(LT, PR1, PC1, PR2, PC2, PR3, PC3
 *
-
+; 2-10-2022 TT  SOLD30 and RECT30, fix XOR value from >0300 to >0003
+;           for some reason, >0300 works here not DRAW. Sigh. Makes no sense
+;           Fixed SOLID rectangle w/ +1 to account for top-bottom+1
+;
 RECTAN BL   @PARFST           PARSE LINE TYPE
        JEQ  RECTER            JUMP IF STRING
        BL   @FTOI             CONVERT IT
@@ -67,7 +70,7 @@ RECT20 MOV  @DRAWC,R5
        SWPB R5
        JMP  RECT10
 
-RECT30 LI   R6,>0300          XOR OP-CODE
+RECT30 LI   R6,>0300          XOR OP-CODE   ;was >0300; must be LSnibble
        JMP  RECT10
 
 RECT40 MOV  @PC3,R1           DRAW BOTTOM LINE
@@ -108,6 +111,9 @@ SOLID  LWPI UREG2             * USE ALT REG SET
        MOV  R4,R8             * TOP LEFT
        S    @PR3,R8           * BOTTOM LEFT
        ABS  R8
+
+       INC  R8        ;2.10.2022 Topleft-botleft requires +1 for total count
+
        CLR  R6                LOAD OP-CODE
        MOV  @LT,R7            GET LINE TYPE
        AI   R7,-3
@@ -129,7 +135,7 @@ SOLD20 MOV  @DRAWC,R5
        SWPB R5
        JMP  SOLD10
 
-SOLD30 LI   R6,>0300          XOR OP-CODE
+SOLD30 LI   R6,>0300          XOR OP-CODE    ;was >0300, must be LSNibble
        JMP  SOLD10
 
 

@@ -1,3 +1,7 @@
+* 230317    Added DEF P7ENDB to identify end of 8K page segment overlays
+
+       DEF  P7ENDB
+
 *-------------------------------------------------------------------------
 *
 *  FILE:    \166\CALL2/SRC
@@ -148,6 +152,7 @@ FILE27 EQU  $                 MYART PICTURE LOAD
        PAGE
        COPY "166\MYARTLOAD"
        LIST
+P7ENDB EQU  $-2
 P7END  EQU  $-2
        END
 

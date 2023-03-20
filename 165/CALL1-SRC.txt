@@ -1,3 +1,7 @@
+* 230317    Added DEF P6END to identify end of 8K page segment overlays
+
+       DEF  P6END
+
 *-------------------------------------------------------------------------
 *
 *  FILE:    \165\CALL/SRC

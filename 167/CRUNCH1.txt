@@ -6,6 +6,11 @@
 *
 *  VERSION: 3.0 - 10/15/86    BASE LINE
 *
+*
+* 6.5.2022, Type "GOSUB 173" and crunch will add RETURN (>88) after line #
+;           Possibly in PUTCHR for extended codes. >AD representes "173"
+;
+;
 *-------------------------------------------------------------------------
 CRNMD  DATA 0                 CRUNCH MODE
 EXTTOK DATA 0
@@ -470,10 +475,14 @@ CRU100 MOV  R8,R8             AT THE END OF THE LINE
        MOV  R0,R0             GET A LINE NUMBER
        JEQ  CRU105            NO - BACK TO NORMAL NUMERIC MODE
        LI   R8,LN$            LOAD A LINE NUMBER TOKEN
+
+; fixes w/putchr2        3.10.2023
        BL   @PUTCHR           PUT IT OUT
        MOV  R0,R8             SET UP TO PUT OUT BINARY NUM
        SWPB R8                SWAP TO PUT OUT MSB
-       BL   @PUTCHR           PUT OUT FIRST BYTE
+       BL   @PUTCHR2          PUT OUT FIRST BYTE
+       SETO @PUTCHRFIX   ;FOR 2nd half of line number, via CRU06
+;
        SRL  R8,8              BARE THE SECOND
        JMP  CRU87             JMP BACK INTO IT
 CRU105 B    @CRU04
@@ -528,21 +537,35 @@ BACKUP DEC  @BBUFP            BACK UP POINTER
 *
 *      NAME:    PUTCHR
 *
+PUTCHRFIX DATA >0000     ;0=NORMAL; 1=LINE# OPERATION
+
+PUTCHR2 SETO @PUTCHRFIX       3.10.2023
 
 PUTCHR MOV  @RAMPTR,R1        GET THE ADDRESS
        CI   R1,CRNEND         AT THE END OF THE BUFFER
        JH   CRULTL            ERROR LINE TOO LONG
        MOVB *R4,*R1           COPY THE TOKEN
        INC  @RAMPTR           UPDATE RAM POINTER
+       ABS  @PUTCHRFIX        ;3.10.2023  normal scan?
+       JNE  PUT1RX            ;3.10.2023  no. Skip to fix line # intercept
+
        CB   *R4,@CBHE3        GOT EXTENDED FUNCTION
        JEQ  PUT10             JUMP IF YES
+;
+;6.4.22, removed for TEST purposes. CINT?
+;3.10.2023, restored for normal operation until we figure it out.
+;
        CB   *R4,@CBHAD        GOT EXTENDED NUD
        JEQ  PUT10             JUMP IF YES
-       RT                     NO RETURN
+;;----end of test area for crunch test
+
+       JMP  PUT1RX            ;3.10.2023, CAN INVERT JUMP LATER
+;;     RT                     NO RETURN      ;3.10.2023
 
 PUT10  INC  R1                INC POINTER
        MOVB @EXTTOK,*R1       WRITE THE TOKEN
        INC  @RAMPTR           INC PERM POINTER
+PUT1RX CLR  @PUTCHRFIX        ;3.10.2023, enforce normal scan mode
        RT                     AND RETURN
 
 *
@@ -677,4 +700,4 @@ CBHBE  BYTE >BE
 PERCT  BYTE >25
 BALBAT BYTE >21
 POUND  BYTE >23
-
+;eof

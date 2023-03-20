@@ -1,3 +1,7 @@
+* 230317    Added DEF P4END to identify end of 8K page segment overlays
+
+       DEF  P4END
+
 *-------------------------------------------------------------------------
 *
 *  FILE:    \164\CMD/SRC

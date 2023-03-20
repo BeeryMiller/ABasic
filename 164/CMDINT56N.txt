@@ -8,7 +8,7 @@
 *           3.01 - 02/25/87
 *           3.02 - 03/31/87
 *           4.07 - 07/15/2021 updated version number in string and register
-*                  around line 271 and the string (2 places)
+*                  around line 271 and the string (2 places) "msgmai"
 *
 *           4.08 - 1/22/2021 Fixed BREAK (ctrl-c) operation in INITSC area
 *
@@ -276,7 +276,7 @@ INITSC LI   R0,X$SFB
 
 *    NOW SET THE BASIC VERSION NUMBER
 
-       LI   R0,408            THIS IS THIS BASIC NUMBER
+       LI   R0,409            THIS IS THIS BASIC NUMBER
        MOV  R0,@BVERON        AND IT GOES HERE
 
          MOV  @>F132,@RAND16    ;1.30.2022, for RANDOMIZE w/out seed tt
@@ -555,7 +555,7 @@ KILSYM DECT R10               MAKE ROOM
 
 
 MSGMAI BYTE 11
-       TEXT 'ABASIC 4.08'
+       TEXT 'ABASIC 4.09'
 *      BYTE 0
        PAGE
 *
